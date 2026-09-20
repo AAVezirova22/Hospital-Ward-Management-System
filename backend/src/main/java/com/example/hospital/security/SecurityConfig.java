@@ -54,6 +54,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout")
                     .authenticated()
+                    .requestMatchers("/api/v1/management/**")
+                    .hasRole("ADMIN")
                     .requestMatchers("/api/v1/portal/**")
                     .hasRole("PATIENT")
                     .anyRequest()
