@@ -51,32 +51,32 @@ public class DemoSeed {
     String[][] ds = DemoScenario.DOCTORS;
     for (int i = 0; i < ds.length; i++) {
       var d = new Doctor();
-      d.doctorIdentifier = "DOC-00" + (i + 1);
-      d.firstName = ds[i][0];
-      d.lastName = ds[i][1];
-      d.specialty = ds[i][2];
+      d.setDoctorIdentifier("DOC-00" + (i + 1));
+      d.setFirstName(ds[i][0]);
+      d.setLastName(ds[i][1]);
+      d.setSpecialty(ds[i][2]);
       doctors.save(d);
       if (i == 0) {
         var u = new AppUser();
-        u.username = "doctor";
-        u.role = "DOCTOR";
-        u.doctorId = d.id;
-        u.passwordHash = encoder.encode(password);
+        u.setUsername("doctor");
+        u.setRole("DOCTOR");
+        u.setDoctorId(d.getId());
+        u.setPasswordHash(encoder.encode(password));
         users.save(u);
         enroll(u);
       }
     }
     var staff = new AppUser();
-    staff.username = "staff";
-    staff.role = "MEDICAL_STAFF";
-    staff.passwordHash = encoder.encode(password);
+    staff.setUsername("staff");
+    staff.setRole("MEDICAL_STAFF");
+    staff.setPasswordHash(encoder.encode(password));
     users.save(staff);
     enroll(staff);
     for (int i = 0; i < 8; i++) {
       var r = new Room();
-      r.roomNumber = "" + (301 + i);
-      r.bedCount = i < 4 ? 4 : 2;
-      r.active = i != 7;
+      r.setRoomNumber("" + (301 + i));
+      r.setBedCount(i < 4 ? 4 : 2);
+      r.setActive(i != 7);
       rooms.save(r);
     }
     String[][] ps = DemoScenario.PATIENTS;
@@ -86,9 +86,9 @@ public class DemoSeed {
     String[] costs = DemoScenario.PROCEDURE_COSTS;
     for (int i = 0; i < names.length; i++) {
       var mp = new MedicalProcedure();
-      mp.procedureCode = "PR-00" + (i + 1);
-      mp.procedureName = names[i];
-      mp.currentCost = new BigDecimal(costs[i]);
+      mp.setProcedureCode("PR-00" + (i + 1));
+      mp.setProcedureName(names[i]);
+      mp.setCurrentCost(new BigDecimal(costs[i]));
       procedures.save(mp);
     }
     var catalogue = procedures.findAll();
@@ -96,62 +96,61 @@ public class DemoSeed {
     int[] placement = {2, 0, 0, 1, 1, 2, 2, 3, 3, 4, 5, 0, 1, 3};
     for (int i = 0; i < ps.length; i++) {
       var p = new Patient();
-      p.patientIdentifier = "PAT-" + String.format("%04d", i + 1);
-      p.firstName = ps[i][0];
-      p.lastName = ps[i][1];
-      p.dateOfBirth = LocalDate.of(1954 + (i * 7 % 53), 1 + i % 12, 5 + i % 23);
-      p.address = "Synthetic demonstration record";
+      p.setPatientIdentifier("PAT-" + String.format("%04d", i + 1));
+      p.setFirstName(ps[i][0]);
+      p.setLastName(ps[i][1]);
+      p.setDateOfBirth(LocalDate.of(1954 + (i * 7 % 53), 1 + i % 12, 5 + i % 23));
+      p.setAddress("Synthetic demonstration record");
       patients.save(p);
       if (i < 26) {
         var a = new Admission();
-        a.admissionNumber = "ADM-DEMO-" + (i + 1);
-        a.patientId = p.id;
-        a.attendingDoctorId = allDoctors.get(i % 3).id;
-        a.admissionDateTime = now.minusSeconds((i < 14 ? i : 2 + (i - 14)) * 86400L + 1700 + i * 113);
+        a.setAdmissionNumber("ADM-DEMO-" + (i + 1));
+        a.setPatientId(p.getId());
+        a.setAttendingDoctorId(allDoctors.get(i % 3).getId());
+        a.setAdmissionDateTime(now.minusSeconds((i < 14 ? i : 2 + (i - 14)) * 86400L + 1700 + i * 113));
         if (i >= 14) {
-          a.status = "DISCHARGED";
-          a.dischargeDateTime = a.admissionDateTime.plusSeconds(86400L + i * 419);
+          a.setStatus("DISCHARGED");
+          a.setDischargeDateTime(a.getAdmissionDateTime().plusSeconds(86400L + i * 419));
         }
-        a.createdBy = admin.id;
-        if (i < 14 && i % 4 == 0) a.expectedDischargeDate = LocalDate.now(ZoneOffset.UTC).plusDays(i % 3);
+        a.setCreatedBy(admin.getId());
+        if (i < 14 && i % 4 == 0) a.setExpectedDischargeDate(LocalDate.now(ZoneOffset.UTC).plusDays(i % 3));
         admissions.save(a);
         var ra = new RoomAssignment();
-        ra.admissionId = a.id;
-        ra.roomId = allRooms.get(i < 14 ? placement[i] : i % 6).id;
-        ra.assignedAt = a.admissionDateTime;
-        ra.createdBy = admin.id;
-        ra.reason = "Initial admission";
-        ra.releasedAt = a.dischargeDateTime;
+        ra.setAdmissionId(a.getId());
+        ra.setRoomId(allRooms.get(i < 14 ? placement[i] : i % 6).getId());
+        ra.setAssignedAt(a.getAdmissionDateTime());
+        ra.setCreatedBy(admin.getId());
+        ra.setReason("Initial admission");
+        ra.setReleasedAt(a.getDischargeDateTime());
         assignments.save(ra);
-        event(admin.id, "ADMISSION_CREATED", a.id, a.admissionDateTime);
-        if (i >= 14) event(admin.id, "PATIENT_DISCHARGED", a.id, a.dischargeDateTime);
+        event(admin.getId(), "ADMISSION_CREATED", a.getId(), a.getAdmissionDateTime());
+        if (i >= 14) event(admin.getId(), "PATIENT_DISCHARGED", a.getId(), a.getDischargeDateTime());
         if (i == 5 || i == 8 || i == 10) {
-          ra.roomId = allRooms.get(6).id;
-          ra.releasedAt = a.admissionDateTime.plusSeconds(3600L * (i + 1));
+          ra.setRoomId(allRooms.get(6).getId());
+          ra.setReleasedAt(a.getAdmissionDateTime().plusSeconds(3600L * (i + 1)));
           assignments.saveAndFlush(ra);
           var transfer = new RoomAssignment();
-          transfer.admissionId = a.id;
-          transfer.roomId = allRooms.get(placement[i]).id;
-          transfer.assignedAt = ra.releasedAt;
-          transfer.createdBy = admin.id;
-          transfer.reason = "Ward capacity balancing";
+          transfer.setAdmissionId(a.getId());
+          transfer.setRoomId(allRooms.get(placement[i]).getId());
+          transfer.setAssignedAt(ra.getReleasedAt());
+          transfer.setCreatedBy(admin.getId());
+          transfer.setReason("Ward capacity balancing");
           assignments.save(transfer);
-          event(admin.id, "ROOM_TRANSFERRED", a.id, transfer.assignedAt);
+          event(admin.getId(), "ROOM_TRANSFERRED", a.getId(), transfer.getAssignedAt());
         }
         for (int j = 0; j < 1 + i % 3; j++) {
           var mp = catalogue.get((i + j) % catalogue.size());
           var pp = new PerformedProcedure();
-          pp.admissionId = a.id;
-          pp.medicalProcedureId = mp.id;
-          pp.performedByDoctorId = a.attendingDoctorId;
-          var end = a.dischargeDateTime == null ? now : a.dischargeDateTime;
-          pp.performedAt =
-              a.admissionDateTime.plusSeconds(
-                  Duration.between(a.admissionDateTime, end).getSeconds() * (j + 1) / (2 + i % 3));
-          pp.priceAtExecution = mp.currentCost;
-          pp.note = "Synthetic demonstration procedure";
+          pp.setAdmissionId(a.getId());
+          pp.setMedicalProcedureId(mp.getId());
+          pp.setPerformedByDoctorId(a.getAttendingDoctorId());
+          var end = a.getDischargeDateTime() == null ? now : a.getDischargeDateTime();
+          pp.setPerformedAt(a.getAdmissionDateTime().plusSeconds(
+                  Duration.between(a.getAdmissionDateTime(), end).getSeconds() * (j + 1) / (2 + i % 3)));
+          pp.setPriceAtExecution(mp.getCurrentCost());
+          pp.setNote("Synthetic demonstration procedure");
           performed.save(pp);
-          event(admin.id, "PROCEDURE_RECORDED", a.id, pp.performedAt);
+          event(admin.getId(), "PROCEDURE_RECORDED", a.getId(), pp.getPerformedAt());
         }
       }
     }
@@ -170,25 +169,25 @@ public class DemoSeed {
     jdbc.update(
         "insert into hospital_memberships(hospital_id,user_id,owner) values (?,?,?) on conflict do nothing",
         hospitalId,
-        user.id,
-        "ADMIN".equals(user.role));
+        user.getId(),
+        "ADMIN".equals(user.getRole()));
     jdbc.update(
         "insert into department_memberships(department_id,user_id,role,doctor_id) values (?,?,?,?) on conflict do nothing",
         departmentId,
-        user.id,
-        user.role,
-        user.doctorId);
+        user.getId(),
+        user.getRole(),
+        user.getDoctorId());
   }
 
   private void event(Long userId, String type, Long admissionId, Instant time) {
     var e = new AuditEvent();
-    e.userId = userId;
-    e.eventType = type;
-    e.entityType = "Admission";
-    e.entityId = admissionId;
-    e.timestamp = time;
-    e.source = "DEMO";
-    e.metadata = "Synthetic scenario";
+    e.setUserId(userId);
+    e.setEventType(type);
+    e.setEntityType("Admission");
+    e.setEntityId(admissionId);
+    e.setTimestamp(time);
+    e.setSource("DEMO");
+    e.setMetadata("Synthetic scenario");
     audit.save(e);
   }
 }
