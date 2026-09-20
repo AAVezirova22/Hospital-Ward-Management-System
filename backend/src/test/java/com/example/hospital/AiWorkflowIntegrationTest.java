@@ -27,6 +27,7 @@ class AiWorkflowIntegrationTest {
   static void database(DynamicPropertyRegistry r) { HospitalIntegrationTest.database(r); }
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper json;
+  @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
   @MockitoBean AiModelClient model;
 
   @BeforeEach void setup() { when(model.identifier()).thenReturn("workflow-fixture"); }
@@ -95,8 +96,8 @@ class AiWorkflowIntegrationTest {
     postJson("admin", "/ai-actions/" + id + "/confirm", Map.of()).andExpect(status().isConflict());
     var hospitals = body(mvc.perform(get("/api/v1/workspaces").with(user("admin"))));
     assertThat(hospitals.toString()).doesNotContain(name);
-    body(mvc.perform(get("/api/v1/ai-actions/" + id).with(user("admin")).header("X-Department-Id", "1")))
-        .path("status").asText().equals("PENDING");
+    assertThat(body(mvc.perform(get("/api/v1/ai-actions/" + id).with(user("admin")).header("X-Department-Id", "1")))
+        .path("status").asText()).isEqualTo("PENDING");
   }
 
   @Test void referencesRolesOwnershipAndCancellationAreEnforced() throws Exception {
@@ -148,5 +149,50 @@ class AiWorkflowIntegrationTest {
     mvc.perform(multipart("/api/v1/assistant/sources").file(new MockMultipartFile("file", "note.txt", "text/plain", "data".getBytes()))
         .with(user("admin"))).andExpect(status().isForbidden());
   }
-}
 
+  @Test void expiredWorkflowCannotBeConfirmed() throws Exception {
+    var proposal = propose(plan(List.of(step("r", "createRoom",
+        Map.of("roomNumber", unique(), "bedCount", 1, "active", true)))));
+    long id = proposal.at("/data/action/id").asLong();
+    jdbc.update("update ai_pending_actions set expires_at=now()-interval '1 minute' where id=?", id);
+    postJson("admin", "/ai-actions/" + id + "/confirm", Map.of())
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ACTION_EXPIRED"));
+  }
+
+  @Test void extractsWordExcelAndPdfWithoutCustomParsers() throws Exception {
+    List<byte[]> bytes = new ArrayList<>();
+    try (var doc = new org.apache.poi.xwpf.usermodel.XWPFDocument();
+         var out = new java.io.ByteArrayOutputStream()) {
+      doc.createParagraph().createRun().setText("Word workflow source");
+      doc.write(out); bytes.add(out.toByteArray());
+    }
+    try (var book = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+         var out = new java.io.ByteArrayOutputStream()) {
+      book.createSheet("Workflow").createRow(0).createCell(0).setCellValue("Excel workflow source");
+      book.write(out); bytes.add(out.toByteArray());
+    }
+    try (var pdf = new org.apache.pdfbox.pdmodel.PDDocument();
+         var out = new java.io.ByteArrayOutputStream()) {
+      var page = new org.apache.pdfbox.pdmodel.PDPage(); pdf.addPage(page);
+      try (var stream = new org.apache.pdfbox.pdmodel.PDPageContentStream(pdf, page)) {
+        stream.beginText();
+        stream.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
+        stream.newLineAtOffset(50, 700); stream.showText("PDF workflow source"); stream.endText();
+      }
+      pdf.save(out); bytes.add(out.toByteArray());
+    }
+    var extensions = List.of("docx", "xlsx", "pdf");
+    for (int i = 0; i < extensions.size(); i++) {
+      var source = body(mvc.perform(multipart("/api/v1/assistant/sources")
+          .file(new MockMultipartFile("file", "source." + extensions.get(i), "application/octet-stream", bytes.get(i)))
+          .with(user("admin")).with(csrf()).header("X-Department-Id", "1")));
+      when(model.complete(anyString(), any())).thenAnswer(inv -> {
+        AiModelClient.Context ctx = inv.getArgument(1);
+        assertThat(ctx.sources().getFirst().get("text")).contains("workflow source");
+        return new AiModelClient.ToolCall("respond", Map.of("message", "Read successfully."));
+      });
+      postJson("admin", "/assistant/messages", Map.of("message", "Read", "sourceIds", List.of(source.get("id").asText())))
+          .andExpect(status().isOk());
+    }
+  }
+}
