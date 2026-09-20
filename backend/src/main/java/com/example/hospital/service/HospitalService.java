@@ -87,6 +87,22 @@ public class HospitalService {
         .toList();
   }
 
+  public Patient patientByRef(String ref) {
+    if (ref == null || ref.isBlank()) throw ApiException.missing();
+    if (ref.chars().allMatch(Character::isDigit)) return patient(Long.parseLong(ref));
+    var found =
+        patients.findAll().stream()
+            .filter(p -> p.patientIdentifier.equals(ref))
+            .findFirst()
+            .orElseThrow(ApiException::missing);
+    accessible(found.id);
+    return found;
+  }
+
+  public Map<String, Object> summary(String ref) {
+    return summary(patientByRef(ref).id);
+  }
+
   public List<Doctor> doctors() {
     return doctors.findAll();
   }
@@ -205,7 +221,7 @@ public class HospitalService {
     p.lastName = in.lastName().trim();
     p.dateOfBirth = in.dateOfBirth();
     p.address = in.address();
-    p.phoneNumber = in.phoneNumber();
+    p.phoneNumber = in.phoneNumber() == null || in.phoneNumber().isBlank() ? null : in.phoneNumber().trim();
     patients.saveAndFlush(p);
     audit.log(id == null ? "PATIENT_CREATED" : "PATIENT_UPDATED", "Patient", p.id, "UI");
     return p;
