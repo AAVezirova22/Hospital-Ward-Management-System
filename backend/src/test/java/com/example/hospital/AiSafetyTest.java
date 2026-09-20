@@ -110,9 +110,14 @@ class AiSafetyTest {
               return s;
             });
     var interactions = mock(AiInteractionRepository.class);
+    var rates = mock(RateLimitService.class);
+    doNothing()
+        .doThrow(new ApiException(429, "AI_RATE_LIMIT", "Wait"))
+        .when(rates)
+        .hit(any(), anyInt(), any(), any(), any());
     var service =
         new AiAssistantService(
-            model, registry, sessions, interactions, actor, hospital, mock(AuditService.class), 1);
+            model, registry, sessions, interactions, actor, hospital, mock(AuditService.class), rates, 1);
     var response = service.message(new MessageInput(null, "status", "/app/dashboard", null));
     assertThat(response.responseType()).isEqualTo("ERROR");
     assertThat(response.message()).contains("standard hospital screens remain available");
