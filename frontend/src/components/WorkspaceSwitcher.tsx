@@ -34,6 +34,14 @@ async function copyCode(value: string) {
   } catch {}
 }
 
+async function revealAndCopy(hospital: boolean, id: number) {
+  const path = hospital
+    ? `/workspaces/hospitals/${id}/code`
+    : `/workspaces/departments/${id}/code`;
+  const result = await api<{ code: string }>(path);
+  if (result.code) await copyCode(result.code);
+}
+
 export function WorkspaceSwitcher() {
   const client = useQueryClient();
   const { data, error, isLoading } = useQuery<WorkspaceList>({
@@ -190,14 +198,16 @@ export function WorkspaceSwitcher() {
                             {department.role.replaceAll("_", " ").toLowerCase()}
                           </small>
                         </button>
-                        {department.joinCode && (
+                        {department.hasJoinCode && (
                           <p className="workspace-code">
-                            Department code {department.joinCode}
+                            Department join code
                             <button
                               type="button"
                               className="icon"
                               aria-label="Copy department join code"
-                              onClick={() => copyCode(department.joinCode!)}
+                              onClick={() =>
+                                void revealAndCopy(false, department.id)
+                              }
                             >
                               <Copy size={14} />
                             </button>
@@ -256,14 +266,14 @@ export function WorkspaceSwitcher() {
                       </li>
                     ))}
                   </ul>
-                  {hospital.owner && hospital.joinCode && (
+                  {hospital.owner && hospital.hasJoinCode && (
                     <p className="workspace-code">
-                      Hospital code {hospital.joinCode}
+                      Hospital join code
                       <button
                         type="button"
                         className="icon"
                         aria-label="Copy hospital join code"
-                        onClick={() => copyCode(hospital.joinCode!)}
+                        onClick={() => void revealAndCopy(true, hospital.id)}
                       >
                         <Copy size={14} />
                       </button>

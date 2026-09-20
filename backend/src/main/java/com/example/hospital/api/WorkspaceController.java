@@ -35,6 +35,14 @@ public class WorkspaceController {
   public Object join(@Valid @RequestBody JoinInput input, HttpServletRequest request) {
     return workspaces.join(input.code(), request.getRemoteAddr());
   }
+  @GetMapping("/hospitals/{id}/code")
+  public Object revealHospital(@PathVariable long id) {
+    return Map.of("code", workspaces.reveal(true, id));
+  }
+  @GetMapping("/departments/{id}/code")
+  public Object revealDepartment(@PathVariable long id) {
+    return Map.of("code", workspaces.reveal(false, id));
+  }
   @PostMapping("/hospitals/{id}/code")
   public Object hospitalCode(@PathVariable long id, @RequestBody(required = false) RotateInput input) {
     return Map.of("code", workspaces.rotate(true, id, hours(input), singleUse(input)));

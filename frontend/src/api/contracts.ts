@@ -122,13 +122,13 @@ export interface WorkspaceDepartment {
   id: number;
   name: string;
   role: string;
-  joinCode: string | null;
+  hasJoinCode: boolean;
 }
 export interface WorkspaceHospital {
   id: number;
   name: string;
   owner: boolean;
-  joinCode: string | null;
+  hasJoinCode: boolean;
   departments: WorkspaceDepartment[];
 }
 export interface WorkspaceList {

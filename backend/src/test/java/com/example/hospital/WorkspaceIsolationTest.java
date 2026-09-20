@@ -506,4 +506,43 @@ class WorkspaceIsolationTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_CODE"));
   }
+
+  @Test
+  void workspaceListOmitsLiveJoinCodes() throws Exception {
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Reveal Clinic " + unique(), "departmentName", "Codes"),
+                1L),
+            201);
+    long hospitalId = created.get("hospitalId").asLong();
+    long departmentId = created.get("departmentId").asLong();
+    var listed = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
+    assertThat(listed.toString()).doesNotContain(created.get("hospitalCode").asText());
+    assertThat(listed.toString()).doesNotContain(created.get("departmentCode").asText());
+    boolean hospitalFlag = false;
+    boolean departmentFlag = false;
+    for (JsonNode hospital : listed.get("hospitals")) {
+      if (hospital.get("id").asLong() == hospitalId) {
+        hospitalFlag = hospital.get("hasJoinCode").asBoolean();
+        for (JsonNode department : hospital.get("departments")) {
+          if (department.get("id").asLong() == departmentId)
+            departmentFlag = department.get("hasJoinCode").asBoolean();
+        }
+      }
+    }
+    assertThat(hospitalFlag).isTrue();
+    assertThat(departmentFlag).isTrue();
+    var hospitalCode =
+        body(call("admin", "GET", "/api/v1/workspaces/hospitals/" + hospitalId + "/code", null, 1L), 200);
+    var departmentCode =
+        body(
+            call("admin", "GET", "/api/v1/workspaces/departments/" + departmentId + "/code", null, 1L),
+            200);
+    assertThat(hospitalCode.get("code").asText()).isEqualTo(created.get("hospitalCode").asText());
+    assertThat(departmentCode.get("code").asText()).isEqualTo(created.get("departmentCode").asText());
+  }
 }
