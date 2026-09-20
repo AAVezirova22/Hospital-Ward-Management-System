@@ -13,7 +13,7 @@ import {
   Modal,
   Title,
 } from "../../components/workspace";
-import { ArrowUpRight, ClipboardList } from "lucide-react";
+import { ArrowUpRight, ClipboardList } from "../../icons";
 export function Admissions() {
   const { data, error, isLoading } = useData("/admissions");
   const [active, setActive] = useState(true);
