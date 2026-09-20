@@ -1,8 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { motion } from "motion/react";
 import { FilmMedia } from "./FilmMedia";
-import { clip, still } from "./media";
+import { still } from "./media";
+import { useGpuScene } from "./gpu";
+
+const Displacement = dynamic(() => import("../vendor/canvasui/Displacement"), {
+  ssr: false,
+});
 
 const STATS = [
   { value: "186", label: "consultants across the campus" },
@@ -11,13 +17,33 @@ const STATS = [
 ];
 
 export function Care() {
+  const gpu = useGpuScene();
+  const photo = (
+    <FilmMedia
+      still={still("care")}
+      alt="A nurse passing behind hospital glass at sunrise"
+    />
+  );
   return (
     <section className="film-care" id="numbers">
-      <FilmMedia
-        still={still("care")}
-        video={clip("care")}
-        alt="A nurse passing behind hospital glass at sunrise"
-      />
+      {gpu ? (
+        <Displacement
+          className="film-care-gpu"
+          style={{ position: "absolute", inset: 0 }}
+          grid={36}
+          radius={0.16}
+          strength={0.08}
+          threshold={140}
+          scramble={0}
+          aberration={0.35}
+          grain={0.04}
+          shift={0.7}
+        >
+          {photo}
+        </Displacement>
+      ) : (
+        photo
+      )}
       <div className="film-care-shade" />
       <div className="film-care-copy">
         <h2>Care when it matters most</h2>
