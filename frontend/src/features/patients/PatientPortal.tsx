@@ -17,7 +17,7 @@ export function PatientPortal({
       api<{ patient: Patient; admissions: AdmissionView[] }>("/portal/me"),
   });
   return (
-    <div className="patient-portal">
+    <div className="patient-portal workspace">
       <header>
         <strong className="brand">medcore</strong>
         <div className="actions">
@@ -28,7 +28,6 @@ export function PatientPortal({
         </div>
       </header>
       <main>
-        <span className="eyebrow">YOUR PATIENT WORKSPACE</span>
         <h1>
           {query.data
             ? `Hello, ${query.data.patient.firstName}.`

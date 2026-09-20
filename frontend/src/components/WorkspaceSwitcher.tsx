@@ -12,18 +12,7 @@ import {
 import { api, activeDepartment, setActiveDepartment } from "../api";
 import type { WorkspaceHospital, WorkspaceList } from "../api/contracts";
 import { ErrorBox, Modal } from "./workspace";
-
-function currentNames(data: WorkspaceList | undefined) {
-  const id = Number(activeDepartment() || data?.activeDepartmentId || 0);
-  for (const hospital of data?.hospitals ?? []) {
-    const department = hospital.departments.find((item) => item.id === id);
-    if (department) return { hospital, department };
-  }
-  return {
-    hospital: data?.hospitals[0],
-    department: data?.hospitals[0]?.departments[0],
-  };
-}
+import { currentNames } from "./workspace-names";
 
 async function copyCode(value: string) {
   try {
@@ -32,6 +21,14 @@ async function copyCode(value: string) {
       new CustomEvent("saved", { detail: "Join code copied" }),
     );
   } catch {}
+}
+
+async function revealAndCopy(hospital: boolean, id: number) {
+  const path = hospital
+    ? `/workspaces/hospitals/${id}/code`
+    : `/workspaces/departments/${id}/code`;
+  const result = await api<{ code: string }>(path);
+  if (result.code) await copyCode(result.code);
 }
 
 export function WorkspaceSwitcher() {
@@ -47,6 +44,7 @@ export function WorkspaceSwitcher() {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<Error | null>(null);
   const [joinCode, setJoinCode] = useState("");
+  const [joinHint, setJoinHint] = useState("");
   const [hospitalName, setHospitalName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
   const [hostHospital, setHostHospital] = useState<WorkspaceHospital>();
@@ -67,13 +65,32 @@ export function WorkspaceSwitcher() {
     setOpen(false);
   };
 
-  const submit = async (run: () => Promise<{ departmentId?: number }>) => {
+  const submit = async (
+    run: () => Promise<{
+      departmentId?: number;
+      hospitalId?: number;
+      hospitalName?: string;
+    }>,
+  ) => {
     setBusy(true);
     setFormError(null);
+    setJoinHint("");
     try {
       const result = await run();
-      setPanel("list");
-      await refresh(result.departmentId);
+      if (result.departmentId) {
+        setPanel("list");
+        await refresh(result.departmentId);
+      } else if (result.hospitalId && !result.departmentId) {
+        setJoinCode("");
+        setPanel("join");
+        setJoinHint(
+          `Joined ${result.hospitalName || "the hospital"}. Paste a department code to open its records.`,
+        );
+        await client.invalidateQueries({ queryKey: ["/workspaces"] });
+      } else {
+        setPanel("list");
+        await refresh(result.departmentId);
+      }
     } catch (e) {
       setFormError(e as Error);
     } finally {
@@ -87,14 +104,30 @@ export function WorkspaceSwitcher() {
     setFormError(null);
   };
 
-  const rotate = async (hospital: boolean, id: number) => {
+  const rotate = async (
+    hospital: boolean,
+    id: number,
+    options?: { expiresInHours?: number; singleUse?: boolean },
+  ) => {
+    const oneTime = Boolean(options?.singleUse);
+    if (
+      !window.confirm(
+        oneTime
+          ? "Replace this join code with a 24-hour, one-time invite? The previous code will stop working immediately."
+          : "Replace this join code? The previous code will stop working immediately.",
+      )
+    )
+      return;
     setBusy(true);
     setFormError(null);
     try {
       const path = hospital
         ? `/workspaces/hospitals/${id}/code`
         : `/workspaces/departments/${id}/code`;
-      const result = await api<{ code: string }>(path, "POST");
+      const result = await api<{ code: string }>(path, "POST", {
+        expiresInHours: options?.expiresInHours ?? null,
+        singleUse: oneTime,
+      });
       await client.invalidateQueries({ queryKey: ["/workspaces"] });
       if (result.code) await copyCode(result.code);
     } catch (e) {
@@ -108,6 +141,7 @@ export function WorkspaceSwitcher() {
       <button
         type="button"
         className="department workspace-switcher"
+        aria-label="Open hospital switcher"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
@@ -154,14 +188,16 @@ export function WorkspaceSwitcher() {
                             {department.role.replaceAll("_", " ").toLowerCase()}
                           </small>
                         </button>
-                        {department.joinCode && (
+                        {department.hasJoinCode && (
                           <p className="workspace-code">
-                            Department code {department.joinCode}
+                            Department join code
                             <button
                               type="button"
                               className="icon"
                               aria-label="Copy department join code"
-                              onClick={() => copyCode(department.joinCode!)}
+                              onClick={() =>
+                                void revealAndCopy(false, department.id)
+                              }
                             >
                               <Copy size={14} />
                             </button>
@@ -173,19 +209,61 @@ export function WorkspaceSwitcher() {
                             >
                               Replace
                             </button>
+                            <button
+                              type="button"
+                              className="text-button"
+                              disabled={busy}
+                              onClick={() =>
+                                rotate(false, department.id, {
+                                  expiresInHours: 24,
+                                  singleUse: true,
+                                })
+                              }
+                            >
+                              One-time 24h
+                            </button>
                           </p>
                         )}
+                        <button
+                          type="button"
+                          className="text-button"
+                          disabled={busy}
+                          onClick={() =>
+                            void (async () => {
+                              setBusy(true);
+                              setFormError(null);
+                              try {
+                                await api(
+                                  `/workspaces/departments/${department.id}/leave`,
+                                  "POST",
+                                  {},
+                                );
+                                if (
+                                  Number(activeDepartment()) === department.id
+                                )
+                                  setActiveDepartment(null);
+                                await client.invalidateQueries();
+                              } catch (e) {
+                                setFormError(e as Error);
+                              } finally {
+                                setBusy(false);
+                              }
+                            })()
+                          }
+                        >
+                          Leave department
+                        </button>
                       </li>
                     ))}
                   </ul>
-                  {hospital.owner && hospital.joinCode && (
+                  {hospital.owner && hospital.hasJoinCode && (
                     <p className="workspace-code">
-                      Hospital code {hospital.joinCode}
+                      Hospital join code
                       <button
                         type="button"
                         className="icon"
                         aria-label="Copy hospital join code"
-                        onClick={() => copyCode(hospital.joinCode!)}
+                        onClick={() => void revealAndCopy(true, hospital.id)}
                       >
                         <Copy size={14} />
                       </button>
@@ -197,8 +275,47 @@ export function WorkspaceSwitcher() {
                       >
                         Replace
                       </button>
+                      <button
+                        type="button"
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() =>
+                          rotate(true, hospital.id, {
+                            expiresInHours: 24,
+                            singleUse: true,
+                          })
+                        }
+                      >
+                        One-time 24h
+                      </button>
                     </p>
                   )}
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() =>
+                      void (async () => {
+                        setBusy(true);
+                        setFormError(null);
+                        try {
+                          await api(
+                            `/workspaces/hospitals/${hospital.id}/leave`,
+                            "POST",
+                            {},
+                          );
+                          setActiveDepartment(null);
+                          await client.invalidateQueries();
+                        } catch (e) {
+                          setFormError(e as Error);
+                        } finally {
+                          setBusy(false);
+                        }
+                      })()
+                    }
+                  >
+                    Leave hospital
+                  </button>
                   {hospital.owner && (
                     <button
                       type="button"
@@ -257,6 +374,11 @@ export function WorkspaceSwitcher() {
                 opens that department as medical staff, never as an
                 administrator.
               </p>
+              {joinHint && (
+                <p className="muted" role="status">
+                  {joinHint}
+                </p>
+              )}
               <label>
                 Join code
                 <input

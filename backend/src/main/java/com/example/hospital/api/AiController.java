@@ -1,7 +1,7 @@
 package com.example.hospital.api;
 
 import com.example.hospital.ai.*;
-import com.example.hospital.api.Inputs.MessageInput;
+import com.example.hospital.api.MessageInput;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 

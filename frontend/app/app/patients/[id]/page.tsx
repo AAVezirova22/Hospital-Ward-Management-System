@@ -6,6 +6,6 @@ export default async function Page({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  if (!/^\d+$/.test(id)) notFound();
+  if (!/^[\w.%+-]+$/.test(id)) notFound();
   return <PatientDetail id={id} />;
 }

@@ -98,7 +98,9 @@ test("full patient journey: create, admit, procedure, transfer, discharge, reloa
   ).toBeVisible();
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "Export CSV" }).click();
-  expect((await download).suggestedFilename()).toBe("procedure-report.csv");
+  expect((await download).suggestedFilename()).toMatch(
+    /^procedure-report-department-\d+\.csv$/,
+  );
   expect(errors).toEqual([]);
 });
 test("catalogue creation and account administration", async ({ page }) => {

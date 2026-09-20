@@ -23,7 +23,7 @@ import {
 import { Activity, ArrowUpRight, Moon, Sun, Pause, Play } from "lucide-react";
 
 const ease = [0.22, 1, 0.36, 1] as const;
-const Clouds = dynamic(() => import("./components/canvasui/Clouds"), {
+const Clouds = dynamic(() => import("./vendor/canvasui/Clouds"), {
   ssr: false,
 });
 const CinemaContext = createContext({
@@ -107,7 +107,7 @@ export function MotionToggle() {
 }
 
 /** Only the artwork gets GPU treatment; no clinical text is captured or distorted. */
-function Atmosphere() {
+export function Atmosphere() {
   const { enabled } = useContext(CinemaContext);
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref);
@@ -172,17 +172,17 @@ export function SceneTransition({
   const { enabled } = useContext(CinemaContext);
   return (
     <WorkspaceSceneContext.Provider value={true}>
-      <AnimatePresence mode="wait" initial={false}>
+      <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={scene}
           className="scene-content"
           style={{ originX: 0 }}
-          initial={enabled ? { opacity: 0, x: -28, scale: 0.985 } : false}
+          initial={enabled ? { opacity: 0, x: -16, scale: 0.992 } : false}
           animate={{ opacity: 1, x: 0, scale: 1 }}
-          exit={enabled ? { opacity: 0, x: -16, scale: 0.992 } : undefined}
+          exit={enabled ? { opacity: 0, x: -8, scale: 0.996 } : undefined}
           transition={
             enabled
-              ? { type: "spring", stiffness: 280, damping: 34, mass: 0.72 }
+              ? { type: "spring", stiffness: 380, damping: 36, mass: 0.55 }
               : { duration: 0 }
           }
         >
@@ -395,21 +395,5 @@ export function LoginScene({ children }: { children: ReactNode }) {
         </section>
       </main>
     </div>
-  );
-}
-
-export function OverviewHero({ children }: { children: ReactNode }) {
-  return (
-    <Reveal className="overview-hero">
-      <div className="overview-hero-image" aria-hidden="true" />
-      <Atmosphere />
-      <div className="cinema-grain" aria-hidden="true" />
-      <div className="overview-hero-copy">{children}</div>
-      <div className="overview-hero-caption">
-        Made for the people
-        <br />
-        who care for people.
-      </div>
-    </Reveal>
   );
 }

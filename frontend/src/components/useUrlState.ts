@@ -9,7 +9,11 @@ export function useUrlState(key: string, fallback = "") {
       );
     read();
     window.addEventListener("popstate", read);
-    return () => window.removeEventListener("popstate", read);
+    window.addEventListener("medcore-url", read);
+    return () => {
+      window.removeEventListener("popstate", read);
+      window.removeEventListener("medcore-url", read);
+    };
   }, [key, fallback]);
   function update(next: string) {
     setValue(next);
@@ -17,6 +21,7 @@ export function useUrlState(key: string, fallback = "") {
     if (next) url.searchParams.set(key, next);
     else url.searchParams.delete(key);
     window.history.replaceState(null, "", url);
+    window.dispatchEvent(new Event("medcore-url"));
   }
   return [value, update] as const;
 }

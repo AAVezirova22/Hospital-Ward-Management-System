@@ -32,7 +32,10 @@ public class LocalModelClient implements AiModelClient {
               "reports",
               "procedures",
               "dashboard",
-              "users")
+              "users",
+              "planner",
+              "audit",
+              "presentation")
           .contains(route)) return new ToolCall("navigate", Map.of("route", "/app/" + route));
     }
     if (l.startsWith("move ") || l.startsWith("transfer ")) {
@@ -88,6 +91,10 @@ public class LocalModelClient implements AiModelClient {
       a.put("query", s.replaceFirst("(?i)^(find|show patient|open) ", ""));
       return new ToolCall("searchPatients", a);
     }
+    if (l.contains("workspace")
+        || l.contains("which hospital")
+        || l.contains("my hospital")
+        || l.contains("list hospital")) return new ToolCall("listWorkspaces", Map.of());
     if (l.contains("department")
         || l.contains("dashboard")
         || l.contains("status")

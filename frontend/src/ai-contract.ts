@@ -2,7 +2,7 @@ import { z } from "zod";
 export const safeRoute = z
   .string()
   .regex(
-    /^\/app\/(dashboard|patients(?:\/\d+)?|rooms|admissions|doctors|procedures|reports|users)$/,
+    /^\/app\/(dashboard|patients(?:\/[\w-]+)?|rooms|admissions|doctors|procedures|reports|users|planner|audit|presentation)$/,
   );
 const patient = z
   .object({

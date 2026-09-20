@@ -19,6 +19,10 @@ public class AuditService {
   }
 
   public void log(String event, String entity, Long id, String source) {
+    log(event, entity, id, source, Map.of());
+  }
+
+  public void log(String event, String entity, Long id, String source, java.util.Map<String, ?> extra) {
     var e = new AuditEvent();
     e.userId = actor.user().id;
     e.eventType = event;
@@ -26,8 +30,17 @@ public class AuditService {
     e.entityId = id;
     e.source = source;
     e.timestamp = Instant.now();
-    e.metadata = "";
+    var payload = new java.util.LinkedHashMap<String, Object>();
+    payload.put("event", event);
+    payload.put("entity", entity);
+    if (id != null) payload.put("id", id);
+    if (extra != null) extra.forEach((k, v) -> {
+      if (v != null && !k.toLowerCase().contains("password") && !k.toLowerCase().contains("token"))
+        payload.put(k, v);
+    });
+    String json = payload.toString();
+    e.metadata = json.length() > 500 ? json.substring(0, 500) : json;
     events.save(e);
-    publisher.publishEvent(new OperationsStream.Changed());
+    publisher.publishEvent(new OperationsStream.Changed(com.example.hospital.security.DepartmentContext.id()));
   }
 }

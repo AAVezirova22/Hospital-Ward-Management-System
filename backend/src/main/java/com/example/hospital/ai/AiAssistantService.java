@@ -1,7 +1,7 @@
 package com.example.hospital.ai;
 
 import com.example.hospital.api.*;
-import com.example.hospital.api.Inputs.MessageInput;
+import com.example.hospital.api.MessageInput;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
@@ -105,6 +105,17 @@ public class AiAssistantService {
         h.patient(in.selectedPatientId());
         s.selectedPatientId = in.selectedPatientId();
         sessions.save(s);
+      } else if (in.route() != null && in.route().startsWith("/app/patients/")) {
+        String ref = in.route().substring("/app/patients/".length()).split("[?#]")[0];
+        if (!ref.isBlank()) {
+          try {
+            s.selectedPatientId =
+                h.patientByRef(java.net.URLDecoder.decode(ref, java.nio.charset.StandardCharsets.UTF_8)).id;
+            sessions.save(s);
+          } catch (RuntimeException ignored) {
+            // Route may be the directory itself.
+          }
+        }
       }
       var context =
           new AiModelClient.Context(

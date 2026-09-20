@@ -5,7 +5,6 @@ import static org.mockito.Mockito.*;
 
 import com.example.hospital.ai.*;
 import com.example.hospital.api.*;
-import com.example.hospital.api.Inputs.*;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
@@ -32,7 +31,7 @@ class AiSafetyTest {
     u.doctorId = 1L;
     when(actor.user()).thenReturn(u);
     when(actor.doctor()).thenReturn(true);
-    registry = new AiToolRegistry(hospital, actions, actor);
+    registry = new AiToolRegistry(hospital, actions, actor, mock(WorkspaceService.class));
   }
 
   @Test

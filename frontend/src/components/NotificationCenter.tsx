@@ -3,18 +3,19 @@ import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../api";
+import { api, activeDepartment } from "../api";
 import type { RoomCapacity, OperationsReport } from "../api/contracts";
+import { Modal } from "./workspace";
 export function NotificationCenter() {
   const [open, setOpen] = useState(false),
     [notices, setNotices] = useState<string[]>([]);
   const rooms = useQuery({
-    queryKey: ["/rooms"],
+    queryKey: ["/rooms", activeDepartment()],
     queryFn: () => api<RoomCapacity[]>("/rooms"),
     refetchInterval: 30000,
   });
   const operations = useQuery({
-    queryKey: ["/reports/operations"],
+    queryKey: ["/reports/operations", activeDepartment()],
     queryFn: () => api<OperationsReport>("/reports/operations"),
     refetchInterval: 30000,
   });
@@ -33,6 +34,7 @@ export function NotificationCenter() {
         className="icon"
         aria-label={`Notifications (${full.length + notices.length})`}
         aria-expanded={open}
+        aria-haspopup="dialog"
         onClick={() => setOpen(!open)}
       >
         <Bell size={18} />
@@ -41,8 +43,7 @@ export function NotificationCenter() {
         )}
       </button>
       {open && (
-        <section className="panel notification-panel">
-          <h3>Operations alerts</h3>
+        <Modal title="Operations alerts" onClose={() => setOpen(false)}>
           {(rooms.error || operations.error) && (
             <p role="alert">
               Alerts could not be refreshed. Displayed information may be
@@ -64,12 +65,12 @@ export function NotificationCenter() {
             </p>
           ))}
           {operations.data && (
-            <p>
+            <p className="expected-discharge">
               <Link href="/app/planner" onClick={() => setOpen(false)}>
                 {operations.data.expectedDischargesToday} expected discharges
                 today
               </Link>
-              <small>Scheduled dates in your scope · UTC</small>
+              <small>Scheduled dates in your local time</small>
             </p>
           )}
           {rooms.data && (
@@ -93,9 +94,9 @@ export function NotificationCenter() {
               setOpen(false);
             }}
           >
-            Dismiss
+            Clear recent actions
           </button>
-        </section>
+        </Modal>
       )}
     </div>
   );

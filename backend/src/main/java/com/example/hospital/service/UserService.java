@@ -1,7 +1,7 @@
 package com.example.hospital.service;
 
 import com.example.hospital.api.*;
-import com.example.hospital.api.Inputs.UserInput;
+import com.example.hospital.api.UserInput;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
@@ -41,7 +41,14 @@ public class UserService {
 
   public List<AppUser> list() {
     actor.admin();
-    return users.findAll().stream().filter(this::visible).map(this::scoped).toList();
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    var ids = new LinkedHashSet<Long>();
+    ids.addAll(jdbc.queryForList("select user_id from department_memberships where department_id=?", Long.class, departmentId));
+    ids.addAll(jdbc.queryForList(
+        "select u.id from app_users u join patients p on p.id=u.patient_id where p.department_id=?",
+        Long.class, departmentId));
+    if (ids.isEmpty()) return List.of();
+    return users.findAllById(ids).stream().map(this::scoped).toList();
   }
 
   private AppUser scoped(AppUser user) {
@@ -57,6 +64,8 @@ public class UserService {
     view.version = user.version;
     view.username = user.username;
     view.role = String.valueOf(row.get("role"));
+    view.accountRole = user.role;
+    view.departmentRole = view.role;
     view.doctorId = row.get("doctor_id") == null ? null : ((Number) row.get("doctor_id")).longValue();
     view.patientId = user.patientId;
     view.email = user.email;
@@ -116,6 +125,7 @@ public class UserService {
             "PASSWORD_LENGTH",
             "Use a password of at least 12 characters and at most 72 UTF-8 bytes.");
       u.passwordHash = encoder.encode(in.password());
+      u.sessionStamp = com.example.hospital.security.SessionStamps.next();
     }
     u.username = in.username();
     u.role = in.role();

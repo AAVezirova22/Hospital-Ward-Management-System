@@ -1,21 +1,61 @@
-export type Row = Record<string, any>;
+export type Row = Record<string, unknown> & {
+  id?: number;
+  admission?: any;
+  patient?: any;
+  doctor?: any;
+  rooms?: any;
+  admissions?: any;
+  assignment?: any;
+  eventType?: string;
+  entityType?: string;
+  entityId?: number;
+  userId?: number;
+  source?: string;
+  timestamp?: string;
+  metadata?: string;
+  firstName?: string;
+  lastName?: string;
+  patientIdentifier?: string;
+  roomNumber?: string;
+  availableBeds?: number;
+  status?: string;
+};
 export type User = {
   id: number;
   username: string;
   role: "ADMIN" | "MEDICAL_STAFF" | "DOCTOR" | "PATIENT";
+  accountRole?: "ADMIN" | "MEDICAL_STAFF" | "DOCTOR" | "PATIENT";
+  departmentRole?: "ADMIN" | "MEDICAL_STAFF" | "DOCTOR" | "PATIENT";
   doctorId: number | null;
   patientId?: number | null;
   requestedRole?: string | null;
   emailVerified?: boolean;
 };
+export function patientHref(p: {
+  patientIdentifier?: string | null;
+  id?: number | string | null;
+}) {
+  return "/app/patients/" + encodeURIComponent(String(p.patientIdentifier || p.id || ""));
+}
 let csrf: { token: string; headerName: string } | null = null;
 let departmentId: string | null = null;
+let accountId: string | null = null;
 const DEPARTMENT_KEY = "medcore-department";
 
+function departmentStorageKey() {
+  return accountId ? `${DEPARTMENT_KEY}:${accountId}` : DEPARTMENT_KEY;
+}
+
+export function bindAccount(id: string | number | null) {
+  accountId = id == null ? null : String(id);
+  departmentId = null;
+}
+
 export function activeDepartment() {
+  if (!accountId) return departmentId;
   if (departmentId != null) return departmentId;
   try {
-    departmentId = localStorage.getItem(DEPARTMENT_KEY);
+    departmentId = localStorage.getItem(departmentStorageKey());
   } catch {}
   return departmentId;
 }
@@ -23,8 +63,8 @@ export function activeDepartment() {
 export function setActiveDepartment(id: string | number | null) {
   departmentId = id == null ? null : String(id);
   try {
-    if (departmentId) localStorage.setItem(DEPARTMENT_KEY, departmentId);
-    else localStorage.removeItem(DEPARTMENT_KEY);
+    if (departmentId) localStorage.setItem(departmentStorageKey(), departmentId);
+    else localStorage.removeItem(departmentStorageKey());
   } catch {}
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("workspace-changed"));
@@ -71,7 +111,7 @@ export async function token() {
   csrf = result;
   return csrf!;
 }
-export async function api<T = any>(
+export async function api<T = unknown>(
   path: string,
   method = "GET",
   body?: unknown,
@@ -167,6 +207,7 @@ export async function login(username: string, password: string): Promise<User> {
   const user = await r.json();
   csrf = null;
   await token();
+  bindAccount(user.id);
   try {
     return await api<User>("/auth/me");
   } catch {
@@ -174,8 +215,16 @@ export async function login(username: string, password: string): Promise<User> {
   }
 }
 export async function logout() {
-  await api("/auth/logout", "POST");
-  csrf = null;
+  try {
+    await api("/auth/logout", "POST");
+  } finally {
+    csrf = null;
+    setActiveDepartment(null);
+    bindAccount(null);
+    try {
+      localStorage.removeItem("medcore-department");
+    } catch {}
+  }
 }
 export const fullName = (
   p: { firstName?: string; lastName?: string } | null | undefined,

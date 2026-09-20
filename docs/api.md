@@ -25,12 +25,18 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
 | GET | `/audit` | Latest 100 events; admin-only |
-| GET | `/workspaces` | Hospitals and departments the account can open, plus the active department |
+| GET | `/workspaces` | Hospitals and departments the account can open, plus the active department. Live join codes are omitted; owners receive `hasJoinCode`. |
 | POST | `/workspaces/hospitals` | `{name, departmentName}`; owner of the hospital and admin of its first department |
 | POST | `/workspaces/hospitals/{id}/departments` | `{name}`; hospital owner only |
-| POST | `/workspaces/join` | `{code}`; hospital codes add hospital membership, department codes add medical staff access |
-| POST | `/workspaces/hospitals/{id}/code` | Replace the hospital join code; owner only |
-| POST | `/workspaces/departments/{id}/code` | Replace the department join code; department administrator only |
+| POST | `/workspaces/join` | `{code}`; hospital codes add hospital membership, department codes add medical staff access. Expired or consumed single-use codes are rejected. |
+| GET | `/workspaces/hospitals/{id}/code` | Reveal the hospital join code; owner only. Audited as `JOIN_CODE_VIEWED`. |
+| GET | `/workspaces/departments/{id}/code` | Reveal the department join code; department administrator only. Audited as `JOIN_CODE_VIEWED`. |
+| POST | `/workspaces/hospitals/{id}/code` | Replace the hospital join code; owner only. Optional `{expiresInHours, singleUse}` |
+| POST | `/workspaces/departments/{id}/code` | Replace the department join code; department administrator only. Optional `{expiresInHours, singleUse}` |
+| POST | `/workspaces/hospitals/{id}/leave` | Leave a hospital; last owner is rejected |
+| POST | `/workspaces/departments/{id}/leave` | Leave a department |
+| POST | `/workspaces/hospitals/{id}/owners` | `{userId}`; hospital owner only |
+| POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted. |
 
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 
@@ -59,7 +65,7 @@ Report dates are inclusive and interpreted in UTC. Future or inverted invalid da
 
 Response types: `TEXT`, `PATIENT_LIST`, `PATIENT_SUMMARY`, `ROOM_LIST`, `REPORT_RESULT`, `NAVIGATION_COMMAND`, `CONFIRMATION_CARD`, `ERROR`. They include `message`, `data`, `sessionId`, `model`. The client validates the response envelope and renders trusted React components.
 
-Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoomOccupancy`, `getDoctorPatients`, `getAdmission`, `getAdmissions`, `getProcedureStatistics`, `getDashboardSummary`. Additional tools: `navigate`, `help`, `prepareAdmission`, `prepareTransfer`, `prepareDischarge`.
+Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoomOccupancy`, `getDoctorPatients`, `getAdmission`, `getAdmissions`, `getProcedureStatistics`, `getDashboardSummary`, `listWorkspaces`. Additional tools: `navigate`, `help`, `prepareAdmission`, `prepareTransfer`, `prepareDischarge`. Patient search results include the current hospital/department label. `listWorkspaces` is the only hospital-wide read; it omits join codes.
 
 ## Representative errors
 
@@ -73,6 +79,7 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 403 | `HOSPITAL_OWNER_REQUIRED` | Only a hospital owner can manage that hospital |
 | 403 | `DEPARTMENT_ADMIN_REQUIRED` | Only a department administrator can replace its code |
 | 400 | `INVALID_CODE` | Join code is missing, malformed, or unknown |
+| 400 | `CODE_EXPIRED` | Join code is past its expiry |
 | 404 | `NOT_FOUND` | Requested record absent |
 | 409 | `ROOM_CAPACITY_EXCEEDED` | Destination is full or inactive |
 | 409 | `STALE_STATE` | Version changed since review |
