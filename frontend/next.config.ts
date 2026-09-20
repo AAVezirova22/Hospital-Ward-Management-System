@@ -12,8 +12,6 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // A bounded eight-step assistant turn can outlast the default 30-second proxy timeout.
   experimental: { proxyTimeout: 150_000 },
-  // App Router still emits a small inline boot script, so CSP keeps 'unsafe-inline'
-  // plus 'strict-dynamic' until a nonce pipeline is wired through Next 16.
   async rewrites() {
     return [
       {
