@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 const password = process.env.E2E_PASSWORD || "MedcoreDemo2026!";
 async function signIn(page: Page, name = "admin") {
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByLabel("Username", { exact: true }).fill(name);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
