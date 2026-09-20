@@ -116,7 +116,7 @@ export function Workflow({
       {review ? (
         <>
           <div className="review">
-            <span className="eyebrow">REVIEW & CONFIRM</span>
+            <span className="eyebrow">Review and confirm</span>
             <h3>
               {kind === "discharge"
                 ? "Close this admission?"
