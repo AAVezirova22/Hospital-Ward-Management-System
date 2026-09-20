@@ -147,6 +147,9 @@ public class SecurityConfig {
                       }
                       var scope = workspaces.resolve(u.get(), requested);
                       DepartmentContext.set(scope);
+                      if (session != null && scope.id() > 0) {
+                        session.setAttribute("departmentId", scope.id());
+                      }
                     } catch (com.example.hospital.api.ApiException e) {
                       s.setStatus(e.status);
                       s.setContentType("application/json");
