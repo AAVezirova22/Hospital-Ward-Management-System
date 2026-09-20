@@ -13,6 +13,7 @@ const geist = localFont({
   variable: "--font-geist",
   display: "swap",
   weight: "100 900",
+  adjustFontFallback: false,
 });
 
 const publicUrl =
@@ -54,7 +55,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="en" className={geist.variable}>
+    <html lang="en" className={geist.variable} nonce={nonce}>
       <head>
         <link
           rel="preload"
