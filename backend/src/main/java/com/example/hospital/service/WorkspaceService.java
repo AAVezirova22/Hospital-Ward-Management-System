@@ -27,19 +27,28 @@ public class WorkspaceService {
     this.actor = actor;
     this.audit = audit;
   }
-  public record Department(long id, String name, String role, String joinCode) {}
-  public record Hospital(long id, String name, boolean owner, String joinCode, List<Department> departments) {}
+  public record Department(long id, String name, String role, boolean hasJoinCode) {}
+  public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
 
   public List<Hospital> list() {
     var user = actor.user();
-    return jdbc.query("select h.id,h.name,m.owner,h.join_code from hospitals h join hospital_memberships m on m.hospital_id=h.id where m.user_id=? order by h.name,h.id",
+    return jdbc.query("select h.id,h.name,m.owner from hospitals h join hospital_memberships m on m.hospital_id=h.id where m.user_id=? order by h.name,h.id",
         (rs, n) -> {
           long id = rs.getLong(1); boolean owner = rs.getBoolean(3);
-          var departments = jdbc.query("select d.id,d.name,m.role,d.join_code from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? order by d.name,d.id",
+          var departments = jdbc.query("select d.id,d.name,m.role from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? order by d.name,d.id",
               (d, i) -> new Department(d.getLong(1), d.getString(2), d.getString(3),
-                  "ADMIN".equals(d.getString(3)) ? d.getString(4) : null), id, user.id);
-          return new Hospital(id, rs.getString(2), owner, owner ? rs.getString(4) : null, departments);
+                  "ADMIN".equals(d.getString(3))), id, user.id);
+          return new Hospital(id, rs.getString(2), owner, owner, departments);
         }, user.id);
+  }
+
+  public String reveal(boolean hospital, long id) {
+    if (hospital) owner(id);
+    else departmentAdmin(id);
+    String table = hospital ? "hospitals" : "departments";
+    String code = jdbc.queryForObject("select join_code from " + table + " where id=?", String.class, id);
+    audit.log("JOIN_CODE_VIEWED", hospital ? "Hospital" : "Department", id, "UI");
+    return code;
   }
 
   private String code(String prefix) {
@@ -96,25 +105,31 @@ public class WorkspaceService {
       throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
     var user = actor.user();
     guardJoinAttempts(user.id, remoteAddr);
-    var departments = jdbc.queryForList("select id,hospital_id from departments where join_code=?", code);
+    var departments = jdbc.queryForList("select id,hospital_id,join_code_expires_at,join_code_single_use from departments where join_code=?", code);
     if (!departments.isEmpty()) {
       clearJoinAttempts(user.id, remoteAddr);
-      long id = ((Number) departments.getFirst().get("id")).longValue();
-      long hospitalId = ((Number) departments.getFirst().get("hospital_id")).longValue();
+      var row = departments.getFirst();
+      assertJoinFresh(row.get("join_code_expires_at"));
+      long id = ((Number) row.get("id")).longValue();
+      long hospitalId = ((Number) row.get("hospital_id")).longValue();
       jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", hospitalId, user.id);
       jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'MEDICAL_STAFF') on conflict do nothing", id, user.id);
+      if (Boolean.TRUE.equals(row.get("join_code_single_use"))) consumeJoinCode(false, id);
       audit.log("WORKSPACE_JOINED", "Department", id, "UI");
       return Map.of("hospitalId", hospitalId, "departmentId", id);
     }
-    var hospitals = jdbc.queryForList("select id from hospitals where join_code=?", Long.class, code);
+    var hospitals = jdbc.queryForList("select id,join_code_expires_at,join_code_single_use from hospitals where join_code=?", code);
     if (hospitals.isEmpty()) {
       recordJoinFailure(user.id, remoteAddr);
       audit.log("JOIN_CODE_REJECTED", "Workspace", user.id, "UI");
       throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
     }
     clearJoinAttempts(user.id, remoteAddr);
-    long id = hospitals.getFirst();
+    var hospital = hospitals.getFirst();
+    assertJoinFresh(hospital.get("join_code_expires_at"));
+    long id = ((Number) hospital.get("id")).longValue();
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", id, user.id);
+    if (Boolean.TRUE.equals(hospital.get("join_code_single_use"))) consumeJoinCode(true, id);
     audit.log("WORKSPACE_JOINED", "Hospital", id, "UI");
     String hospitalName = jdbc.queryForObject("select name from hospitals where id=?", String.class, id);
     return Map.of("hospitalId", id, "hospitalName", hospitalName == null ? "" : hospitalName);
@@ -145,8 +160,27 @@ public class WorkspaceService {
     joinAttempts.remove(joinKey(userId, remoteAddr));
   }
 
+  private void assertJoinFresh(Object expires) {
+    if (expires == null) return;
+    Instant at = expires instanceof java.sql.Timestamp t ? t.toInstant() : Instant.parse(String.valueOf(expires));
+    if (!at.isAfter(Instant.now()))
+      throw new ApiException(400, "CODE_EXPIRED", "This join code has expired. Ask the owner for a new one.");
+  }
+
+  private void consumeJoinCode(boolean hospital, long id) {
+    String next = code(hospital ? "H-" : "D-");
+    jdbc.update(
+        "update " + (hospital ? "hospitals" : "departments") + " set join_code=?, join_code_single_use=false, join_code_expires_at=null where id=?",
+        next, id);
+  }
+
   @Transactional
   public String rotate(boolean hospital, long id) {
+    return rotate(hospital, id, null, false);
+  }
+
+  @Transactional
+  public String rotate(boolean hospital, long id, Integer expiresInHours, boolean singleUse) {
     if (hospital) owner(id);
     else if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'", Boolean.class, id, actor.user().id)))
       throw new ApiException(403, "DEPARTMENT_ADMIN_REQUIRED", "Only a department administrator can replace its code.");
@@ -167,6 +201,10 @@ public class WorkspaceService {
           }
           return null;
         });
+        java.sql.Timestamp expires = expiresInHours == null || expiresInHours <= 0
+            ? null
+            : java.sql.Timestamp.from(Instant.now().plusSeconds(expiresInHours.longValue() * 3600L));
+        jdbc.update("update " + table + " set join_code_expires_at=?, join_code_single_use=? where id=?", expires, singleUse, id);
         audit.log("JOIN_CODE_ROTATED", hospital ? "Hospital" : "Department", id, "UI");
         return next;
       } catch (DuplicateKeyException | DataIntegrityViolationException e) {

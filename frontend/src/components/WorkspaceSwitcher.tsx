@@ -107,10 +107,17 @@ export function WorkspaceSwitcher() {
     setFormError(null);
   };
 
-  const rotate = async (hospital: boolean, id: number) => {
+  const rotate = async (
+    hospital: boolean,
+    id: number,
+    options?: { expiresInHours?: number; singleUse?: boolean },
+  ) => {
+    const oneTime = Boolean(options?.singleUse);
     if (
       !window.confirm(
-        "Replace this join code? The previous code will stop working immediately.",
+        oneTime
+          ? "Replace this join code with a 24-hour, one-time invite? The previous code will stop working immediately."
+          : "Replace this join code? The previous code will stop working immediately.",
       )
     )
       return;
@@ -120,7 +127,10 @@ export function WorkspaceSwitcher() {
       const path = hospital
         ? `/workspaces/hospitals/${id}/code`
         : `/workspaces/departments/${id}/code`;
-      const result = await api<{ code: string }>(path, "POST");
+      const result = await api<{ code: string }>(path, "POST", {
+        expiresInHours: options?.expiresInHours ?? null,
+        singleUse: oneTime,
+      });
       await client.invalidateQueries({ queryKey: ["/workspaces"] });
       if (result.code) await copyCode(result.code);
     } catch (e) {
@@ -199,6 +209,19 @@ export function WorkspaceSwitcher() {
                             >
                               Replace
                             </button>
+                            <button
+                              type="button"
+                              className="text-button"
+                              disabled={busy}
+                              onClick={() =>
+                                rotate(false, department.id, {
+                                  expiresInHours: 24,
+                                  singleUse: true,
+                                })
+                              }
+                            >
+                              One-time 24h
+                            </button>
                           </p>
                         )}
                         <button
@@ -251,6 +274,19 @@ export function WorkspaceSwitcher() {
                         onClick={() => rotate(true, hospital.id)}
                       >
                         Replace
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() =>
+                          rotate(true, hospital.id, {
+                            expiresInHours: 24,
+                            singleUse: true,
+                          })
+                        }
+                      >
+                        One-time 24h
                       </button>
                     </p>
                   )}

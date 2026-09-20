@@ -199,15 +199,7 @@ class WorkspaceIsolationTest {
                 1L),
             201);
     long other = created.get("departmentId").asLong();
-    var workspaces = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
-    String code = null;
-    for (JsonNode hospital : workspaces.get("hospitals")) {
-      for (JsonNode department : hospital.get("departments")) {
-        if (department.get("id").asLong() == other) {
-          code = department.get("joinCode").asText();
-        }
-      }
-    }
+    String code = created.get("departmentCode").asText();
     assertThat(code).isNotBlank();
     body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
     call(name, "GET", "/api/v1/users", null, other).andExpect(status().isForbidden());
@@ -276,6 +268,7 @@ class WorkspaceIsolationTest {
             201);
     long hospitalId = created.get("hospitalId").asLong();
     long departmentId = created.get("departmentId").asLong();
+    assertThat(hospitalId).isPositive();
     body(
         call(
             "admin",
@@ -292,11 +285,7 @@ class WorkspaceIsolationTest {
                 "1977-07-07"),
             departmentId),
         201);
-    var workspaces = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
-    String code = null;
-    for (JsonNode hospital : workspaces.get("hospitals")) {
-      if (hospital.get("id").asLong() == hospitalId) code = hospital.get("joinCode").asText();
-    }
+    String code = created.get("hospitalCode").asText();
     body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
     call(name, "GET", "/api/v1/patients", null, departmentId)
         .andExpect(status().isForbidden());
@@ -332,13 +321,7 @@ class WorkspaceIsolationTest {
             201);
     long hospitalId = created.get("hospitalId").asLong();
     long departmentId = created.get("departmentId").asLong();
-    var workspaces = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
-    String code = null;
-    for (JsonNode hospital : workspaces.get("hospitals")) {
-      for (JsonNode department : hospital.get("departments")) {
-        if (department.get("id").asLong() == departmentId) code = department.get("joinCode").asText();
-      }
-    }
+    String code = created.get("departmentCode").asText();
     body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
     body(call(name, "POST", "/api/v1/workspaces/departments/" + departmentId + "/leave", Map.of(), 1L), 200);
     call(name, "GET", "/api/v1/patients", null, departmentId).andExpect(status().isForbidden());
@@ -378,11 +361,7 @@ class WorkspaceIsolationTest {
                 1L),
             201);
     long hospitalId = created.get("hospitalId").asLong();
-    var workspaces = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
-    String code = null;
-    for (JsonNode hospital : workspaces.get("hospitals")) {
-      if (hospital.get("id").asLong() == hospitalId) code = hospital.get("joinCode").asText();
-    }
+    String code = created.get("hospitalCode").asText();
     body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
     body(call("admin", "POST", "/api/v1/workspaces/hospitals/" + hospitalId + "/owners", Map.of("userId", userId), 1L), 200);
     var after = body(call(name, "GET", "/api/v1/workspaces", null, 1L), 200);
@@ -426,5 +405,105 @@ class WorkspaceIsolationTest {
     var away = body(call("admin", "GET", "/api/v1/audit", null, other), 200);
     assertThat(away.toString()).contains(patient.get("id").asText());
     assertThat(home.toString()).doesNotContain("\"entityId\":" + patient.get("id").asLong());
+  }
+
+  @Test
+  void expiredJoinCodesAreRejected() throws Exception {
+    String name = "exp" + unique();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                name,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Expiry Clinic " + unique(), "departmentName", "Triage"),
+                1L),
+            201);
+    long departmentId = created.get("departmentId").asLong();
+    String code = created.get("departmentCode").asText();
+    jdbc.update(
+        "update departments set join_code_expires_at = now() - interval '1 hour' where id=?",
+        departmentId);
+    call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("CODE_EXPIRED"));
+  }
+
+  @Test
+  void singleUseJoinCodesRotateAfterTheFirstJoin() throws Exception {
+    String first = "once" + unique();
+    String second = "twice" + unique();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                first,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                second,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Once Clinic " + unique(), "departmentName", "Intake"),
+                1L),
+            201);
+    long departmentId = created.get("departmentId").asLong();
+    var rotated =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/departments/" + departmentId + "/code",
+                Map.of("expiresInHours", 24, "singleUse", true),
+                1L),
+            200);
+    String code = rotated.get("code").asText();
+    body(call(first, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
+    call(second, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_CODE"));
   }
 }

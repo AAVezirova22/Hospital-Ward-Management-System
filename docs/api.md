@@ -28,9 +28,9 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/workspaces` | Hospitals and departments the account can open, plus the active department |
 | POST | `/workspaces/hospitals` | `{name, departmentName}`; owner of the hospital and admin of its first department |
 | POST | `/workspaces/hospitals/{id}/departments` | `{name}`; hospital owner only |
-| POST | `/workspaces/join` | `{code}`; hospital codes add hospital membership, department codes add medical staff access |
-| POST | `/workspaces/hospitals/{id}/code` | Replace the hospital join code; owner only |
-| POST | `/workspaces/departments/{id}/code` | Replace the department join code; department administrator only |
+| POST | `/workspaces/join` | `{code}`; hospital codes add hospital membership, department codes add medical staff access. Expired or consumed single-use codes are rejected. |
+| POST | `/workspaces/hospitals/{id}/code` | Replace the hospital join code; owner only. Optional `{expiresInHours, singleUse}` |
+| POST | `/workspaces/departments/{id}/code` | Replace the department join code; department administrator only. Optional `{expiresInHours, singleUse}` |
 
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 
@@ -73,6 +73,7 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 403 | `HOSPITAL_OWNER_REQUIRED` | Only a hospital owner can manage that hospital |
 | 403 | `DEPARTMENT_ADMIN_REQUIRED` | Only a department administrator can replace its code |
 | 400 | `INVALID_CODE` | Join code is missing, malformed, or unknown |
+| 400 | `CODE_EXPIRED` | Join code is past its expiry |
 | 404 | `NOT_FOUND` | Requested record absent |
 | 409 | `ROOM_CAPACITY_EXCEEDED` | Destination is full or inactive |
 | 409 | `STALE_STATE` | Version changed since review |

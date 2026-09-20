@@ -18,6 +18,7 @@ public class WorkspaceController {
   public record DepartmentInput(@NotBlank @Size(max=120) String name) {}
   public record JoinInput(@NotBlank @Size(max=40) String code) {}
   public record OwnerInput(@NotNull Long userId) {}
+  public record RotateInput(Integer expiresInHours, Boolean singleUse) {}
 
   @GetMapping
   public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "hospitals", workspaces.list()); }
@@ -35,9 +36,13 @@ public class WorkspaceController {
     return workspaces.join(input.code(), request.getRemoteAddr());
   }
   @PostMapping("/hospitals/{id}/code")
-  public Object hospitalCode(@PathVariable long id) { return Map.of("code", workspaces.rotate(true, id)); }
+  public Object hospitalCode(@PathVariable long id, @RequestBody(required = false) RotateInput input) {
+    return Map.of("code", workspaces.rotate(true, id, hours(input), singleUse(input)));
+  }
   @PostMapping("/departments/{id}/code")
-  public Object departmentCode(@PathVariable long id) { return Map.of("code", workspaces.rotate(false, id)); }
+  public Object departmentCode(@PathVariable long id, @RequestBody(required = false) RotateInput input) {
+    return Map.of("code", workspaces.rotate(false, id, hours(input), singleUse(input)));
+  }
   @PostMapping("/hospitals/{id}/leave")
   public void leaveHospital(@PathVariable long id) { workspaces.leaveHospital(id); }
   @PostMapping("/departments/{id}/leave")
@@ -49,5 +54,13 @@ public class WorkspaceController {
   @PostMapping("/hospitals/{id}/owners")
   public void grantOwner(@PathVariable long id, @Valid @RequestBody OwnerInput input) {
     workspaces.grantOwner(id, input.userId());
+  }
+
+  private static Integer hours(RotateInput input) {
+    return input == null ? null : input.expiresInHours();
+  }
+
+  private static boolean singleUse(RotateInput input) {
+    return input != null && Boolean.TRUE.equals(input.singleUse());
   }
 }
