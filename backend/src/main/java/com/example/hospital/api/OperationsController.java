@@ -10,7 +10,13 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1")
 public class OperationsController {
   private final OperationsService operations;
-  public OperationsController(OperationsService operations) { this.operations = operations; }
+  private final com.example.hospital.service.OperationsStream stream;
+  public OperationsController(OperationsService operations, com.example.hospital.service.OperationsStream stream) { this.operations = operations; this.stream = stream; }
+  @GetMapping(value="/operations/stream", produces="text/event-stream")
+  public org.springframework.web.servlet.mvc.method.annotation.SseEmitter stream(jakarta.servlet.http.HttpServletResponse response) {
+    response.setHeader("X-Accel-Buffering", "no");
+    return stream.connect();
+  }
   @GetMapping("/reports/operations")
   public Object overview() { return operations.overview(); }
   @GetMapping("/planner/simulate")
