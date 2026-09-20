@@ -124,6 +124,24 @@ export function WorkspaceSwitcher() {
                   <strong>{hospital.name}</strong>
                   {hospital.owner && <span>Owner</span>}
                 </header>
+                <ul>
+                  {hospital.departments.map((department) => (
+                    <li key={department.id}>
+                      <button
+                        type="button"
+                        className={
+                          department.id === current.department?.id
+                            ? "selected"
+                            : "secondary"
+                        }
+                        onClick={() => openDepartment(department.id)}
+                      >
+                        {department.name}
+                        <small>{department.role.replaceAll("_", " ").toLowerCase()}</small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </section>
             ))}
           </div>
