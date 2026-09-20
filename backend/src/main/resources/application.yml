@@ -46,7 +46,7 @@ app:
 
 logging:
   level:
-    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: WARN
 management:
   endpoints:
     web:
