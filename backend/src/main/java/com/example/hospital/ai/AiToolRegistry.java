@@ -315,7 +315,7 @@ public class AiToolRegistry {
       }
       default -> throw new IllegalArgumentException();
       };
-    } catch (NumberFormatException | DateTimeParseException | IllegalArgumentException | NullPointerException e) {
+    } catch (DateTimeParseException | IllegalArgumentException | NullPointerException e) {
       throw invalidToolCall();
     }
   }
