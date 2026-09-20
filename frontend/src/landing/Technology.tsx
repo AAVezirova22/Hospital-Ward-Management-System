@@ -4,27 +4,18 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useInView, useReducedMotion } from "motion/react";
 import { FilmMedia } from "./FilmMedia";
-import { clip, still } from "./media";
+import { still } from "./media";
 
 const Glass = dynamic(() => import("../vendor/canvasui/Glass"), { ssr: false });
 
 function Gallery() {
   return (
     <div className="film-tech-grid">
-      <FilmMedia
-        still={still("mri")}
-        video={clip("mri")}
-        alt="MRI suite at night"
-      />
-      <FilmMedia
-        still={still("or")}
-        alt="Operating theatre between cases"
-        drift
-      />
+      <FilmMedia still={still("mri")} alt="MRI suite at night" />
+      <FilmMedia still={still("or")} alt="Operating theatre between cases" />
       <FilmMedia
         still={still("robotic")}
         alt="Surgical robotic console in a dim procedure room"
-        drift
       />
     </div>
   );
