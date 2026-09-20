@@ -22,7 +22,7 @@ function subscribeVisibility(notify: () => void) {
 /** GSAP owns the clock; Motion alone writes the visual transforms. */
 export function useFilmPlayback(
   target: RefObject<HTMLElement | null>,
-  duration = 8,
+  duration = 2.5,
 ) {
   const { ready, reduced } = useSiteMotion();
   const visible = useInView(target, { amount: 0.35 });
