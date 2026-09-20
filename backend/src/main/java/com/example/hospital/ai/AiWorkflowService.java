@@ -177,7 +177,7 @@ public class AiWorkflowService {
             id = f.get("admissionId").asLong();
             hospital.discharge(id, ((DischargeInput) value).version(), "AI");
           }
-          case "recordProcedure" -> id = hospital.record(f.get("admissionId").asLong(), (RecordProcedureInput) value).id;
+          case "recordProcedure" -> id = hospital.recordProcedure(f.get("admissionId").asLong(), (RecordProcedureInput) value).id;
           default -> throw invalid();
         }
         ids.put(step.key(), id);
@@ -189,4 +189,3 @@ public class AiWorkflowService {
     }
   }
 }
-
