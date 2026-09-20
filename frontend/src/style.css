@@ -1597,6 +1597,26 @@ footer .live-dot {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.assistant-drop-target {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-height: 96px;
+  margin-bottom: 16px;
+  padding: 20px;
+  border: 1px dashed var(--line, #647c6d);
+  border-radius: 16px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+.assistant-drop-target strong { font-size: 14px; font-weight: 500; }
+.assistant-drop-target span { font-size: 12px; opacity: .75; }
+.assistant-sources.is-dragging .assistant-drop-target,
+.assistant-drop-target:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  border-color: currentColor;
+}
 .workflow-proposal ol {
   padding-left: 24px;
 }
