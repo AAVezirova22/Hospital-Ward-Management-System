@@ -394,6 +394,10 @@ button.workspace-switcher:hover,
 button.workspace-switcher[aria-expanded="true"] {
   color: var(--text);
 }
+.workspace-list {
+  display: grid;
+  gap: 18px;
+}
 .nav-label {
   color: var(--muted);
   font-size: 8px;
