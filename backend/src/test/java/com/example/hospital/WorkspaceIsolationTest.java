@@ -131,4 +131,39 @@ class WorkspaceIsolationTest {
     assertThat(away.get("totalBeds").asInt()).isZero();
     assertThat(home.get("totalBeds").asInt()).isGreaterThan(away.get("totalBeds").asInt());
   }
+
+  @Test
+  void teamAccessListsOnlyLocalDepartmentMembers() throws Exception {
+    String name = "staff" + unique();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                name,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Staff Clinic " + unique(), "departmentName", "Surgery"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var home = body(call("admin", "GET", "/api/v1/users", null, 1L), 200);
+    var away = body(call("admin", "GET", "/api/v1/users", null, other), 200);
+    assertThat(home.toString()).contains(name);
+    assertThat(away.toString()).doesNotContain(name);
+  }
 }
