@@ -219,4 +219,11 @@ class WorkspaceIsolationTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("DEPARTMENT_ACCESS_DENIED"));
   }
+
+  @Test
+  void invalidJoinCodesAreRejected() throws Exception {
+    call("admin", "POST", "/api/v1/workspaces/join", Map.of("code", "not-a-code"), 1L)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_CODE"));
+  }
 }
