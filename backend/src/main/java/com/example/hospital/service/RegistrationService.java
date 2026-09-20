@@ -69,10 +69,10 @@ public class RegistrationService {
     String normalized = address.trim().toLowerCase(Locale.ROOT);
     if (users.findByUsername(username).isPresent() || Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from app_users where email = ?",Boolean.class,normalized)))
       return;
-    var patient = new Patient(); patient.firstName=first.trim(); patient.lastName=last.trim(); patient.dateOfBirth=dob;
-    patient.patientIdentifier="SELF-" + UUID.randomUUID(); patients.saveAndFlush(patient);
-    var u = new AppUser(); u.username=username; u.email=normalized; u.passwordHash=encoder.encode(password);
-    u.role="PATIENT"; u.requestedRole=requestedRole; u.enabled=false; u.patientId=patient.id; users.saveAndFlush(u);
+    var patient = new Patient(); patient.setFirstName(first.trim()); patient.setLastName(last.trim()); patient.setDateOfBirth(dob);
+    patient.setPatientIdentifier("SELF-" + UUID.randomUUID()); patients.saveAndFlush(patient);
+    var u = new AppUser(); u.setUsername(username); u.setEmail(normalized); u.setPasswordHash(encoder.encode(password));
+    u.setRole("PATIENT"); u.setRequestedRole(requestedRole); u.setEnabled(false); u.setPatientId(patient.getId()); users.saveAndFlush(u);
     issue(u,first);
     } finally {
       com.example.hospital.security.DepartmentContext.clear();
@@ -81,16 +81,16 @@ public class RegistrationService {
   private void issue(AppUser user,String first) {
     byte[] bytes = new byte[32]; new SecureRandom().nextBytes(bytes);
     String token=Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    jdbc.update("delete from email_verifications where user_id = ?",user.id);
-    jdbc.update("insert into email_verifications(token_hash,user_id,expires_at) values (?,?,?)",hash(token),user.id,Timestamp.from(Instant.now().plusSeconds(expiryMinutes*60L)));
-    email.send(user.email,first,token,"DOCTOR".equals(user.requestedRole),expiryMinutes);
+    jdbc.update("delete from email_verifications where user_id = ?",user.getId());
+    jdbc.update("insert into email_verifications(token_hash,user_id,expires_at) values (?,?,?)",hash(token),user.getId(),Timestamp.from(Instant.now().plusSeconds(expiryMinutes*60L)));
+    email.send(user.getEmail(),first,token,"DOCTOR".equals(user.getRequestedRole()),expiryMinutes);
   }
   @Transactional
   public void resend(String address) {
     if (!available()) throw new ApiException(503,"REGISTRATION_UNAVAILABLE","Account registration is not configured yet.");
     lock.acquire();
     var ids=jdbc.queryForList("select id from app_users where email=? and email_verified=false",Long.class,address.trim().toLowerCase(Locale.ROOT));
-    if (!ids.isEmpty()) {var u=users.findById(ids.getFirst()).orElseThrow();issue(u,patients.findById(u.patientId).orElseThrow().firstName);}
+    if (!ids.isEmpty()) {var u=users.findById(ids.getFirst()).orElseThrow();issue(u,patients.findById(u.getPatientId()).orElseThrow().getFirstName());}
   }
   @Transactional
   public void verify(String token) {
@@ -98,7 +98,7 @@ public class RegistrationService {
     lock.acquire();
     var ids=jdbc.queryForList("select user_id from email_verifications where token_hash=? and used_at is null and expires_at>? for update",Long.class,hash(token),Timestamp.from(Instant.now()));
     if (ids.isEmpty()) throw new ApiException(400,"INVALID_CONFIRMATION","This confirmation link has expired or was already used. Request a new email.");
-    var u=users.findById(ids.getFirst()).orElseThrow(); u.emailVerified=true; u.enabled=true; users.saveAndFlush(u);
+    var u=users.findById(ids.getFirst()).orElseThrow(); u.setEmailVerified(true); u.setEnabled(true); users.saveAndFlush(u);
     jdbc.update("update email_verifications set used_at=? where token_hash=?",Timestamp.from(Instant.now()),hash(token));
   }
   private static String hash(String token) {
