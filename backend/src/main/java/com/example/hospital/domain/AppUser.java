@@ -15,6 +15,7 @@ public class AppUser extends BaseEntity {
   public boolean emailVerified;
   public String requestedRole;
   public java.time.Instant lastLoginAt;
+  @com.fasterxml.jackson.annotation.JsonIgnore public String sessionStamp;
   @Transient public String accountRole;
   @Transient public String departmentRole;
 }

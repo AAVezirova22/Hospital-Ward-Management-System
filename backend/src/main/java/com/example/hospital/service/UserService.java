@@ -125,6 +125,7 @@ public class UserService {
             "PASSWORD_LENGTH",
             "Use a password of at least 12 characters and at most 72 UTF-8 bytes.");
       u.passwordHash = encoder.encode(in.password());
+      u.sessionStamp = com.example.hospital.security.SessionStamps.next();
     }
     u.username = in.username();
     u.role = in.role();
