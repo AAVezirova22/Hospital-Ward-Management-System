@@ -26,6 +26,13 @@ server:
     include-message: never
 app:
   demo: ${DEMO_MODE:false}
+  public-url: ${PUBLIC_APP_URL:}
+  registration:
+    enabled: ${REGISTRATION_ENABLED:true}
+    expiry-minutes: ${EMAIL_CONFIRMATION_MINUTES:30}
+  email:
+    resend-key: ${RESEND_API_KEY:}
+    from: ${EMAIL_FROM:}
   seed: ${DEMO_SEED:true}
   bootstrap-password: ${BOOTSTRAP_PASSWORD:}
   ai:
