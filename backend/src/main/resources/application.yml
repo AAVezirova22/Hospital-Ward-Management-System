@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/hospital}
+    url: ${DATABASE_URL:jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:hospital}}
     username: ${DATABASE_USER:hospital}
     password: ${DATABASE_PASSWORD:hospital-local-only}
   jpa:
