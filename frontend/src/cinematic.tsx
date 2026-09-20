@@ -175,7 +175,7 @@ export function SceneTransition({
       <motion.div
         key={scene}
         className="scene-content"
-        initial={enabled ? { opacity: 0, x: 18 } : false}
+        initial={enabled ? { opacity: 0, x: -28 } : false}
         animate={{ opacity: 1, x: 0 }}
         transition={{
           duration: enabled ? 0.32 : 0,
