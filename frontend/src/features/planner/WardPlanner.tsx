@@ -1,9 +1,9 @@
 "use client";
-import { ArrowRight, RefreshCw, CheckCircle2 } from "lucide-react";
-import { api, fullName, type User } from "../../api";
-import type { ArrivalPlan } from "../../api/contracts";
+import { RefreshCw, CheckCircle2 } from "lucide-react";
+import { api, type User } from "../../api";
 import { WardMap } from "./WardMap";
 import { PlanReview } from "./PlanReview";
+import { PlannerControls } from "./PlannerControls";
 import { executableOrder } from "./model";
 import { LoadingState } from "../../components/LoadingState";
 import { useWardPlanner } from "./useWardPlanner";
@@ -14,7 +14,6 @@ export function WardPlanner({ user }: { user: User }) {
     roomsQuery,
     admissionsQuery,
     rooms,
-    admissions,
     plan,
     setPlan,
     selected,
@@ -132,173 +131,35 @@ export function WardPlanner({ user }: { user: User }) {
         </p>
       )}
       <div className="planner-layout">
-        <aside className="panel planner-controls">
-          <h2>{canWrite ? "Plan a placement" : "Ward overview"}</h2>
-          <p>Capacity slots represent occupancy, not assigned bed numbers.</p>
-          {canWrite ? (
-            <>
-              <label>
-                Patient
-                <select
-                  aria-label="Patient"
-                  value={selected ?? ""}
-                  disabled={busy}
-                  onChange={(e) => {
-                    setSelected(Number(e.target.value) || undefined);
-                    setDischargeDate(
-                      active.find(
-                        (a) => a.admission.id === Number(e.target.value),
-                      )?.admission.expectedDischargeDate ?? "",
-                    );
-                  }}
-                >
-                  <option value="">Choose an active patient</option>
-                  {active.map((v) => (
-                    <option key={v.admission.id} value={v.admission.id}>
-                      {fullName(v.patient)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {current && (
-                <p>
-                  Dr. {fullName(current.doctor)}
-                  <br />
-                  Currently Room {roomName(current.assignment?.roomId ?? 0)}
-                </p>
-              )}
-              <label>
-                Destination
-                <select
-                  aria-label="Destination"
-                  value={destination}
-                  disabled={busy}
-                  onChange={(e) => setDestination(e.target.value)}
-                >
-                  <option value="">Choose a room</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id} disabled={!r.active}>
-                      Room {r.roomNumber} ·{" "}
-                      {r.active ? `${r.availableBeds} free now` : "Inactive"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                className="primary"
-                disabled={
-                  !selected ||
-                  !destination ||
-                  busy ||
-                  Boolean(roomsQuery.error || admissionsQuery.error)
-                }
-                onClick={() => stage(selected!, Number(destination))}
-              >
-                Preview transfer
-                <ArrowRight size={16} />
-              </button>
-              <p className="muted">
-                You can also drag a patient onto a room. All changes stay in
-                simulation until confirmed.
-              </p>
-              {current && (
-                <details>
-                  <summary>Plan discharge date</summary>
-                  <label>
-                    Expected discharge (UTC)
-                    <input
-                      type="date"
-                      min={new Date().toISOString().slice(0, 10)}
-                      value={dischargeDate}
-                      onChange={(e) => setDischargeDate(e.target.value)}
-                    />
-                  </label>
-                  <p>
-                    Currently:{" "}
-                    {current.admission.expectedDischargeDate ?? "Not scheduled"}
-                  </p>
-                  <button
-                    className="secondary"
-                    disabled={busy}
-                    onClick={schedule}
-                  >
-                    Save expected date
-                  </button>
-                </details>
-              )}
-            </>
-          ) : (
-            <p>
-              Your doctor role can view assigned patients and simulate arrivals.
-              Transfers require medical staff or an administrator.
-            </p>
-          )}
-          <details open>
-            <summary>What if patients arrive?</summary>
-            <label>
-              Additional arrivals
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={arrivals}
-                onChange={(e) => {
-                  setArrivals(Number(e.target.value));
-                  setSimulation(undefined);
-                }}
-              />
-            </label>
-            <button
-              className="secondary"
-              disabled={
-                busy ||
-                !Number.isInteger(arrivals) ||
-                arrivals < 0 ||
-                arrivals > 100
-              }
-              onClick={async () => {
-                setBusy(true);
-                setError("");
-                try {
-                  setSimulation(
-                    await api<ArrivalPlan>(
-                      `/planner/simulate?arrivals=${arrivals}`,
-                    ),
-                  );
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Simulate arrivals
-            </button>
-            {simulation && (
-              <div className="simulation-result" role="status">
-                <p>
-                  {simulation.placements.length} placements available ·{" "}
-                  {simulation.unplaced} cannot be placed.
-                </p>
-                <p>
-                  Based on saved capacity. Staged transfers and clinical
-                  suitability are not included.
-                </p>
-                {rooms.map((r) => {
-                  const n = simulation.placements.filter(
-                    (p) => p.roomId === r.id,
-                  ).length;
-                  return n ? (
-                    <div key={r.id}>
-                      Room {r.roomNumber}
-                      <strong> +{n}</strong>
-                    </div>
-                  ) : null;
-                })}
-              </div>
-            )}
-          </details>
-        </aside>
+        <PlannerControls
+          canWrite={canWrite}
+          busy={busy}
+          loadError={Boolean(roomsQuery.error || admissionsQuery.error)}
+          selected={selected}
+          destination={destination}
+          rooms={rooms}
+          active={active}
+          current={current}
+          roomName={roomName}
+          dischargeDate={dischargeDate}
+          arrivals={arrivals}
+          simulation={simulation}
+          onSelect={(id, discharge) => {
+            setSelected(id);
+            setDischargeDate(discharge ?? "");
+          }}
+          onDestination={setDestination}
+          onStage={stage}
+          onDischargeDate={setDischargeDate}
+          onSchedule={schedule}
+          onArrivals={(value) => {
+            setArrivals(value);
+            setSimulation(undefined);
+          }}
+          onSimulation={setSimulation}
+          onBusy={setBusy}
+          onError={setError}
+        />
         <div>
           <div className="ward-legend">
             <span>Live capacity</span>
@@ -337,7 +198,9 @@ export function WardPlanner({ user }: { user: User }) {
             loadError={Boolean(roomsQuery.error || admissionsQuery.error)}
             roomName={roomName}
             onRemove={(admissionId) => {
-              setPlan((list) => list.filter((x) => x.admissionId !== admissionId));
+              setPlan((list) =>
+                list.filter((x) => x.admissionId !== admissionId),
+              );
               setReview(false);
             }}
             onDiscard={() => {
