@@ -19,6 +19,8 @@ public class Bootstrap implements CommandLineRunner {
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
   private final MedicalProcedureRepository procedures;
+  private final PerformedProcedureRepository performed;
+  private final AuditEventRepository audit;
   private final PasswordEncoder encoder;
   private final boolean seed;
   private final String password;
@@ -31,6 +33,8 @@ public class Bootstrap implements CommandLineRunner {
       AdmissionRepository a,
       RoomAssignmentRepository ra,
       MedicalProcedureRepository mp,
+      PerformedProcedureRepository pp,
+      AuditEventRepository ae,
       PasswordEncoder e,
       @Value("${app.seed}") boolean seed,
       @Value("${app.bootstrap-password}") String password) {
@@ -41,6 +45,8 @@ public class Bootstrap implements CommandLineRunner {
     admissions = a;
     assignments = ra;
     procedures = mp;
+    performed = pp;
+    audit = ae;
     encoder = e;
     this.seed = seed;
     this.password = password;
@@ -90,6 +96,7 @@ public class Bootstrap implements CommandLineRunner {
       var r = new Room();
       r.roomNumber = "" + (301 + i);
       r.bedCount = i < 4 ? 4 : 2;
+      r.active = i != 7;
       rooms.save(r);
     }
     String[][] ps = {
@@ -104,44 +111,99 @@ public class Bootstrap implements CommandLineRunner {
       {"Stefan", "Marinov"},
       {"Maria", "Popova"},
       {"Nikolai", "Vasilev"},
-      {"Vera", "Angelova"}
+      {"Vera", "Angelova"},
+      {"Lilia", "Hristova"}, {"Pavel", "Dobrev"}, {"Irina", "Mihaylova"},
+      {"Victor", "Radev"}, {"Daria", "Ilieva"}, {"Emil", "Kostov"},
+      {"Yana", "Pavlova"}, {"Radoslav", "Dinev"}, {"Elitsa", "Yordanova"},
+      {"Kalin", "Atanasov"}, {"Nina", "Borisova"}, {"Todor", "Zhelev"},
+      {"Raya", "Stankova"}, {"Plamen", "Nedev"}, {"Alina", "Markova"},
+      {"Georgi", "Velikov"}
     };
     var allDoctors = doctors.findAll();
     var allRooms = rooms.findAll();
+    String[] names = {"Complete blood count", "Electrocardiogram", "Ultrasound examination", "Chest X-ray"};
+    String[] costs = {"27.40", "46.80", "83.50", "68.20"};
+    for (int i = 0; i < names.length; i++) {
+      var mp = new MedicalProcedure();
+      mp.procedureCode = "PR-00" + (i + 1);
+      mp.procedureName = names[i];
+      mp.currentCost = new BigDecimal(costs[i]);
+      procedures.save(mp);
+    }
+    var catalogue = procedures.findAll();
+    var now = Instant.now();
+    int[] placement = {2, 0, 0, 1, 1, 2, 2, 3, 3, 4, 5, 0, 1, 3};
     for (int i = 0; i < ps.length; i++) {
       var p = new Patient();
       p.patientIdentifier = "PAT-" + String.format("%04d", i + 1);
       p.firstName = ps[i][0];
       p.lastName = ps[i][1];
-      p.dateOfBirth = LocalDate.of(1960 + i * 3, 2, 12);
+      p.dateOfBirth = LocalDate.of(1954 + (i * 7 % 53), 1 + i % 12, 5 + i % 23);
       p.address = "Synthetic demonstration record";
       patients.save(p);
-      if (i < 9) {
+      if (i < 26) {
         var a = new Admission();
         a.admissionNumber = "ADM-DEMO-" + (i + 1);
         a.patientId = p.id;
         a.attendingDoctorId = allDoctors.get(i % 3).id;
-        a.admissionDateTime = Instant.now().minusSeconds((i + 1) * 86400L);
+        a.admissionDateTime = now.minusSeconds((i < 14 ? i : 2 + (i - 14)) * 86400L + 1700 + i * 113);
+        if (i >= 14) {
+          a.status = "DISCHARGED";
+          a.dischargeDateTime = a.admissionDateTime.plusSeconds(86400L + i * 419);
+        }
         a.createdBy = admin.id;
+        if (i < 14 && i % 4 == 0) a.expectedDischargeDate = LocalDate.now(ZoneOffset.UTC).plusDays(i % 3);
         admissions.save(a);
         var ra = new RoomAssignment();
         ra.admissionId = a.id;
-        ra.roomId = allRooms.get(i / 2).id;
+        ra.roomId = allRooms.get(i < 14 ? placement[i] : i % 6).id;
         ra.assignedAt = a.admissionDateTime;
         ra.createdBy = admin.id;
         ra.reason = "Initial admission";
+        ra.releasedAt = a.dischargeDateTime;
         assignments.save(ra);
+        event(admin.id, "ADMISSION_CREATED", a.id, a.admissionDateTime);
+        if (i >= 14) event(admin.id, "PATIENT_DISCHARGED", a.id, a.dischargeDateTime);
+        if (i == 5 || i == 8 || i == 10) {
+          // Two consecutive assignments, never overlapping, preserve the full care timeline.
+          ra.roomId = allRooms.get(6).id;
+          ra.releasedAt = a.admissionDateTime.plusSeconds(3600L * (i + 1));
+          assignments.saveAndFlush(ra);
+          var transfer = new RoomAssignment();
+          transfer.admissionId = a.id;
+          transfer.roomId = allRooms.get(placement[i]).id;
+          transfer.assignedAt = ra.releasedAt;
+          transfer.createdBy = admin.id;
+          transfer.reason = "Ward capacity balancing";
+          assignments.save(transfer);
+          event(admin.id, "ROOM_TRANSFERRED", a.id, transfer.assignedAt);
+        }
+        for (int j = 0; j < 1 + i % 3; j++) {
+          var mp = catalogue.get((i + j) % catalogue.size());
+          var pp = new PerformedProcedure();
+          pp.admissionId = a.id;
+          pp.medicalProcedureId = mp.id;
+          pp.performedByDoctorId = a.attendingDoctorId;
+          var end = a.dischargeDateTime == null ? now : a.dischargeDateTime;
+          pp.performedAt = a.admissionDateTime.plusSeconds(Duration.between(a.admissionDateTime, end).getSeconds() * (j + 1) / (2 + i % 3));
+          pp.priceAtExecution = mp.currentCost;
+          pp.note = "Synthetic demonstration procedure";
+          performed.save(pp);
+          event(admin.id, "PROCEDURE_RECORDED", a.id, pp.performedAt);
+        }
       }
     }
-    String[] names = {
-      "Complete blood count", "Electrocardiogram", "Ultrasound examination", "Chest X-ray"
-    };
-    for (int i = 0; i < names.length; i++) {
-      var mp = new MedicalProcedure();
-      mp.procedureCode = "PR-00" + (i + 1);
-      mp.procedureName = names[i];
-      mp.currentCost = new BigDecimal(25 + i * 20);
-      procedures.save(mp);
-    }
+  }
+
+  private void event(Long userId, String type, Long admissionId, Instant time) {
+    var e = new AuditEvent();
+    e.userId = userId;
+    e.eventType = type;
+    e.entityType = "Admission";
+    e.entityId = admissionId;
+    e.timestamp = time;
+    e.source = "DEMO";
+    e.metadata = "Synthetic scenario";
+    audit.save(e);
   }
 }

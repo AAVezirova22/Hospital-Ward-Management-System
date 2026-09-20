@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Confirm your Medcore account</title></head>
+<body style="margin:0;padding:0;background:#eef2ed;font-family:Arial,Helvetica,sans-serif;color:#1e3327;">
+  <div style="display:none;max-height:0;overflow:hidden;">One step to your Medcore patient workspace. Confirm your email address.</div>
+  <table role="presentation" style="width:100%;border-collapse:collapse;background:#eef2ed;"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" style="width:100%;max-width:580px;border-collapse:collapse;">
+      <tr><td style="background:#13251c;padding:32px 40px;border-radius:20px 20px 0 0;"><span style="font-size:27px;letter-spacing:-1px;color:#c2e8bd;font-weight:bold;">medcore</span><p style="color:#afc6b4;font-size:12px;letter-spacing:2px;margin:12px 0 0;">YOUR CARE, CONNECTED</p></td></tr>
+      <tr><td style="background:#ffffff;padding:40px;">
+        <p style="font-size:14px;color:#526857;margin:0 0 16px;">Hello {{firstName}},</p>
+        <h1 style="font-size:34px;line-height:1.15;letter-spacing:-1px;font-weight:500;margin:0 0 22px;">A clearer view<br>of your care.</h1>
+        <p style="font-size:16px;line-height:1.7;color:#526857;">Confirm your email address to activate your Medcore account.</p>
+        <table role="presentation" style="border-collapse:collapse;margin:30px 0;"><tr><td style="background:#285b3b;border-radius:10px;"><a href="{{confirmationUrl}}" style="display:inline-block;padding:17px 27px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:bold;">Confirm email address &nbsp; →</a></td></tr></table>
+        <p style="font-size:14px;line-height:1.7;color:#526857;">{{accountDetail}}</p>
+        <p style="font-size:13px;line-height:1.7;color:#526857;border-top:1px solid #e4ece2;padding-top:22px;margin-top:26px;">This link expires in {{expiryMinutes}} minutes and can be used once. If you didn’t request this account, you can ignore this email.</p>
+        <p style="font-size:12px;line-height:1.7;color:#526857;">Button not working? Copy this link into your browser:<br><a href="{{confirmationUrl}}" style="color:#285b3b;word-break:break-all;">{{confirmationUrl}}</a></p>
+      </td></tr>
+      <tr><td style="padding:24px 40px;background:#e4ece2;border-radius:0 0 20px 20px;font-size:12px;line-height:1.7;color:#526857;">Medcore · Hospital operations<br>No medical records are included in this email.</td></tr>
+    </table>
+  </td></tr></table>
+</body></html>

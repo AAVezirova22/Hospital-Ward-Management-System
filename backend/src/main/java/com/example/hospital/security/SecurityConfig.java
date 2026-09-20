@@ -48,10 +48,16 @@ public class SecurityConfig {
       throws Exception {
     http.authorizeHttpRequests(
             a ->
-                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health")
+                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health",
+                    "/api/v1/demo/status", "/api/v1/demo/login", "/api/v1/registration/status",
+                    "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend")
                     .permitAll()
+                    .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout")
+                    .authenticated()
+                    .requestMatchers("/api/v1/portal/**")
+                    .hasRole("PATIENT")
                     .anyRequest()
-                    .authenticated())
+                    .hasAnyRole("ADMIN", "MEDICAL_STAFF", "DOCTOR"))
         .requestCache(c -> c.disable())
         .formLogin(
             f ->
@@ -62,6 +68,7 @@ public class SecurityConfig {
                           u.lastLoginAt = Instant.now();
                           users.save(u);
                           r.getSession().setAttribute("credentialStamp", u.passwordHash);
+                          r.getSession().setAttribute("accountId", u.id);
                           s.setContentType("application/json");
                           json.writeValue(s.getWriter(), u);
                         })
@@ -124,7 +131,9 @@ public class SecurityConfig {
                   var stamp = session == null ? null : session.getAttribute("credentialStamp");
                   if (u.isEmpty()
                       || !u.get().enabled
-                      || (stamp != null && !stamp.equals(u.get().passwordHash))) {
+                      || (stamp != null && !stamp.equals(u.get().passwordHash))
+                      || (session != null && session.getAttribute("accountId") != null
+                          && !session.getAttribute("accountId").equals(u.get().id))) {
                     SecurityContextHolder.clearContext();
                     if (r.getSession(false) != null) r.getSession(false).invalidate();
                   } else

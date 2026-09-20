@@ -1,0 +1,58 @@
+# Dedicated synthetic demo. Import this Blueprint; no secrets are stored here.
+databases:
+  - name: medcore-demo-db
+    plan: basic-256mb
+    databaseName: hospital
+    user: hospital
+    ipAllowList: []
+
+services:
+  - type: web
+    name: medcore-demo-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_HOST
+        fromDatabase: { name: medcore-demo-db, property: host }
+      - key: DATABASE_PORT
+        fromDatabase: { name: medcore-demo-db, property: port }
+      - key: DATABASE_NAME
+        fromDatabase: { name: medcore-demo-db, property: database }
+      - key: DATABASE_USER
+        fromDatabase: { name: medcore-demo-db, property: user }
+      - key: DATABASE_PASSWORD
+        fromDatabase: { name: medcore-demo-db, property: password }
+      - key: BOOTSTRAP_PASSWORD
+        generateValue: true
+      - key: DEMO_SEED
+        value: "true"
+      - key: DEMO_MODE
+        value: "true"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: AI_MODE
+        value: local
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: Medcore <onboarding@resend.dev>
+      - key: PUBLIC_APP_URL
+        sync: false
+  - type: web
+    name: medcore-demo-web
+    runtime: node
+    plan: starter
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: node node_modules/next/dist/bin/next start --hostname 0.0.0.0 --port $PORT
+    healthCheckPath: /manifest.webmanifest
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: API_INTERNAL_HOSTPORT
+        fromService: { name: medcore-demo-api, type: web, property: hostport }
+      - key: PUBLIC_APP_URL
+        sync: false

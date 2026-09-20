@@ -2,8 +2,11 @@ export type Row = Record<string, any>;
 export type User = {
   id: number;
   username: string;
-  role: "ADMIN" | "MEDICAL_STAFF" | "DOCTOR";
+  role: "ADMIN" | "MEDICAL_STAFF" | "DOCTOR" | "PATIENT";
   doctorId: number | null;
+  patientId?: number | null;
+  requestedRole?: string | null;
+  emailVerified?: boolean;
 };
 let csrf: { token: string; headerName: string } | null = null;
 export class ApiError extends Error {
@@ -130,8 +133,9 @@ export async function logout() {
   await api("/auth/logout", "POST");
   csrf = null;
 }
-export const fullName = (p: Row) =>
-  p ? `${p.firstName} ${p.lastName}` : "Not recorded";
+export const fullName = (
+  p: { firstName?: string; lastName?: string } | null | undefined,
+) => (p ? `${p.firstName} ${p.lastName}` : "Not recorded");
 export const money = (n: number) =>
   new Intl.NumberFormat("en", { style: "currency", currency: "EUR" }).format(
     n || 0,

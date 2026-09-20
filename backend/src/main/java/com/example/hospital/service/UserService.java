@@ -59,6 +59,12 @@ public class UserService {
         && (in.doctorId() == null
             || doctors.findById(in.doctorId()).filter(d -> d.active).isEmpty()))
       throw new ApiException(400, "DOCTOR_REQUIRED", "Link an active doctor account.");
+    if ("DOCTOR".equals(in.role()) && "DOCTOR".equals(u.requestedRole) && !u.emailVerified)
+      throw new ApiException(400, "EMAIL_UNVERIFIED", "The applicant must confirm their email first.");
+    if ("PATIENT".equals(in.role()) && u.patientId == null)
+      throw new ApiException(400, "PATIENT_REQUIRED", "Patient accounts are created through registration.");
+    if (u.email != null && !u.emailVerified && in.enabled())
+      throw new ApiException(400, "EMAIL_UNVERIFIED", "Confirm the account email before enabling access.");
     if (id != null && !u.username.equals(in.username()))
       throw new ApiException(400, "USERNAME_IMMUTABLE", "Usernames cannot be changed.");
     if (id == null || in.password() != null && !in.password().isBlank()) {

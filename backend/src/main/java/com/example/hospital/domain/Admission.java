@@ -10,6 +10,7 @@ public class Admission extends BaseEntity {
   public Long attendingDoctorId;
   public java.time.Instant admissionDateTime;
   public java.time.Instant dischargeDateTime;
+  public java.time.LocalDate expectedDischargeDate;
   public String status = "ACTIVE";
   public Long createdBy;
 }
