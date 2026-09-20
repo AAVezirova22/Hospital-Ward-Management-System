@@ -40,6 +40,7 @@ import { Assistant } from "./features/assistant/Assistant";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { LiveOperations } from "./components/LiveOperations";
 import { MobileNavigation } from "./components/MobileNavigation";
+import { IdleTimeout } from "./components/IdleTimeout";
 import {
   LoginScene,
   ThemeToggle,
@@ -473,6 +474,7 @@ function Shell({
         </footer>
       </div>
       <SavedNotice />
+      <IdleTimeout />
       {pathname !== "/app/presentation" && (
         <MobileNavigation onAssistant={() => setAssistant(true)} />
       )}
