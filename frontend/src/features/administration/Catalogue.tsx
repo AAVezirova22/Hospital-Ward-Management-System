@@ -25,7 +25,7 @@ export function Catalogue({ kind }: { kind: string }) {
   return (
     <>
       <Title
-        eyebrow="DEPARTMENT DIRECTORY"
+        eyebrow="Department directory"
         title={cfg.title}
         description={cfg.description}
       >
