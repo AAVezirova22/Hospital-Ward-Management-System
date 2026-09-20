@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "../../icons";
 import { login, type User } from "../../api";
 import { ErrorBox } from "../../components/workspace";
 import { DemoAccess } from "../demo/DemoAccess";
