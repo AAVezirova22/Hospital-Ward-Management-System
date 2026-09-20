@@ -47,6 +47,6 @@ public class StayService {
   }
 
   public Object recordProcedure(Long id, RecordProcedureInput in) {
-    return hospital.recordProcedure(id, in);
+    return Views.performed(hospital.recordProcedure(id, in));
   }
 }
