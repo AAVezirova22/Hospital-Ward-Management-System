@@ -7,6 +7,11 @@ import org.springframework.context.annotation.*;
 @Configuration
 public class AiConfig {
   @Bean
+  ObjectMapper objectMapper() {
+    return new ObjectMapper().findAndRegisterModules();
+  }
+
+  @Bean
   AiModelClient model(
       @Value("${app.ai.mode}") String mode,
       @Value("${app.ai.url}") String url,
