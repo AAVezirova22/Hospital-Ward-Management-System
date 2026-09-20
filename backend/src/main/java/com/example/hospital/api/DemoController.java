@@ -48,18 +48,18 @@ public class DemoController {
       default -> throw new ApiException(400, "INVALID_ROLE", "Choose a demonstration role.");
     };
     var user = users.findByUsername(username).orElseThrow(ApiException::missing);
-    if (!user.enabled || !user.role.equals(input.role()))
+    if (!user.isEnabled() || !user.getRole().equals(input.role()))
       throw new ApiException(403, "DEMO_ACCOUNT_UNAVAILABLE", "This demo account is unavailable.");
     if (request.getSession(false) != null) request.getSession(false).invalidate();
     var context = SecurityContextHolder.createEmptyContext();
-    context.setAuthentication(new UsernamePasswordAuthenticationToken(user.username, null,
-        List.of(new SimpleGrantedAuthority("ROLE_" + user.role))));
+    context.setAuthentication(new UsernamePasswordAuthenticationToken(user.getUsername(), null,
+        List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole()))));
     SecurityContextHolder.setContext(context);
-    if (user.sessionStamp == null || user.sessionStamp.isBlank()) user.sessionStamp = SessionStamps.next();
-    request.getSession(true).setAttribute("credentialStamp", user.sessionStamp);
-    request.getSession().setAttribute("accountId", user.id);
+    if (user.getSessionStamp() == null || user.getSessionStamp().isBlank()) user.setSessionStamp(SessionStamps.next());
+    request.getSession(true).setAttribute("credentialStamp", user.getSessionStamp());
+    request.getSession().setAttribute("accountId", user.getId());
     new HttpSessionSecurityContextRepository().saveContext(context, request, response);
-    user.lastLoginAt = Instant.now();
+    user.setLastLoginAt(Instant.now());
     users.save(user);
     return Views.account(user);
   }
@@ -91,7 +91,7 @@ public class DemoController {
   private void requireSeedIdentities() {
     for (var expected : List.of(Map.entry("admin", "ADMIN"), Map.entry("doctor", "DOCTOR"), Map.entry("staff", "MEDICAL_STAFF"))) {
       var found = users.findByUsername(expected.getKey());
-      if (found.isEmpty() || !expected.getValue().equals(found.get().role) || !found.get().enabled)
+      if (found.isEmpty() || !expected.getValue().equals(found.get().getRole()) || !found.get().isEnabled())
         throw new ApiException(403, "DEMO_ACCOUNT_UNAVAILABLE", "This demo account is unavailable.");
     }
   }
