@@ -189,6 +189,20 @@ export function WorkspaceSwitcher() {
                     </button>
                   </p>
                 )}
+                {hospital.owner && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => {
+                      setHostHospital(hospital);
+                      setDepartmentName("");
+                      setPanel("department");
+                    }}
+                  >
+                    <Plus size={14} />
+                    New department
+                  </button>
+                )}
               </section>
             ))}
           </div>
