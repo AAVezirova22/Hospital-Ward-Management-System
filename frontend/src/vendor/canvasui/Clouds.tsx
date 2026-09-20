@@ -810,7 +810,6 @@ export function createClouds(
 export interface CloudsProps extends CloudsOptions {
   children: ReactNode;
   className?: string;
-  style?: React.CSSProperties;
 }
 
 const emptySubscribe = () => () => {};
@@ -818,7 +817,6 @@ const emptySubscribe = () => () => {};
 export function Clouds({
   children,
   className,
-  style,
   ...options
 }: CloudsProps) {
   const sourceRef = useRef<HTMLCanvasElement>(null);
@@ -867,56 +865,31 @@ export function Clouds({
   });
 
   return (
-    <div className={className} style={{ position: "relative", ...style }}>
+    <div className={["clouds-root", className].filter(Boolean).join(" ")}>
       <canvas
         ref={sourceRef}
         // @ts-expect-error experimental html-in-canvas attribute
         layoutsubtree="true"
         suppressHydrationWarning
-        style={
-          native
-            ? { position: "absolute", inset: 0, width: "100%", height: "100%" }
-            : { display: "none" }
-        }
+        className={native ? "clouds-source" : "clouds-source-off"}
       >
         {native ? (
-          <div
-            ref={contentRef}
-            style={{
-              position: "relative",
-              width: "100%",
-              height: "100%",
-              overflow: "auto",
-            }}
-          >
+          <div ref={contentRef} className="clouds-layer">
             {children}
           </div>
         ) : null}
       </canvas>
       {!native ? (
-        <div
-          ref={contentRef}
-          style={{
-            position: "relative",
-            width: "100%",
-            height: "100%",
-            overflow: "auto",
-          }}
-        >
+        <div ref={contentRef} className="clouds-layer">
           {children}
         </div>
       ) : null}
       <canvas
         ref={outputRef}
         aria-hidden
-        style={{
-          visibility: failed ? "hidden" : "visible",
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          pointerEvents: "none",
-        }}
+        className={
+          failed ? "clouds-output clouds-output-failed" : "clouds-output"
+        }
       />
     </div>
   );
