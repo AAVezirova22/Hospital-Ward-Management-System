@@ -64,9 +64,17 @@ export function Modal({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
   useEffect(() => {
+    opener.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     ref.current?.showModal();
-    return () => ref.current?.close();
+    return () => {
+      ref.current?.close();
+      opener.current?.focus();
+    };
   }, []);
   return (
     <dialog
