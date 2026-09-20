@@ -19,6 +19,8 @@ public class UserService {
   private final Actor actor;
   private final PasswordEncoder encoder;
   private final AuditService audit;
+  private final WorkspaceService workspaces;
+  private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
   public UserService(
       AppUserRepository u,
@@ -26,18 +28,26 @@ public class UserService {
       WorkflowLockRepository l,
       Actor a,
       PasswordEncoder e,
-      AuditService au) {
+      AuditService au, WorkspaceService workspaces, org.springframework.jdbc.core.JdbcTemplate jdbc) {
     users = u;
     doctors = d;
     lock = l;
     actor = a;
     encoder = e;
     audit = au;
+    this.workspaces = workspaces;
+    this.jdbc = jdbc;
   }
 
   public List<AppUser> list() {
     actor.admin();
-    return users.findAll();
+    return users.findAll().stream().filter(this::visible).toList();
+  }
+
+  private boolean visible(AppUser user) {
+    return workspaces.member(user.id) || (user.patientId != null && Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from patients where id=? and department_id=?", Boolean.class,
+        user.patientId, com.example.hospital.security.DepartmentContext.id())));
   }
 
   @Transactional
@@ -45,6 +55,11 @@ public class UserService {
     lock.acquire();
     actor.admin();
     var u = id == null ? new AppUser() : users.findById(id).orElseThrow(ApiException::missing);
+    if (id != null && !visible(u)) throw ApiException.missing();
+    if (id != null && Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from department_memberships where user_id=? and department_id<>?", Boolean.class,
+        id, com.example.hospital.security.DepartmentContext.id())))
+      throw ApiException.conflict("SHARED_ACCOUNT", "This account belongs to multiple departments. Its account settings cannot be changed from a single department.");
     if (id != null) HospitalService.version(u, in.version());
     if (id != null && id.equals(actor.user().id) && (!in.enabled() || !in.role().equals("ADMIN")))
       throw ApiException.conflict(
@@ -82,6 +97,7 @@ public class UserService {
     u.enabled = in.enabled();
     u.doctorId = in.role().equals("DOCTOR") ? in.doctorId() : null;
     users.saveAndFlush(u);
+    if (!"PATIENT".equals(u.role)) workspaces.enroll(u.id, u.role, u.doctorId);
     audit.log("USER_SAVED", "User", u.id, "UI");
     return u;
   }
