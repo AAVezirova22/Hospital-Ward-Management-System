@@ -9,7 +9,7 @@ import { login, type User } from "../../api";
 import { ErrorBox } from "../../components/workspace";
 import { DemoAccess } from "../demo/DemoAccess";
 import { Registration, EmailVerification, ResendConfirmation } from "./Registration";
-import { LoginScene } from "../../cinematic";
+import { LoginScene } from "../../login-scene";
 
 export function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [error, setError] = useState<Error | null>(null),
@@ -66,7 +66,7 @@ export function Login({ onLogin }: { onLogin: (u: User) => void }) {
         })}
       >
         <div className="access-icon">
-          <ShieldCheck size={24} strokeWidth={1.4} />
+          <ShieldCheck size={24} strokeWidth={1.5} />
         </div>
         <h2>Welcome back.</h2>
         <p className="form-intro">Sign in to your department.</p>
