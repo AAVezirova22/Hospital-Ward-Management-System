@@ -172,6 +172,7 @@ export function SceneTransition({
   const { enabled } = useContext(CinemaContext);
   return (
     <WorkspaceSceneContext.Provider value={true}>
+      <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={scene}
         className="scene-content"
@@ -184,6 +185,7 @@ export function SceneTransition({
       >
         {children}
       </motion.div>
+      </AnimatePresence>
     </WorkspaceSceneContext.Provider>
   );
 }
