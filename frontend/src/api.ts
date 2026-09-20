@@ -77,6 +77,8 @@ export async function api<T = any>(
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = {};
+  const department = activeDepartment();
+  if (department) headers["X-Department-Id"] = department;
   if (method !== "GET") {
     const t = csrf || (await token());
     headers[t.headerName] = t.token;
