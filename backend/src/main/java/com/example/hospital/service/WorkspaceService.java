@@ -7,6 +7,9 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -133,9 +136,30 @@ public class WorkspaceService {
     if (hospital) owner(id);
     else if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'", Boolean.class, id, actor.user().id)))
       throw new ApiException(403, "DEPARTMENT_ADMIN_REQUIRED", "Only a department administrator can replace its code.");
-    String next = code(hospital ? "H-" : "D-");
-    jdbc.update("update " + (hospital ? "hospitals" : "departments") + " set join_code=? where id=?", next, id);
-    return next;
+    String table = hospital ? "hospitals" : "departments";
+    for (int attempt = 0; attempt < 8; attempt++) {
+      String next = code(hospital ? "H-" : "D-");
+      try {
+        jdbc.execute((ConnectionCallback<Void>) con -> {
+          var savepoint = con.setSavepoint("join_code");
+          try (var statement = con.prepareStatement("update " + table + " set join_code=? where id=?")) {
+            statement.setString(1, next);
+            statement.setLong(2, id);
+            statement.executeUpdate();
+            con.releaseSavepoint(savepoint);
+          } catch (java.sql.SQLException e) {
+            con.rollback(savepoint);
+            throw e;
+          }
+          return null;
+        });
+        return next;
+      } catch (DuplicateKeyException | DataIntegrityViolationException e) {
+        if (attempt == 7)
+          throw new ApiException(409, "JOIN_CODE_COLLISION", "Could not allocate a unique join code. Try again.");
+      }
+    }
+    throw new ApiException(409, "JOIN_CODE_COLLISION", "Could not allocate a unique join code. Try again.");
   }
 
   public void enroll(long userId, String role, Long doctorId) {
