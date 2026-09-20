@@ -16,9 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class WorkspaceService {
   private final JdbcTemplate jdbc;
   private final Actor actor;
+  private final AuditService audit;
   private final SecureRandom random = new SecureRandom();
   private final Map<String, List<Instant>> joinAttempts = new ConcurrentHashMap<>();
-  public WorkspaceService(JdbcTemplate jdbc, Actor actor) { this.jdbc = jdbc; this.actor = actor; }
+  public WorkspaceService(JdbcTemplate jdbc, Actor actor, AuditService audit) {
+    this.jdbc = jdbc;
+    this.actor = actor;
+    this.audit = audit;
+  }
   public record Department(long id, String name, String role, String joinCode) {}
   public record Hospital(long id, String name, boolean owner, String joinCode, List<Department> departments) {}
 
@@ -89,6 +94,7 @@ public class WorkspaceService {
     var hospitals = jdbc.queryForList("select id from hospitals where join_code=?", Long.class, code);
     if (hospitals.isEmpty()) {
       recordJoinFailure(user.id, remoteAddr);
+      audit.log("JOIN_CODE_REJECTED", "Workspace", user.id, "UI");
       throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
     }
     clearJoinAttempts(user.id, remoteAddr);
