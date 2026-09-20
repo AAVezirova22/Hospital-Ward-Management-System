@@ -1,0 +1,252 @@
+/* Film language lives in the artwork, never over records or form controls. */
+.motion-toggle {
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.motion-toggle:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.login-nav > div {
+  gap: 14px;
+}
+.login-nav > div > span {
+  margin-right: 12px;
+}
+.login-stage {
+  grid-template-columns: 1.5fr 1fr;
+}
+.login-visual {
+  display: flex;
+  align-items: flex-end;
+  min-height: 660px;
+}
+.cinema-camera,
+.cinema-atmosphere,
+.cinema-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cinema-camera {
+  inset: -12px;
+}
+.cinema-atmosphere {
+  overflow: hidden;
+}
+.cinema-clouds,
+.atmosphere-field {
+  width: 100%;
+  height: 100%;
+}
+.cinema-grain {
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23n)' opacity='.5' d='M0 0h180v180H0z'/%3E%3C/svg%3E");
+  background-size: 180px;
+}
+.atrium-image {
+  background-position: 59% center;
+}
+.atrium-shade {
+  background: linear-gradient(
+    180deg,
+    #0a18172b 0%,
+    #0a18170a 24%,
+    #0a18179c 64%,
+    #0a1817e8 100%
+  );
+}
+.scene-heading {
+  position: absolute;
+  top: 40px;
+  left: clamp(30px, 4vw, 64px);
+  right: clamp(30px, 4vw, 64px);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  color: #f1f6ed;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-shadow: 0 1px 8px #10251b;
+}
+.scene-rule {
+  height: 1px;
+  flex: 1;
+  background: #ecf5e64d;
+}
+.login-story {
+  padding: 170px clamp(30px, 4vw, 64px) 112px;
+}
+.login-story h1 {
+  font-size: clamp(42px, 4.9vw, 80px);
+  max-width: none;
+  margin: 22px 0;
+}
+.title-mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.09em;
+  margin-bottom: -0.09em;
+}
+.login-story h1 .title-line {
+  display: block;
+  color: #f2f7ee;
+}
+.login-story h1 .title-accent .title-line {
+  color: #c2e8bd;
+}
+.login-story p {
+  color: #dce7d8;
+}
+.login-visual-caption {
+  left: clamp(30px, 4vw, 64px);
+  right: clamp(30px, 4vw, 64px);
+  padding-top: 18px;
+  border-top: 1px solid #e5f1df30;
+}
+.cinema-aperture {
+  position: absolute;
+  inset-inline: 0;
+  height: 50%;
+  background: #101a18;
+  pointer-events: none;
+  z-index: 2;
+  transform: scaleY(0);
+}
+.aperture-top {
+  top: 0;
+  transform-origin: top;
+}
+.aperture-bottom {
+  bottom: 0;
+  transform-origin: bottom;
+}
+.overview-hero-copy {
+  position: relative;
+  z-index: 1;
+}
+.overview-hero-caption {
+  z-index: 1;
+}
+.overview-hero .cinema-atmosphere {
+  left: 42%;
+  opacity: 0.75;
+}
+.overview-hero-image {
+  inset: -6px;
+}
+.scene-content {
+  min-width: 0;
+}
+
+@keyframes aperture-open {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0);
+  }
+}
+@keyframes title-enter {
+  from {
+    transform: translateY(110%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes camera-drift {
+  from {
+    scale: 1.015;
+  }
+  to {
+    scale: 1.075;
+  }
+}
+@keyframes workspace-arrival {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-motion="on"] .cinema-aperture {
+    animation: aperture-open 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  :root[data-motion="on"] .title-line {
+    animation: title-enter 1.15s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  :root[data-motion="on"] .title-accent .title-line {
+    animation-delay: 0.34s;
+  }
+  :root[data-motion="on"] .atrium-image,
+  :root[data-motion="on"] .overview-hero-image {
+    animation: camera-drift 24s ease-in-out infinite alternate;
+  }
+  :root[data-motion="on"] .app {
+    animation: workspace-arrival 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition-duration: 0s !important;
+  scroll-behavior: auto !important;
+}
+@media (max-width: 1100px) {
+  .login-stage {
+    grid-template-columns: 1.1fr 1fr;
+  }
+  .login-story h1 {
+    font-size: 45px;
+  }
+  .scene-heading {
+    font-size: 8px;
+    gap: 14px;
+  }
+}
+@media (max-width: 800px) {
+  .login-stage {
+    grid-template-columns: 1fr;
+  }
+  .login-visual {
+    min-height: 370px;
+  }
+  .login-story {
+    padding: 110px 26px 70px;
+  }
+  .login-story h1 {
+    font-size: clamp(37px, 7.5vw, 54px);
+    margin: 14px 0;
+  }
+  .login-story p {
+    display: none;
+  }
+  .scene-heading {
+    top: 24px;
+    left: 26px;
+    right: 26px;
+  }
+  .login-visual-caption {
+    display: flex;
+    bottom: 22px;
+    left: 26px;
+    right: 26px;
+    padding-top: 12px;
+  }
+  .login-nav > div {
+    gap: 8px;
+  }
+  .topbar .top-right {
+    gap: 6px;
+  }
+  .cinema-aperture {
+    display: none;
+  }
+}

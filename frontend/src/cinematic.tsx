@@ -1,17 +1,164 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import dynamic from "next/dynamic";
 import {
   motion,
+  MotionConfig,
+  AnimatePresence,
+  useInView,
   useMotionValue,
   useReducedMotion,
   useSpring,
   useScroll,
   useTransform,
 } from "motion/react";
-import { Activity, ArrowUpRight, Moon, Sun } from "lucide-react";
+import { Activity, ArrowUpRight, Moon, Sun, Pause, Play } from "lucide-react";
 
 const ease = [0.22, 1, 0.36, 1] as const;
+const Clouds = dynamic(() => import("./components/canvasui/Clouds"), {
+  ssr: false,
+});
+const CinemaContext = createContext({
+  enabled: false,
+  systemReduced: false,
+  toggle: () => {},
+});
+
+export function CinematicProvider({ children }: { children: ReactNode }) {
+  const systemReduced = useReducedMotion();
+  const [paused, setPaused] = useState(false);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    try {
+      setPaused(localStorage.getItem("medcore-motion") === "paused");
+    } catch {}
+    setReady(true);
+  }, []);
+  const enabled = ready && !paused && !systemReduced;
+  useEffect(() => {
+    document.documentElement.dataset.motion = enabled ? "on" : "off";
+  }, [enabled]);
+  return (
+    <CinemaContext.Provider
+      value={{
+        enabled,
+        systemReduced: Boolean(systemReduced),
+        toggle: () => {
+          const next = !paused;
+          setPaused(next);
+          try {
+            localStorage.setItem("medcore-motion", next ? "paused" : "playing");
+          } catch {}
+        },
+      }}
+    >
+      <MotionConfig
+        reducedMotion={enabled ? "user" : "always"}
+        transition={{ duration: enabled ? 0.5 : 0, ease }}
+      >
+        {children}
+      </MotionConfig>
+    </CinemaContext.Provider>
+  );
+}
+
+export function MotionToggle() {
+  const { enabled, systemReduced, toggle } = useContext(CinemaContext);
+  const label = systemReduced
+    ? "Motion reduced by system preference"
+    : enabled
+      ? "Pause cinematic motion"
+      : "Play cinematic motion";
+  return (
+    <button
+      className="icon motion-toggle"
+      aria-label={label}
+      title={label}
+      aria-pressed={enabled}
+      disabled={systemReduced}
+      onClick={toggle}
+    >
+      {enabled ? <Pause size={16} /> : <Play size={16} />}
+    </button>
+  );
+}
+
+/** Only the artwork gets GPU treatment; no clinical text is captured or distorted. */
+function Atmosphere() {
+  const { enabled } = useContext(CinemaContext);
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref);
+  const [available, setAvailable] = useState(false);
+  useEffect(() => {
+    const screen = matchMedia("(min-width: 801px)");
+    const update = () => setAvailable(!document.hidden && screen.matches);
+    // Let the image and sign-in controls paint before loading the decorative shader.
+    const timer = window.setTimeout(update, 1000);
+    document.addEventListener("visibilitychange", update);
+    screen.addEventListener("change", update);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", update);
+      screen.removeEventListener("change", update);
+    };
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className="cinema-atmosphere"
+      aria-hidden="true"
+      data-canvas-ui="clouds"
+    >
+      {enabled && available && inView && (
+        <Clouds
+          className="cinema-clouds"
+          color={[0.64, 0.76, 0.66]}
+          speed={0.2}
+          scale={1.3}
+          cover={0.08}
+          density={1.8}
+          opacity={0.24}
+          shadow={0}
+          quality={0.35}
+        >
+          <div className="atmosphere-field" />
+        </Clouds>
+      )}
+    </div>
+  );
+}
+
+export function SceneTransition({
+  children,
+  scene,
+}: {
+  children: ReactNode;
+  scene: string;
+}) {
+  const { enabled } = useContext(CinemaContext);
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={scene}
+        className="scene-content"
+        initial={enabled ? { opacity: 0, y: 12 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        exit={enabled ? { opacity: 0, y: -6 } : { opacity: 1 }}
+        transition={{ duration: enabled ? 0.24 : 0, ease }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 export function Reveal({
   children,
@@ -22,14 +169,18 @@ export function Reveal({
   className?: string;
   delay?: number;
 }) {
-  const reduced = useReducedMotion();
+  const reduced = !useContext(CinemaContext).enabled;
   return (
     <motion.div
       className={className}
       initial={reduced ? false : { opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.08 }}
-      transition={{ duration: 0.75, delay, ease }}
+      transition={{
+        duration: reduced ? 0 : 0.75,
+        delay: reduced ? 0 : delay,
+        ease,
+      }}
     >
       {children}
     </motion.div>
@@ -76,7 +227,7 @@ export function MagneticButton({
   onClick: () => void;
   className?: string;
 }) {
-  const reduced = useReducedMotion();
+  const reduced = !useContext(CinemaContext).enabled;
   const x = useMotionValue(0),
     y = useMotionValue(0);
   const sx = useSpring(x, { stiffness: 250, damping: 22 });
@@ -108,7 +259,11 @@ export function MagneticButton({
 
 export function LoginScene({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const reduced = useReducedMotion();
+  const reduced = !useContext(CinemaContext).enabled;
+  const pointerX = useMotionValue(0),
+    pointerY = useMotionValue(0);
+  const cameraX = useSpring(pointerX, { stiffness: 45, damping: 25 });
+  const cameraY = useSpring(pointerY, { stiffness: 45, damping: 25 });
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end start"],
@@ -128,6 +283,7 @@ export function LoginScene({ children }: { children: ReactNode }) {
         </a>
         <div>
           <span>Hospital operations</span>
+          <MotionToggle />
           <ThemeToggle />
         </div>
       </header>
@@ -135,24 +291,51 @@ export function LoginScene({ children }: { children: ReactNode }) {
         <section
           className="login-visual"
           aria-label="Your connected department"
+          onPointerMove={(event) => {
+            if (reduced || event.pointerType !== "mouse") return;
+            const bounds = event.currentTarget.getBoundingClientRect();
+            pointerX.set(
+              ((event.clientX - bounds.left) / bounds.width - 0.5) * -20,
+            );
+            pointerY.set(
+              ((event.clientY - bounds.top) / bounds.height - 0.5) * -14,
+            );
+          }}
+          onPointerLeave={() => {
+            pointerX.set(0);
+            pointerY.set(0);
+          }}
         >
           <motion.div
-            className="atrium-image"
-            style={{ y: reduced ? 0 : y }}
-            initial={reduced ? false : { scale: 1.09 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 2.4, ease }}
-          />
+            className="cinema-camera"
+            style={{ x: reduced ? 0 : cameraX, y: reduced ? 0 : cameraY }}
+          >
+            <motion.div
+              className="atrium-image"
+              style={{ y: reduced ? 0 : y }}
+            />
+          </motion.div>
+          <Atmosphere />
           <div className="atrium-shade" />
+          <div className="cinema-grain" aria-hidden="true" />
+          <div className="scene-heading" aria-hidden="true">
+            <span>MEDCORE / A CONNECTED VIEW</span>
+            <span className="scene-rule" />
+          </div>
+          <div className="cinema-aperture aperture-top" aria-hidden="true" />
+          <div className="cinema-aperture aperture-bottom" aria-hidden="true" />
           <div className="login-story">
             <Reveal>
               <span className="story-kicker">Clarity at every handover</span>
             </Reveal>
             <Reveal delay={0.12}>
-              <h1>
-                Space to focus.
-                <br />
-                <span>Room to care.</span>
+              <h1 aria-label="Space to focus. Room to care.">
+                <span className="title-mask" aria-hidden="true">
+                  <span className="title-line">Space to focus.</span>
+                </span>
+                <span className="title-mask title-accent" aria-hidden="true">
+                  <span className="title-line">Room to care.</span>
+                </span>
               </h1>
             </Reveal>
             <Reveal delay={0.24}>
@@ -183,6 +366,8 @@ export function OverviewHero({ children }: { children: ReactNode }) {
   return (
     <Reveal className="overview-hero">
       <div className="overview-hero-image" aria-hidden="true" />
+      <Atmosphere />
+      <div className="cinema-grain" aria-hidden="true" />
       <div className="overview-hero-copy">{children}</div>
       <div className="overview-hero-caption">
         Made for the people

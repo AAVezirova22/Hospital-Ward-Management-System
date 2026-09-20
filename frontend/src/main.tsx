@@ -15,7 +15,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { MotionConfig, motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Activity,
   LayoutDashboard,
@@ -53,6 +53,9 @@ import {
   ThemeToggle,
   MagneticButton,
   OverviewHero,
+  CinematicProvider,
+  MotionToggle,
+  SceneTransition,
 } from "./cinematic";
 
 function Link({
@@ -325,6 +328,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         e.preventDefault();
         setAssistant((x) => !x);
       }
+      if (e.key === "Escape") setMobile(false);
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
@@ -422,6 +426,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             </strong>
           </div>
           <div className="top-right">
+            <MotionToggle />
             <ThemeToggle />
             <span className="top-date">
               {new Date().toLocaleDateString("en-GB", {
@@ -437,21 +442,13 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           </div>
         </header>
         <main id="workspace-content" tabIndex={-1}>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={pathname}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <RouteView
-                pathname={pathname}
-                user={user}
-                onAssistant={() => setAssistant(true)}
-              />
-            </motion.div>
-          </AnimatePresence>
+          <SceneTransition scene={pathname}>
+            <RouteView
+              pathname={pathname}
+              user={user}
+              onAssistant={() => setAssistant(true)}
+            />
+          </SceneTransition>
         </main>
         <footer>
           <span>
@@ -2380,12 +2377,9 @@ function AiReport({ data: d }: { data: Row }) {
 export default function MedcoreApp() {
   return (
     <QueryClientProvider client={qc}>
-      <MotionConfig
-        reducedMotion="user"
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      >
+      <CinematicProvider>
         <App />
-      </MotionConfig>
+      </CinematicProvider>
     </QueryClientProvider>
   );
 }

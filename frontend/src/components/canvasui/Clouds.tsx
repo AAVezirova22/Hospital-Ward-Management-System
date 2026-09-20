@@ -268,8 +268,8 @@ export function supportsHtmlInCanvas(): boolean {
   const ctx = probe.getContext("2d") as ElementImageContext | null;
   return Boolean(
     ctx &&
-    typeof ctx.drawElementImage === "function" &&
-    typeof probe.requestPaint === "function",
+      typeof ctx.drawElementImage === "function" &&
+      typeof probe.requestPaint === "function",
   );
 }
 
@@ -293,8 +293,8 @@ export function createClouds(
   const paintable = source as PaintableCanvas;
   const htmlInCanvas = Boolean(
     sourceCtx &&
-    typeof sourceCtx.drawElementImage === "function" &&
-    typeof paintable.requestPaint === "function",
+      typeof sourceCtx.drawElementImage === "function" &&
+      typeof paintable.requestPaint === "function",
   );
 
   let contentDirty = false;
@@ -442,7 +442,8 @@ export function createClouds(
       if (output.style.width !== wpx) output.style.width = wpx;
       if (output.style.height !== hpx) output.style.height = hpx;
     }
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Medcore: cap fill rate for this decorative layer on high-density displays.
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
     const width = Math.max(1, Math.round(output.clientWidth * dpr));
     const height = Math.max(1, Math.round(output.clientHeight * dpr));
     if (output.width !== width || output.height !== height) {
@@ -494,7 +495,10 @@ export function createClouds(
     if (htmlInCanvas) {
       const cssWidth = Math.max(1, Math.round(source.clientWidth));
       const cssHeight = Math.max(1, Math.round(source.clientHeight));
-      if (source.width !== cssWidth * dpr || source.height !== cssHeight * dpr) {
+      if (
+        source.width !== cssWidth * dpr ||
+        source.height !== cssHeight * dpr
+      ) {
         source.width = cssWidth * dpr;
         source.height = cssHeight * dpr;
       }
@@ -660,6 +664,11 @@ export function createClouds(
     if (destroyed) return;
     if (!visible) {
       running = false;
+      return;
+    }
+    // Medcore: ambient fog needs 30fps, not the display's full refresh rate.
+    if (now - lastTime < 1000 / 30) {
+      raf = requestAnimationFrame(frame);
       return;
     }
     const delta = Math.min((now - lastTime) / 1000, 1 / 30);
@@ -830,17 +839,28 @@ export function Clouds({
     const source = sourceRef.current;
     const content = contentRef.current;
     const output = outputRef.current;
-    if (!source || !content || !output) return;
-    instanceRef.current = createClouds(
-      { source, content, output },
-      initialOptions,
-    );
+    if (!source || !content || !output || failed) return;
+    try {
+      instanceRef.current = createClouds(
+        { source, content, output },
+        initialOptions,
+      );
+    } catch {
+      setFailed(true);
+      return;
+    }
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      setFailed(true);
+    };
+    output.addEventListener("webglcontextlost", onContextLost);
     if (native && !instanceRef.current) setFailed(true);
     return () => {
+      output.removeEventListener("webglcontextlost", onContextLost);
       instanceRef.current?.destroy();
       instanceRef.current = null;
     };
-  }, [initialOptions, native]);
+  }, [initialOptions, native, failed]);
 
   useEffect(() => {
     instanceRef.current?.setOptions(options);
@@ -890,6 +910,7 @@ export function Clouds({
         ref={outputRef}
         aria-hidden
         style={{
+          visibility: failed ? "hidden" : "visible",
           position: "absolute",
           inset: 0,
           width: "100%",
@@ -901,6 +922,4 @@ export function Clouds({
   );
 }
 
-
 export default Clouds;
-
