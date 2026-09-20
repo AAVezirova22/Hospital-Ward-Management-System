@@ -177,9 +177,9 @@ export function SceneTransition({
         key={scene}
         className="scene-content"
         style={{ originX: 0 }}
-        initial={enabled ? { opacity: 0, x: -28 } : false}
-        animate={{ opacity: 1, x: 0 }}
-        exit={enabled ? { opacity: 0, x: -16 } : undefined}
+        initial={enabled ? { opacity: 0, x: -28, scale: 0.985 } : false}
+        animate={{ opacity: 1, x: 0, scale: 1 }}
+        exit={enabled ? { opacity: 0, x: -16, scale: 0.992 } : undefined}
         transition={
           enabled
             ? { type: "spring", stiffness: 280, damping: 34, mass: 0.72 }
