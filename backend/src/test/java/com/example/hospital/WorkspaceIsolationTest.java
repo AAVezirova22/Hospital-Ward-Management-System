@@ -22,3 +22,20 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
+@SpringBootTest(
+    properties = {
+      "app.seed=true",
+      "app.bootstrap-password=IntegrationPassword123!",
+      "server.servlet.session.cookie.secure=false"
+    })
+@AutoConfigureMockMvc
+class WorkspaceIsolationTest {
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    HospitalIntegrationTest.database(registry);
+  }
+
+  @Autowired MockMvc mvc;
+  @Autowired ObjectMapper json;
+}
