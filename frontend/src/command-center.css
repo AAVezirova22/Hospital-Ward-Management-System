@@ -288,3 +288,6 @@
 .proposal-checks { list-style:none; padding:0; display:grid; gap:14px; margin:24px 0; }
 .proposal-checks li { display:flex; gap:10px; align-items:center; line-height:1.5; }
 .proposal-checks svg { flex-shrink:0; color:var(--mint); }
+.notification-count { min-width:17px; height:17px; display:grid; place-items:center; background:var(--critical); color:var(--panel); font-size:10px; border-radius:50%; }
+.notification-panel small { display:block; color:var(--muted); font-size:11px; margin-top:6px; }
+.capacity-alert { color:var(--critical); }
