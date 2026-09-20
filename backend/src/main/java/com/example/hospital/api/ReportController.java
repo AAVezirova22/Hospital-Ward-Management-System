@@ -55,19 +55,19 @@ public class ReportController {
     var out = new StringBuilder("Department,Record,Admission,Procedure,Performed at,Cost EUR\r\n");
     for (Object o : (List<?>) report.get("rows")) {
       var row = (Map<?, ?>) o;
-      var r = (com.example.hospital.domain.PerformedProcedure) row.get("record");
+      var r = (Map<?, ?>) row.get("record");
       out.append(
           departmentId
               + ","
-              + r.id
+              + r.get("id")
               + ","
-              + r.admissionId
+              + r.get("admissionId")
               + ","
-              + r.medicalProcedureId
+              + r.get("medicalProcedureId")
               + ","
-              + r.performedAt
+              + r.get("performedAt")
               + ","
-              + r.priceAtExecution
+              + r.get("priceAtExecution")
               + "\r\n");
     }
     return ResponseEntity.ok()
