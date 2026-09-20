@@ -44,11 +44,11 @@ Partial unique indexes enforce one active admission per patient and one unreleas
 
 ## Transactions and concurrency
 
-`WorkflowLockRepository.acquire()` takes a pessimistic write lock on one pre-created database row. Admission, transfer, discharge, doctor reassignment, procedure recording, room capacity edits, doctor deactivation and account administration acquire this lock before checking current state. The lock persists until transaction completion. It serializes department-level writes and avoids lock-order deadlocks across source/destination rooms; ordinary reads remain concurrent.
+`WorkflowLockRepository.acquire()` takes a pessimistic write lock on the **current department's** pre-created `workflow_lock` row (id = `department_id`). Admission, transfer, discharge, doctor reassignment, procedure recording, room capacity edits, doctor deactivation and account administration acquire this lock before checking current state. The lock persists until transaction completion. It serializes department-level writes and avoids lock-order deadlocks across source/destination rooms; ordinary reads remain concurrent. Cross-department operations (demo reset) call `acquireAll()` and lock every row in id order, including the global sentinel (`id = 0`). New departments insert a matching lock row in the same transaction.
 
 A transfer releases the previous assignment, flushes it, inserts the next assignment, increments the admission version and writes an audit event in one transaction. Failure rolls the entire operation back. Discharge updates status, closes the assignment and releases the bed in one transaction. Existing-record edits require the version last displayed to the user.
 
-For a large multi-department deployment, the global row should become a department-scoped lock or a consistently ordered per-room locking strategy, accompanied by native PostgreSQL load tests. Clinical records are already isolated per department; the write lock is still process-wide.
+Clinical records are isolated per department, and the write lock is now department-scoped so an admission in Hospital A no longer blocks transfers in Hospital B.
 
 ## Access policy
 

@@ -38,6 +38,7 @@ class WorkspaceIsolationTest {
 
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper json;
+  @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
   ResultActions call(String who, String method, String path, Object body, Long department)
       throws Exception {
@@ -71,6 +72,8 @@ class WorkspaceIsolationTest {
                 1L),
             201);
     long other = created.get("departmentId").asLong();
+    assertThat(jdbc.queryForObject("select count(*) from workflow_lock where id=?", Integer.class, other))
+        .isEqualTo(1);
     var homePatient =
         body(
             call(

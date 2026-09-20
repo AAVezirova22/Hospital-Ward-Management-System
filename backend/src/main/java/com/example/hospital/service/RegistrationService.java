@@ -45,10 +45,10 @@ public class RegistrationService {
     if (!available()) throw new ApiException(503,"REGISTRATION_UNAVAILABLE","Account registration is not configured yet.");
     if (password.length() < 12 || password.getBytes(StandardCharsets.UTF_8).length > 72)
       throw new ApiException(400,"PASSWORD_LENGTH","Use at least 12 characters and at most 72 UTF-8 bytes.");
-    lock.acquire();
     com.example.hospital.security.DepartmentContext.set(
         new com.example.hospital.security.DepartmentContext.Scope(1L, "PATIENT", null));
     try {
+    lock.acquire();
     String normalized = address.trim().toLowerCase(Locale.ROOT);
     if (users.findByUsername(username).isPresent() || Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from app_users where email = ?",Boolean.class,normalized)))
       throw ApiException.conflict("ACCOUNT_EXISTS","An account with these details already exists. Sign in or request a new confirmation.");

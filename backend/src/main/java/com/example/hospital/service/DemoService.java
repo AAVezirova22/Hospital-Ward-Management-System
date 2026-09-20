@@ -35,7 +35,7 @@ public class DemoService {
   public void reset() {
     requireDemo();
     actor.admin();
-    lock.acquire();
+    lock.acquireAll();
     // Only enabled on a dedicated synthetic database. IDs are never reused:
     // old sessions and stale proposals cannot refer to newly created records.
     for (String table : new String[]{"email_verifications", "ai_sessions", "ai_pending_actions", "ai_interactions",

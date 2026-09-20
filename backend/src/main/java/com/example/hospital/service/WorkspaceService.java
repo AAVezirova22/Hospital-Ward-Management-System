@@ -58,6 +58,7 @@ public class WorkspaceService {
     owner(hospitalId);
     long id = jdbc.queryForObject("insert into departments(hospital_id,name,join_code) values (?,?,?) returning id", Long.class, hospitalId, name(departmentName), code("D-"));
     jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'ADMIN')", id, actor.user().id);
+    jdbc.update("insert into workflow_lock(id) values (?) on conflict do nothing", id);
     return id;
   }
 
