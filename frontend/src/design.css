@@ -418,6 +418,10 @@ button.workspace-switcher[aria-expanded="true"] {
   display: grid;
   gap: 8px;
 }
+.workspace-list li > button {
+  width: 100%;
+  justify-content: space-between;
+}
 .nav-label {
   color: var(--muted);
   font-size: 8px;
