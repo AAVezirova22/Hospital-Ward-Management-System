@@ -142,6 +142,7 @@ public class SecurityConfig {
                   } else {
                     try {
                       String requested = r.getHeader("X-Department-Id");
+                      if (requested == null) requested = r.getParameter("departmentId");
                       if (requested == null && session != null) {
                         var stored = session.getAttribute("departmentId");
                         requested = stored == null ? null : stored.toString();

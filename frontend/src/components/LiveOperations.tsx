@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { activeDepartment } from "../api";
 
 export function LiveOperations() {
   const client = useQueryClient();
@@ -23,7 +24,11 @@ export function LiveOperations() {
       stream?.close();
       setLive(false);
       if (document.hidden) return;
-      stream = new EventSource("/api/v1/operations/stream");
+      const department = activeDepartment();
+      const url = department
+        ? `/api/v1/operations/stream?departmentId=${encodeURIComponent(department)}`
+        : "/api/v1/operations/stream";
+      stream = new EventSource(url);
       stream.addEventListener("ready", () => {
         setLive(true);
         refresh();
@@ -33,10 +38,12 @@ export function LiveOperations() {
     };
     connect();
     document.addEventListener("visibilitychange", connect);
+    window.addEventListener("workspace-changed", connect);
     return () => {
       stream?.close();
       clearTimeout(debounce);
       document.removeEventListener("visibilitychange", connect);
+      window.removeEventListener("workspace-changed", connect);
     };
   }, [client]);
   return (
