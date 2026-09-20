@@ -43,6 +43,10 @@ export function WorkspaceSwitcher() {
   );
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<Error | null>(null);
+  const [joinCode, setJoinCode] = useState("");
+  const [hospitalName, setHospitalName] = useState("");
+  const [departmentName, setDepartmentName] = useState("");
+  const [hostHospital, setHostHospital] = useState<WorkspaceHospital>();
   const current = useMemo(() => currentNames(data), [data]);
 
   const refresh = async (id?: number) => {
