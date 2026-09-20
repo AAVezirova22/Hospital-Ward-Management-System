@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "../../icons";
 import type { PlannedTransfer } from "./model";
 
 export function PlanReview({
