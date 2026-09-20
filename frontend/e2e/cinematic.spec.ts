@@ -28,6 +28,7 @@ test("Canvas UI renders, pauses, survives context loss and respects saved prefer
   await page.screenshot({
     path: "test-results/cinematic-sign-in.png",
     fullPage: true,
+    animations: "disabled",
   });
   await page.getByRole("button", { name: "Pause cinematic motion" }).click();
   await expect(output).toHaveCount(0);
@@ -85,6 +86,7 @@ test("reduced motion and small screens keep static artwork without a GPU layer",
   await page.screenshot({
     path: "test-results/cinematic-mobile.png",
     fullPage: true,
+    animations: "disabled",
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.locator(".cinema-clouds")).toHaveCount(1);
@@ -114,6 +116,7 @@ test("animated workspace navigation stays usable when the AI provider is unavail
   await page.screenshot({
     path: "test-results/cinematic-workspace.png",
     fullPage: true,
+    animations: "disabled",
   });
   const sidebar = page.locator(".sidebar");
   const originalTop = (await sidebar.boundingBox())!.y;

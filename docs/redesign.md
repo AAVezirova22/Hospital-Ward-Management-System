@@ -40,10 +40,13 @@ The authenticated application request also returns its structured assistant-unav
 ## Verification
 
 - Production Docker build and TypeScript check passed.
-- All 10 frontend unit tests passed, including four new secure-session tests.
+- All 14 frontend unit tests passed, including secure-session handling and procedure-time defaults under browser/server clock skew. The procedure default now cannot precede the active admission's server-recorded timestamp; explicitly entered times and backend validation are unchanged.
+- All 10 selected browser tests passed on the final production build: Canvas UI rendering and context-loss fallback; saved motion preference and live OS changes; desktop/mobile navigation; both themes; service-error handling; patient admission/procedure/transfer/discharge; account and catalogue administration; doctor permissions; reports; and assistant-unavailable recovery. The recovery test uses a deterministic error response, not a successful Gemini call.
+- TypeScript, formatting, and whitespace checks passed. The authenticated assistant probe reported the configured model correctly; a direct Google request established the separate prepaid-credit blocker.
 - The existing assistant-success browser test remains excluded because Google currently requires prepaid credits; it is not claimed as passing. No backend business logic changed.
 - Browser tests create clearly named synthetic test records in the local demonstration database.
 - Original redesign Lighthouse report: [redesign-lighthouse.json](redesign-lighthouse.json). This predates the Canvas UI pass. It scored 88 performance, 100 accessibility, and 96 best practices, with zero cumulative layout shift and 3.9-second mobile LCP. These are local lab results, not field-performance measurements. The expected unauthenticated `/auth/me` response (401) is logged before sign-in.
+- Canvas UI pass: [cinematic-lighthouse.json](cinematic-lighthouse.json), mobile lab scores 86 performance, 100 accessibility, 96 best practices; LCP 3.9 seconds, total blocking time 160ms, layout shift 0. The 2.5-second LCP target remains unmet; cinematic changes are not claimed to improve loading performance.
 - After the final font/loading adjustments, the two design browser tests passed again, including navigation at 1440 x 800 and mobile menu opening/closing.
 
 ## Artwork
@@ -55,3 +58,9 @@ Final generation prompt:
 > Use case: photorealistic-natural. Asset type: cinematic background photograph for Medcore hospital operations sign-in screen, landscape 1536x1024. A serene contemporary hospital atrium, sculptural curved pale concrete walls and a broad curved staircase, floor-to-ceiling glass on the right, one beautiful indoor tree in a sunken garden, soft daylight forming precise long shadows on stone floors. Architectural magazine photograph, 35mm lens, realistic materials, deep forest green shadows and desaturated silver mint highlights, carefully composed with sweeping architectural lines. No people, no medical equipment, no text, no logos, no watermarks. The left third and top have dark negative space for white interface typography. Cinematic and calm, refined and credible, not science fiction.
 
 Screenshots: [dark sign-in](screenshots/redesign-sign-in-dark.png), [light sign-in](screenshots/redesign-sign-in-light.png), [desktop overview](screenshots/redesign-dashboard-dark.png), and [mobile overview](screenshots/redesign-dashboard-mobile.png).
+
+Canvas UI pass screenshots: [cinematic sign-in](screenshots/cinematic-sign-in.png), [cinematic workspace](screenshots/cinematic-workspace.png), and [mobile entrance](screenshots/cinematic-mobile.png).
+
+## Checkpoints
+
+The workspace was not previously a Git repository. A baseline and focused implementation, configuration, regression-test, and verification commits now preserve the redesign. No remote push was performed. The supplied local `.agents` directory remains untouched and untracked; credentials remain ignored.
