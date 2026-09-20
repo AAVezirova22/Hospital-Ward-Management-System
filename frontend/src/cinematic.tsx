@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import dynamic from "next/dynamic";
@@ -15,7 +16,6 @@ import {
   AnimatePresence,
   useInView,
   useMotionValue,
-  useReducedMotion,
   useSpring,
   useScroll,
   useTransform,
@@ -32,8 +32,21 @@ const CinemaContext = createContext({
   toggle: () => {},
 });
 
+function subscribeToMotionPreference(onChange: () => void) {
+  const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const getMotionPreference = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 export function CinematicProvider({ children }: { children: ReactNode }) {
-  const systemReduced = useReducedMotion();
+  // React to OS changes immediately, including an already-open workspace.
+  const systemReduced = useSyncExternalStore(
+    subscribeToMotionPreference,
+    getMotionPreference,
+    () => true,
+  );
   const [paused, setPaused] = useState(false);
   const [ready, setReady] = useState(false);
   useEffect(() => {
