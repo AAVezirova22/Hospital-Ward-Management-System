@@ -2,7 +2,7 @@ package com.example.hospital;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.getStatus();
 
 import com.example.hospital.repository.AiPendingActionRepository;
 import java.time.Instant;
@@ -55,12 +55,12 @@ class HospitalAiTest extends HospitalSupport {
     var res = ai("admin", "discharge him", p.get("id").asLong());
     long id = res.path("data").path("action").path("id").asLong();
     var action = actions.findById(id).orElseThrow();
-    action.expiresAt = Instant.now().minusSeconds(10);
+    action.setExpiresAt(Instant.now().minusSeconds(10));
     actions.save(action);
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/confirm", null)
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("ACTION_EXPIRED"));
-    assertThat(actions.findById(id).orElseThrow().status).isEqualTo("EXPIRED");
+    assertThat(actions.findById(id).orElseThrow().getStatus()).isEqualTo("EXPIRED");
     res = ai("admin", "discharge him", p.get("id").asLong());
     id = res.path("data").path("action").path("id").asLong();
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/cancel", null)
