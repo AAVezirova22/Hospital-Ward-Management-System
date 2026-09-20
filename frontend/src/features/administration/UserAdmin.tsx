@@ -21,7 +21,7 @@ export function UserAdmin() {
   return (
     <>
       <Title
-        eyebrow="TEAM ACCESS"
+        eyebrow="Team access"
         title="Access with accountability."
         description="Manage staff accounts, physician links and role-based permissions."
       >
