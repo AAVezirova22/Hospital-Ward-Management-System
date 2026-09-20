@@ -50,12 +50,15 @@ public class HospitalService {
   }
 
   public void accessible(Long patientId) {
+    if (actor.user().role.equals("PATIENT") && !Objects.equals(actor.user().patientId, patientId))
+      throw new AccessDeniedException("This patient record is not yours");
     if (actor.doctor()
         && !admissions.existsByPatientIdAndAttendingDoctorId(patientId, actor.user().doctorId))
       throw new AccessDeniedException("Patient not assigned to this doctor");
   }
 
   public boolean visible(Admission a) {
+    if (actor.user().role.equals("PATIENT")) return Objects.equals(a.patientId, actor.user().patientId);
     return !actor.doctor() || Objects.equals(a.attendingDoctorId, actor.user().doctorId);
   }
 

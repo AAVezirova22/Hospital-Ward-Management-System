@@ -28,7 +28,8 @@ public class Actor {
   }
 
   public void staff() {
-    if (doctor()) throw new AccessDeniedException("Staff required");
+    if (!java.util.Set.of("ADMIN", "MEDICAL_STAFF").contains(user().role))
+      throw new AccessDeniedException("Staff required");
   }
 
   public void admin() {
