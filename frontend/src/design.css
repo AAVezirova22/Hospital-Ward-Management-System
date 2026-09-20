@@ -404,6 +404,13 @@ button.workspace-switcher[aria-expanded="true"] {
   gap: 8px;
   margin-bottom: 8px;
 }
+.workspace-list header span {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .nav-label {
   color: var(--muted);
   font-size: 8px;
