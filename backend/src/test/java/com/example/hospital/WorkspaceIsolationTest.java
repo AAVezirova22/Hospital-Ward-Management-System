@@ -49,4 +49,13 @@ class WorkspaceIsolationTest {
       request.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body));
     return mvc.perform(request);
   }
+
+  JsonNode body(ResultActions actions, int status) throws Exception {
+    return json.readTree(
+        actions.andExpect(status().is(status)).andReturn().getResponse().getContentAsString());
+  }
+
+  String unique() {
+    return UUID.randomUUID().toString().substring(0, 8);
+  }
 }
