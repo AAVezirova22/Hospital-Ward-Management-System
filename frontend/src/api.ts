@@ -10,6 +10,15 @@ export type User = {
 };
 let csrf: { token: string; headerName: string } | null = null;
 let departmentId: string | null = null;
+const DEPARTMENT_KEY = "medcore-department";
+
+export function activeDepartment() {
+  if (departmentId != null) return departmentId;
+  try {
+    departmentId = localStorage.getItem(DEPARTMENT_KEY);
+  } catch {}
+  return departmentId;
+}
 export class ApiError extends Error {
   constructor(
     public status: number,
