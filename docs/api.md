@@ -69,6 +69,10 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 400 | `PATIENT_AMBIGUOUS` / `DOCTOR_AMBIGUOUS` | Need a unique target |
 | 401 | `UNAUTHENTICATED` / `INVALID_CREDENTIALS` | Sign-in required or rejected |
 | 403 | `ACCESS_DENIED` | Role, entity ownership or CSRF restriction |
+| 403 | `DEPARTMENT_ACCESS_DENIED` | The account has not joined the requested department |
+| 403 | `HOSPITAL_OWNER_REQUIRED` | Only a hospital owner can manage that hospital |
+| 403 | `DEPARTMENT_ADMIN_REQUIRED` | Only a department administrator can replace its code |
+| 400 | `INVALID_CODE` | Join code is missing, malformed, or unknown |
 | 404 | `NOT_FOUND` | Requested record absent |
 | 409 | `ROOM_CAPACITY_EXCEEDED` | Destination is full or inactive |
 | 409 | `STALE_STATE` | Version changed since review |
