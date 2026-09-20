@@ -16,18 +16,18 @@ public class CatalogueController {
 
   @GetMapping("/doctors")
   public Object doctors() {
-    return hospital.doctors();
+    return hospital.doctors().stream().map(Views::doctor).toList();
   }
 
   @PostMapping("/doctors")
   @ResponseStatus(HttpStatus.CREATED)
   public Object addDoctor(@Valid @RequestBody DoctorInput in) {
-    return hospital.saveDoctor(null, in);
+    return Views.doctor(hospital.saveDoctor(null, in));
   }
 
   @PutMapping("/doctors/{id}")
   public Object editDoctor(@PathVariable Long id, @Valid @RequestBody DoctorInput in) {
-    return hospital.saveDoctor(id, in);
+    return Views.doctor(hospital.saveDoctor(id, in));
   }
 
   @GetMapping("/rooms")
@@ -48,17 +48,17 @@ public class CatalogueController {
 
   @GetMapping("/procedures")
   public Object procedures() {
-    return hospital.procedures();
+    return hospital.procedures().stream().map(Views::procedure).toList();
   }
 
   @PostMapping("/procedures")
   @ResponseStatus(HttpStatus.CREATED)
   public Object addProcedure(@Valid @RequestBody ProcedureInput in) {
-    return hospital.saveProcedure(null, in);
+    return Views.procedure(hospital.saveProcedure(null, in));
   }
 
   @PutMapping("/procedures/{id}")
   public Object editProcedure(@PathVariable Long id, @Valid @RequestBody ProcedureInput in) {
-    return hospital.saveProcedure(id, in);
+    return Views.procedure(hospital.saveProcedure(id, in));
   }
 }
