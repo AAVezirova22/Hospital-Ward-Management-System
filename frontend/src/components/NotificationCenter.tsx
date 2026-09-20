@@ -13,7 +13,11 @@ export function NotificationCenter() {
     queryFn: () => api<RoomCapacity[]>("/rooms"),
     refetchInterval: 30000,
   });
-  const operations = useQuery({ queryKey:["/reports/operations"], queryFn:() => api<OperationsReport>("/reports/operations"), refetchInterval:30000 });
+  const operations = useQuery({
+    queryKey: ["/reports/operations"],
+    queryFn: () => api<OperationsReport>("/reports/operations"),
+    refetchInterval: 30000,
+  });
   useEffect(() => {
     const handler = (e: Event) =>
       setNotices((n) => [String((e as CustomEvent).detail), ...n].slice(0, 6));
@@ -32,17 +36,50 @@ export function NotificationCenter() {
         onClick={() => setOpen(!open)}
       >
         <Bell size={18} />
-        {full.length > 0 && <span className="notification-count">{full.length}</span>}
+        {full.length > 0 && (
+          <span className="notification-count">{full.length}</span>
+        )}
       </button>
       {open && (
         <section className="panel notification-panel">
           <h3>Operations alerts</h3>
-          {(rooms.error || operations.error) && <p role="alert">Alerts could not be refreshed. Displayed information may be outdated.</p>}
+          {(rooms.error || operations.error) && (
+            <p role="alert">
+              Alerts could not be refreshed. Displayed information may be
+              outdated.
+            </p>
+          )}
           {full.map((r) => (
-            <p className="capacity-alert" key={r.id}><Link href="/app/planner" onClick={() => setOpen(false)}>Room {r.roomNumber} is at full capacity →</Link><small>{r.occupiedBeds}/{r.bedCount} occupied · observed {new Date(rooms.dataUpdatedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</small></p>
+            <p className="capacity-alert" key={r.id}>
+              <Link href="/app/planner" onClick={() => setOpen(false)}>
+                Room {r.roomNumber} is at full capacity →
+              </Link>
+              <small>
+                {r.occupiedBeds}/{r.bedCount} occupied · observed{" "}
+                {new Date(rooms.dataUpdatedAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </small>
+            </p>
           ))}
-          {operations.data && <p><Link href="/app/planner" onClick={() => setOpen(false)}>{operations.data.expectedDischargesToday} expected discharges today</Link><small>Scheduled dates in your scope · UTC</small></p>}
-          {rooms.data && <p>{rooms.data.filter(r => r.active).reduce((sum,r) => sum+r.availableBeds,0)} beds available<small>Current department capacity</small></p>}
+          {operations.data && (
+            <p>
+              <Link href="/app/planner" onClick={() => setOpen(false)}>
+                {operations.data.expectedDischargesToday} expected discharges
+                today
+              </Link>
+              <small>Scheduled dates in your scope · UTC</small>
+            </p>
+          )}
+          {rooms.data && (
+            <p>
+              {rooms.data
+                .filter((r) => r.active)
+                .reduce((sum, r) => sum + r.availableBeds, 0)}{" "}
+              beds available<small>Current department capacity</small>
+            </p>
+          )}
           {notices.map((n, i) => (
             <p key={i}>{n}</p>
           ))}

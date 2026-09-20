@@ -2,6 +2,7 @@
 import { OverviewHero } from "../../cinematic";
 import { Title } from "../../components/workspace";
 import { OperationsOverview } from "./OperationsOverview";
+import { HospitalSimulation } from "../demo/HospitalSimulation";
 export function Dashboard({
   onAssistant = () => window.dispatchEvent(new Event("open-assistant")),
 }: { onAssistant?: () => void } = {}) {
@@ -19,6 +20,7 @@ export function Dashboard({
         </Title>
       </OverviewHero>
       <OperationsOverview />
+      <HospitalSimulation />
     </>
   );
 }
