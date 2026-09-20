@@ -140,7 +140,12 @@ public class SecurityConfig {
                     if (r.getSession(false) != null) r.getSession(false).invalidate();
                   } else {
                     try {
-                      var scope = workspaces.resolve(u.get(), r.getHeader("X-Department-Id"));
+                      String requested = r.getHeader("X-Department-Id");
+                      if (requested == null && session != null) {
+                        var stored = session.getAttribute("departmentId");
+                        requested = stored == null ? null : stored.toString();
+                      }
+                      var scope = workspaces.resolve(u.get(), requested);
                       DepartmentContext.set(scope);
                     } catch (com.example.hospital.api.ApiException e) {
                       s.setStatus(e.status);
