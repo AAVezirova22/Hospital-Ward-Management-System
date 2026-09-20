@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "doctors")
-public class Doctor extends BaseEntity {
+public class Doctor extends DepartmentEntity {
   public String doctorIdentifier;
   public String firstName;
   public String lastName;

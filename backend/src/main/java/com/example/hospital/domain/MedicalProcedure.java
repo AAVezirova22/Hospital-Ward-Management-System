@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "medical_procedures")
-public class MedicalProcedure extends BaseEntity {
+public class MedicalProcedure extends DepartmentEntity {
   public String procedureCode;
   public String procedureName;
   public java.math.BigDecimal currentCost;

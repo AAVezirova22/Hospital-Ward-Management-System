@@ -17,10 +17,21 @@ public class Actor {
   public AppUser user() {
     var a = SecurityContextHolder.getContext().getAuthentication();
     if (a == null) throw new AccessDeniedException("Unauthenticated");
-    return users
+    var user = users
         .findByUsername(a.getName())
         .filter(u -> u.enabled)
         .orElseThrow(() -> new AccessDeniedException("Account unavailable"));
+    var scope = DepartmentContext.current();
+    if (scope == null) return user;
+    // Never overwrite the managed account's global role with a workspace role.
+    var view = new AppUser();
+    view.id = user.id; view.version = user.version; view.username = user.username;
+    view.role = scope.role(); view.doctorId = scope.doctorId();
+    view.patientId = user.patientId; view.email = user.email;
+    view.emailVerified = user.emailVerified; view.requestedRole = user.requestedRole;
+    view.enabled = user.enabled; view.lastLoginAt = user.lastLoginAt;
+    view.createdAt = user.createdAt; view.updatedAt = user.updatedAt;
+    return view;
   }
 
   public boolean doctor() {

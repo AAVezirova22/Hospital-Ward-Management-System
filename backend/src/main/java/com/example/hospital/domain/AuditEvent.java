@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "audit_events")
-public class AuditEvent extends BaseEntity {
+public class AuditEvent extends DepartmentEntity {
   public Long userId;
   public String eventType;
   public String entityType;

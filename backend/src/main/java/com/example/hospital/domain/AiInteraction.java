@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "ai_interactions")
-public class AiInteraction extends BaseEntity {
+public class AiInteraction extends DepartmentEntity {
   public Long userId;
   public String sessionId;
   public String requestType;

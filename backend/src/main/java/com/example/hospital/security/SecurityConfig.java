@@ -44,7 +44,7 @@ public class SecurityConfig {
   }
 
   @Bean
-  SecurityFilterChain chain(HttpSecurity http, ObjectMapper json, AppUserRepository users)
+  SecurityFilterChain chain(HttpSecurity http, ObjectMapper json, AppUserRepository users, WorkspaceAccess workspaces)
       throws Exception {
     http.authorizeHttpRequests(
             a ->
@@ -138,17 +138,31 @@ public class SecurityConfig {
                           && !session.getAttribute("accountId").equals(u.get().id))) {
                     SecurityContextHolder.clearContext();
                     if (r.getSession(false) != null) r.getSession(false).invalidate();
-                  } else
+                  } else {
+                    try {
+                      var scope = workspaces.resolve(u.get(), r.getHeader("X-Department-Id"));
+                      DepartmentContext.set(scope);
+                    } catch (com.example.hospital.api.ApiException e) {
+                      s.setStatus(e.status);
+                      s.setContentType("application/json");
+                      json.writeValue(s.getWriter(), Errors.body(e.status, e.code, e.getMessage(), r.getRequestURI()));
+                      return;
+                    }
                     SecurityContextHolder.getContext()
                         .setAuthentication(
                             new UsernamePasswordAuthenticationToken(
                                 u.get().username,
                                 null,
                                 java.util.List.of(
-                                    new SimpleGrantedAuthority("ROLE_" + u.get().role))));
+                                    new SimpleGrantedAuthority("ROLE_" + DepartmentContext.current().role()))));
+                  }
                 }
                 s.setHeader("Cache-Control", "no-store");
-                c.doFilter(r, s);
+                try {
+                  c.doFilter(r, s);
+                } finally {
+                  DepartmentContext.clear();
+                }
               }
             },
             AuthorizationFilter.class);

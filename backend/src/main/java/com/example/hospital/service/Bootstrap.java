@@ -24,6 +24,7 @@ public class Bootstrap implements CommandLineRunner {
   private final PasswordEncoder encoder;
   private final boolean seed;
   private final String password;
+  private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
   public Bootstrap(
       AppUserRepository u,
@@ -37,7 +38,8 @@ public class Bootstrap implements CommandLineRunner {
       AuditEventRepository ae,
       PasswordEncoder e,
       @Value("${app.seed}") boolean seed,
-      @Value("${app.bootstrap-password}") String password) {
+      @Value("${app.bootstrap-password}") String password,
+      org.springframework.jdbc.core.JdbcTemplate jdbc) {
     users = u;
     doctors = d;
     patients = p;
@@ -50,6 +52,7 @@ public class Bootstrap implements CommandLineRunner {
     encoder = e;
     this.seed = seed;
     this.password = password;
+    this.jdbc = jdbc;
   }
 
   @Override
@@ -65,6 +68,7 @@ public class Bootstrap implements CommandLineRunner {
     admin.passwordHash = encoder.encode(password);
     admin.role = "ADMIN";
     users.save(admin);
+    enroll(admin);
     if (!seed) return;
     String[][] ds = {
       {"Elena", "Dimitrova", "Internal medicine"},
@@ -85,6 +89,7 @@ public class Bootstrap implements CommandLineRunner {
         u.doctorId = d.id;
         u.passwordHash = encoder.encode(password);
         users.save(u);
+        enroll(u);
       }
     }
     var staff = new AppUser();
@@ -92,6 +97,7 @@ public class Bootstrap implements CommandLineRunner {
     staff.role = "MEDICAL_STAFF";
     staff.passwordHash = encoder.encode(password);
     users.save(staff);
+    enroll(staff);
     for (int i = 0; i < 8; i++) {
       var r = new Room();
       r.roomNumber = "" + (301 + i);
@@ -193,6 +199,12 @@ public class Bootstrap implements CommandLineRunner {
         }
       }
     }
+  }
+
+  private void enroll(AppUser user) {
+    users.flush();
+    jdbc.update("insert into hospital_memberships(hospital_id,user_id,owner) values (1,?,?) on conflict do nothing", user.id, "ADMIN".equals(user.role));
+    jdbc.update("insert into department_memberships(department_id,user_id,role,doctor_id) values (1,?,?,?) on conflict do nothing", user.id, user.role, user.doctorId);
   }
 
   private void event(Long userId, String type, Long admissionId, Instant time) {

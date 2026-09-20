@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "ai_pending_actions")
-public class AiPendingAction extends BaseEntity {
+public class AiPendingAction extends DepartmentEntity {
   public Long userId;
   public String actionType;
 
