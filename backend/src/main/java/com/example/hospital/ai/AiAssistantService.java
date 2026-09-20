@@ -30,6 +30,9 @@ public class AiAssistantService {
   @Autowired private AiSourceService sources;
   @Autowired private ObjectMapper json;
   private record Conversation(long departmentId, Instant expiresAt, List<Map<String, Object>> turns) {}
+  private static final class Window {
+    private boolean busy;
+  }
   private final ConcurrentHashMap<String, Conversation> conversations = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Long, Window> windows = new ConcurrentHashMap<>();
 
