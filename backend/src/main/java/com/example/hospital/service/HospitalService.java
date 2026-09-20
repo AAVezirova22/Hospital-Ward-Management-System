@@ -164,9 +164,9 @@ public class HospitalService {
 
   public Map<String, Object> admissionView(Admission a) {
     Map<String, Object> v = new LinkedHashMap<>();
-    v.put("admission", a);
-    v.put("patient", patient(a.patientId));
-    v.put("doctor", doctors.findById(a.attendingDoctorId).orElseThrow());
+    v.put("admission", Views.admission(a));
+    v.put("patient", Views.patient(patient(a.patientId)));
+    v.put("doctor", Views.doctor(doctors.findById(a.attendingDoctorId).orElseThrow()));
     v.put("assignment", assignments.findByAdmissionIdAndReleasedAtIsNull(a.id).orElse(null));
     v.put(
         "rooms",
@@ -181,11 +181,11 @@ public class HospitalService {
                 pp ->
                     Map.of(
                         "record",
-                        pp,
+                        Views.performed(pp),
                         "procedure",
-                        catalogue.findById(pp.medicalProcedureId).orElseThrow(),
+                        Views.procedure(catalogue.findById(pp.medicalProcedureId).orElseThrow()),
                         "doctor",
-                        doctors.findById(pp.performedByDoctorId).orElseThrow()))
+                        Views.doctor(doctors.findById(pp.performedByDoctorId).orElseThrow()))
             .toList());
     v.put(
         "totalCost",
@@ -197,7 +197,7 @@ public class HospitalService {
     var p = patient(id);
     return Map.of(
         "patient",
-        p,
+        Views.patient(p),
         "admissions",
         admissions.findByPatientIdOrderByAdmissionDateTimeDesc(id).stream()
             .filter(this::visible)
@@ -515,13 +515,13 @@ public class HospitalService {
                   var a = admissions.findById(p.admissionId).orElseThrow();
                   return Map.of(
                       "record",
-                      p,
+                      Views.performed(p),
                       "patient",
-                      patient(a.patientId),
+                      Views.patient(patient(a.patientId)),
                       "doctor",
-                      doctors.findById(p.performedByDoctorId).orElseThrow(),
+                      Views.doctor(doctors.findById(p.performedByDoctorId).orElseThrow()),
                       "procedure",
-                      catalogue.findById(p.medicalProcedureId).orElseThrow());
+                      Views.procedure(catalogue.findById(p.medicalProcedureId).orElseThrow()));
                 })
             .toList();
     Map<Long, BigDecimal> grouped = new LinkedHashMap<>();
