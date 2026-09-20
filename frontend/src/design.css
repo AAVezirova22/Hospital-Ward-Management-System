@@ -388,6 +388,11 @@ button.workspace-switcher {
   background: transparent;
   color: inherit;
 }
+button.workspace-switcher > div {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 button.workspace-switcher > svg:last-child {
   margin-left: auto;
   color: var(--muted);
