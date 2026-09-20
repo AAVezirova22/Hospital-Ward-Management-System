@@ -25,7 +25,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { api, login, logout, type User } from "./api";
+import { api, bindAccount, login, logout, type User } from "./api";
 import { Auth, Link, useUser, ErrorBox } from "./components/workspace";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { DemoAccess, DemoReset, WakeScreen } from "./features/demo/DemoAccess";
@@ -86,10 +86,14 @@ function App({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!awake) return;
     api<User>("/auth/me")
-      .then(setUser)
+      .then((next) => {
+        bindAccount(next.id);
+        setUser(next);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
     const expired = () => {
+      bindAccount(null);
       setUser(null);
       qc.clear();
     };
@@ -97,6 +101,7 @@ function App({ children }: { children: React.ReactNode }) {
     const switched = () => {
       api<User>("/auth/me")
         .then((next) => {
+          bindAccount(next.id);
           setUser(next);
           void qc.invalidateQueries();
         })

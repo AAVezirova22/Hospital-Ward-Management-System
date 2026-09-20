@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, login, logout, setActiveDepartment, token } from "./api";
+import { api, bindAccount, login, logout, setActiveDepartment, token } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("secure-session failures", () => {
@@ -76,5 +76,20 @@ describe("department scope", () => {
     vi.stubGlobal("fetch", fetchMock);
     await api("/patients");
     expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBeUndefined();
+  });
+  it("stores the selected department per account", async () => {
+    bindAccount(1);
+    setActiveDepartment(12);
+    bindAccount(2);
+    setActiveDepartment(34);
+    bindAccount(1);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json([], { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api("/patients");
+    expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBe("12");
+    bindAccount(null);
+    setActiveDepartment(null);
   });
 });

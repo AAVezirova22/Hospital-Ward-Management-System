@@ -10,12 +10,23 @@ export type User = {
 };
 let csrf: { token: string; headerName: string } | null = null;
 let departmentId: string | null = null;
+let accountId: string | null = null;
 const DEPARTMENT_KEY = "medcore-department";
 
+function departmentStorageKey() {
+  return accountId ? `${DEPARTMENT_KEY}:${accountId}` : DEPARTMENT_KEY;
+}
+
+export function bindAccount(id: string | number | null) {
+  accountId = id == null ? null : String(id);
+  departmentId = null;
+}
+
 export function activeDepartment() {
+  if (!accountId) return departmentId;
   if (departmentId != null) return departmentId;
   try {
-    departmentId = localStorage.getItem(DEPARTMENT_KEY);
+    departmentId = localStorage.getItem(departmentStorageKey());
   } catch {}
   return departmentId;
 }
@@ -23,8 +34,8 @@ export function activeDepartment() {
 export function setActiveDepartment(id: string | number | null) {
   departmentId = id == null ? null : String(id);
   try {
-    if (departmentId) localStorage.setItem(DEPARTMENT_KEY, departmentId);
-    else localStorage.removeItem(DEPARTMENT_KEY);
+    if (departmentId) localStorage.setItem(departmentStorageKey(), departmentId);
+    else localStorage.removeItem(departmentStorageKey());
   } catch {}
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("workspace-changed"));
@@ -167,6 +178,7 @@ export async function login(username: string, password: string): Promise<User> {
   const user = await r.json();
   csrf = null;
   await token();
+  bindAccount(user.id);
   try {
     return await api<User>("/auth/me");
   } catch {
@@ -174,9 +186,13 @@ export async function login(username: string, password: string): Promise<User> {
   }
 }
 export async function logout() {
-  await api("/auth/logout", "POST");
-  csrf = null;
-  setActiveDepartment(null);
+  try {
+    await api("/auth/logout", "POST");
+  } finally {
+    csrf = null;
+    setActiveDepartment(null);
+    bindAccount(null);
+  }
 }
 export const fullName = (
   p: { firstName?: string; lastName?: string } | null | undefined,
