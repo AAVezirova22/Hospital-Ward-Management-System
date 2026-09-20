@@ -1,14 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import {
-  motion,
-  useMotionValue,
-  useSpring,
-  useScroll,
-  useTransform,
-} from "motion/react";
-import { Activity } from "lucide-react";
+import { useMotionValue, useSpring, useScroll, useTransform } from "motion/react";
+import { Activity } from "./icons";
 import {
   Atmosphere,
   MotionToggle,
@@ -66,15 +60,38 @@ export function LoginScene({ children }: { children: React.ReactNode }) {
             pointerY.set(0);
           }}
         >
-          <motion.div
+          <div
             className="cinema-camera"
-            style={{ x: reduced ? 0 : cameraX, y: reduced ? 0 : cameraY }}
+            ref={(el) => {
+              if (!el) return;
+              const apply = () => {
+                if (reduced) {
+                  el.style.transform = "";
+                  return;
+                }
+                el.style.transform = `translate(${cameraX.get()}px, ${cameraY.get()}px)`;
+              };
+              apply();
+              const ux = cameraX.on("change", apply);
+              const uy = cameraY.on("change", apply);
+              return () => {
+                ux();
+                uy();
+              };
+            }}
           >
-            <motion.div
+            <div
               className="atrium-image"
-              style={{ y: reduced ? 0 : y }}
+              ref={(el) => {
+                if (!el) return;
+                const apply = () => {
+                  el.style.transform = reduced ? "" : `translateY(${y.get()}px)`;
+                };
+                apply();
+                return y.on("change", apply);
+              }}
             />
-          </motion.div>
+          </div>
           <Atmosphere />
           <div className="atrium-shade" />
           <div className="cinema-grain" aria-hidden="true" />
