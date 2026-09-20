@@ -23,6 +23,7 @@ type Field = {
   label: string;
   type?: string;
   required?: boolean;
+  placeholder?: string;
   options?: { value: string; label: string }[];
 };
 const configs: Record<
@@ -43,7 +44,7 @@ const configs: Record<
         type: "date",
         required: true,
       },
-      { key: "phoneNumber", label: "Phone number" },
+      { key: "phoneNumber", label: "Phone number (E.164)", placeholder: "+359888123456" },
       { key: "address", label: "Address" },
     ],
   },
@@ -146,6 +147,11 @@ export function EntityForm({
                   .min(1)
                   .max(100)
               : z.coerce.number().min(0)
+            : f.key === "phoneNumber"
+              ? z
+                  .string()
+                  .regex(/^$|^\+[1-9]\d{7,14}$/, "Use E.164, for example +359888123456")
+                  .optional()
             : f.required
               ? z.string().trim().min(1, "Required")
               : z.string().optional()),
@@ -219,6 +225,7 @@ export function EntityForm({
             ) : (
               <input
                 type={f.type || "text"}
+                placeholder={f.placeholder}
                 {...register(f.key)}
                 readOnly={
                   kind === "users" && f.key === "username" && Boolean(record.id)
