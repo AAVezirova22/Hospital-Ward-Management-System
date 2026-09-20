@@ -6,7 +6,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.getStatus();
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -48,7 +48,7 @@ class HospitalAuthTest extends HospitalSupport {
     mvc.perform(get("/api/v1/auth/me").session(session)).andExpect(status().isOk());
     mvc.perform(post("/api/v1/auth/logout").session(session).with(csrf()))
         .andExpect(status().isNoContent());
-    assertThat(users.findByUsername("admin").orElseThrow().passwordHash)
+    assertThat(users.findByUsername("admin").orElseThrow().getPasswordHash())
         .startsWith("$2a$")
         .doesNotContain("IntegrationPassword");
   }
@@ -89,8 +89,8 @@ class HospitalAuthTest extends HospitalSupport {
     request(
             "admin",
             "PUT",
-            "/api/v1/users/" + u.id,
-            Map.of("username", "admin", "role", "ADMIN", "enabled", false, "version", u.version))
+            "/api/v1/users/" + u.getId(),
+            Map.of("username", "admin", "role", "ADMIN", "enabled", false, "version", u.getVersion()))
         .andExpect(status().isConflict());
     request(
             "admin",
