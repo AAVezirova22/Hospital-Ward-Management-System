@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "room_assignments")
-public class RoomAssignment extends BaseEntity {
+public class RoomAssignment extends DepartmentEntity {
   public Long admissionId;
   public Long roomId;
   public java.time.Instant assignedAt;
