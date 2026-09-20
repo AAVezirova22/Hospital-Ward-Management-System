@@ -57,12 +57,7 @@ export function Booking() {
           <EcgLine className="film-ecg" draw />
           <label className="film-field" htmlFor="booking-name">
             Full name
-            <input
-              id="booking-name"
-              name="name"
-              autoComplete="name"
-              required
-            />
+            <input id="booking-name" name="name" autoComplete="name" required />
           </label>
           <label className="film-field" htmlFor="booking-phone">
             Phone
