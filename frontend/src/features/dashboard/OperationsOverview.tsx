@@ -284,8 +284,16 @@ export function OperationsOverview({
                 aria-label={`${t.date}: ${t.admissions} admissions, ${t.discharges} discharges`}
               >
                 <span className="day-bars">
-                  <i style={{ height: `${8 + t.admissions * 16}px` }} />
-                  <i style={{ height: `${8 + t.discharges * 16}px` }} />
+                  <i
+                    ref={(el) => {
+                      if (el) el.style.height = `${8 + t.admissions * 16}px`;
+                    }}
+                  />
+                  <i
+                    ref={(el) => {
+                      if (el) el.style.height = `${8 + t.discharges * 16}px`;
+                    }}
+                  />
                 </span>
                 <small>{t.date.slice(5)}</small>
               </button>
