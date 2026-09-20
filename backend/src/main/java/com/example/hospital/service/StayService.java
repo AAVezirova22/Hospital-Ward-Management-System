@@ -93,32 +93,32 @@ public class StayService {
 
   private Doctor activeDoctor(Long id) {
     var d = doctors.findById(id).orElseThrow(ApiException::missing);
-    if (!d.active) throw ApiException.conflict("DOCTOR_INACTIVE", "Choose an active doctor.");
+    if (!d.isActive()) throw ApiException.conflict("DOCTOR_INACTIVE", "Choose an active doctor.");
     return d;
   }
 
   private Room freeRoom(Long id) {
     var r = hospital.room(id);
-    if (!r.active || hospital.occupied(id) >= r.bedCount)
+    if (!r.isActive() || hospital.occupied(id) >= r.getBedCount())
       throw ApiException.conflict(
-          "ROOM_CAPACITY_EXCEEDED", "Room " + r.roomNumber + " no longer has available capacity.");
+          "ROOM_CAPACITY_EXCEEDED", "Room " + r.getRoomNumber() + " no longer has available capacity.");
     return r;
   }
 
   private void active(Admission a) {
-    if (!a.status.equals("ACTIVE"))
+    if (!a.getStatus().equals("ACTIVE"))
       throw ApiException.conflict("ADMISSION_CLOSED", "This admission is already closed.");
   }
 
   private void assign(Admission a, Long roomId, String reason, String source) {
     var ra = new RoomAssignment();
-    ra.admissionId = a.id;
-    ra.roomId = roomId;
-    ra.assignedAt = Instant.now();
-    ra.reason = reason;
-    ra.createdBy = actor.user().id;
+    ra.setAdmissionId(a.getId());
+    ra.setRoomId(roomId);
+    ra.setAssignedAt(Instant.now());
+    ra.setReason(reason);
+    ra.setCreatedBy(actor.user().getId());
     assignments.save(ra);
-    audit.log("ROOM_ASSIGNED", "Admission", a.id, source);
+    audit.log("ROOM_ASSIGNED", "Admission", a.getId(), source);
   }
 
   @Transactional
@@ -132,14 +132,14 @@ public class StayService {
       throw ApiException.conflict(
           "ALREADY_ADMITTED", "The patient already has an active admission.");
     var a = new Admission();
-    a.patientId = in.patientId();
-    a.attendingDoctorId = in.doctorId();
-    a.admissionDateTime = Instant.now();
-    a.admissionNumber = "ADM-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
-    a.createdBy = actor.user().id;
+    a.setPatientId(in.patientId());
+    a.setAttendingDoctorId(in.doctorId());
+    a.setAdmissionDateTime(Instant.now());
+    a.setAdmissionNumber("ADM-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase());
+    a.setCreatedBy(actor.user().getId());
     admissions.saveAndFlush(a);
     assign(a, in.roomId(), "Admission", source);
-    audit.log("ADMISSION_CREATED", "Admission", a.id, source);
+    audit.log("ADMISSION_CREATED", "Admission", a.getId(), source);
     return a;
   }
 
@@ -152,15 +152,15 @@ public class StayService {
     HospitalService.version(a, in.version());
     var ra =
         assignments.findByAdmissionIdAndReleasedAtIsNull(id).orElseThrow(ApiException::missing);
-    if (ra.roomId.equals(in.roomId()))
+    if (ra.getRoomId().equals(in.roomId()))
       throw ApiException.conflict("SAME_ROOM", "The patient is already in that room.");
     freeRoom(in.roomId());
-    ra.releasedAt = Instant.now();
+    ra.setReleasedAt(Instant.now());
     assignments.saveAndFlush(ra);
     assign(a, in.roomId(), in.reason(), source);
-    a.updatedAt = Instant.now();
+    a.setUpdatedAt(Instant.now());
     admissions.saveAndFlush(a);
-    audit.log("ROOM_TRANSFERRED", "Admission", a.id, source);
+    audit.log("ROOM_TRANSFERRED", "Admission", a.getId(), source);
     return a;
   }
 
@@ -171,14 +171,14 @@ public class StayService {
     var a = hospital.admission(id);
     active(a);
     HospitalService.version(a, v);
-    a.status = "DISCHARGED";
-    a.dischargeDateTime = Instant.now();
+    a.setStatus("DISCHARGED");
+    a.setDischargeDateTime(Instant.now());
     var ra =
         assignments.findByAdmissionIdAndReleasedAtIsNull(id).orElseThrow(ApiException::missing);
-    ra.releasedAt = a.dischargeDateTime;
+    ra.setReleasedAt(a.getDischargeDateTime());
     assignments.save(ra);
     admissions.saveAndFlush(a);
-    audit.log("PATIENT_DISCHARGED", "Admission", a.id, source);
+    audit.log("PATIENT_DISCHARGED", "Admission", a.getId(), source);
     return a;
   }
 
@@ -190,9 +190,9 @@ public class StayService {
     active(a);
     HospitalService.version(a, v);
     activeDoctor(doctorId);
-    a.attendingDoctorId = doctorId;
+    a.setAttendingDoctorId(doctorId);
     admissions.saveAndFlush(a);
-    audit.log("DOCTOR_ASSIGNED", "Admission", a.id, "UI");
+    audit.log("DOCTOR_ASSIGNED", "Admission", a.getId(), "UI");
     return a;
   }
 
@@ -202,22 +202,22 @@ public class StayService {
     var a = hospital.admission(id);
     active(a);
     activeDoctor(in.doctorId());
-    if (actor.doctor() && !actor.user().doctorId.equals(in.doctorId()))
+    if (actor.doctor() && !actor.user().getDoctorId().equals(in.doctorId()))
       throw new AccessDeniedException("Cannot record for another doctor");
-    if (in.performedAt().isBefore(a.admissionDateTime) || in.performedAt().isAfter(Instant.now()))
+    if (in.performedAt().isBefore(a.getAdmissionDateTime()) || in.performedAt().isAfter(Instant.now()))
       throw new ApiException(
           400, "INVALID_PROCEDURE_TIME", "Procedure time must fall within the active admission.");
     var mp = catalogue.findById(in.medicalProcedureId()).orElseThrow(ApiException::missing);
-    if (!mp.active) throw ApiException.conflict("PROCEDURE_INACTIVE", "Select an active procedure.");
+    if (!mp.isActive()) throw ApiException.conflict("PROCEDURE_INACTIVE", "Select an active procedure.");
     var p = new PerformedProcedure();
-    p.admissionId = id;
-    p.medicalProcedureId = mp.id;
-    p.performedByDoctorId = in.doctorId();
-    p.performedAt = in.performedAt();
-    p.note = in.note();
-    p.priceAtExecution = mp.currentCost;
+    p.setAdmissionId(id);
+    p.setMedicalProcedureId(mp.getId());
+    p.setPerformedByDoctorId(in.doctorId());
+    p.setPerformedAt(in.performedAt());
+    p.setNote(in.note());
+    p.setPriceAtExecution(mp.getCurrentCost());
     performed.saveAndFlush(p);
-    audit.log("PROCEDURE_RECORDED", "PerformedProcedure", p.id, "UI");
+    audit.log("PROCEDURE_RECORDED", "PerformedProcedure", p.getId(), "UI");
     return p;
   }
 }
