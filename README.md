@@ -1,6 +1,6 @@
-# Medcore — hospital department management
+# Medcore - hospital and department management
 
-A Next.js App Router + TypeScript frontend, Java 21 / Spring Boot API on Tomcat, and PostgreSQL database implementing the attached hospital-management plan. The operations assistant uses the same authorized business services as the standard UI. Critical operations require a review step; AI writes require an owned, expiring confirmation record.
+A Next.js App Router + TypeScript frontend, Java 21 / Spring Boot API on Tomcat, and PostgreSQL database implementing the attached hospital-management plan. Staff can create hospitals and departments, then join them with rotating codes. The operations assistant uses the same authorized business services as the standard UI. Critical operations require a review step; AI writes require an owned, expiring confirmation record.
 
 ## Run with Docker
 
