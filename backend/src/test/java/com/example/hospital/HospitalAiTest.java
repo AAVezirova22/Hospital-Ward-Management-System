@@ -2,7 +2,7 @@ package com.example.hospital;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.getStatus();
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.hospital.repository.AiPendingActionRepository;
 import java.time.Instant;

@@ -1,6 +1,6 @@
 package com.example.hospital;
 
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.getStatus();
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
