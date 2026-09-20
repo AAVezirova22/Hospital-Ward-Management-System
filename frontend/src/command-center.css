@@ -62,3 +62,35 @@
     grid-template-columns: 1fr;
   }
 }
+.bed-drawer {
+  margin: 0 0 0 auto;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: min(460px, 100vw);
+  border-radius: 0;
+  padding: 30px;
+}
+.bed-drawer > .primary,
+.bed-drawer > .secondary {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 14px 0;
+}
+.drawer-placement {
+  font-size: 36px;
+  padding: 24px 0;
+  border-block: 1px solid var(--line);
+}
+.drawer-facts {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+}
+.drawer-facts dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.drawer-facts dd {
+  margin: 0 0 16px;
+}

@@ -9,6 +9,7 @@ import type {
   AdmissionView,
 } from "../../api/contracts";
 import { WardMap } from "../planner/WardMap";
+import { BedDrawer } from "../planner/BedDrawer";
 import { LoadingState } from "../../components/LoadingState";
 
 export function Sparkline({
@@ -50,6 +51,7 @@ export function OperationsOverview({
   presentation?: boolean;
 }) {
   const [selectedDay, setSelectedDay] = useState("");
+  const [selectedAdmission, setSelectedAdmission] = useState<number>();
   const ops = useQuery({
     queryKey: ["/reports/operations"],
     queryFn: () => api<OperationsReport>("/reports/operations"),
@@ -149,9 +151,21 @@ export function OperationsOverview({
       </div>
       <WardMap
         rooms={rooms}
+        admissions={admissions}
+        selected={selectedAdmission}
+        onSelect={presentation ? undefined : setSelectedAdmission}
         warning={d.thresholds.warningPercent}
         critical={d.thresholds.criticalPercent}
       />
+      {selectedAdmission &&
+        admissions.find((v) => v.admission.id === selectedAdmission) && (
+          <BedDrawer
+            admission={
+              admissions.find((v) => v.admission.id === selectedAdmission)!
+            }
+            onClose={() => setSelectedAdmission(undefined)}
+          />
+        )}
       <div className="operations-bottom">
         <section className="panel">
           <h2>Needs attention</h2>
