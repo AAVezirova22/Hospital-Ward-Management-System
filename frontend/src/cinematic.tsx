@@ -15,10 +15,8 @@ import {
   AnimatePresence,
   MotionConfig,
   useInView,
-  useMotionValue,
-  useSpring,
 } from "motion/react";
-import { Activity, ArrowUpRight, Moon, Sun, Pause, Play } from "lucide-react";
+import { Activity, ArrowUpRight, Moon, Sun, Pause, Play } from "./icons";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 const Clouds = dynamic(() => import("./vendor/canvasui/Clouds"), {
@@ -174,8 +172,7 @@ export function SceneTransition({
         <motion.div
           key={scene}
           className="scene-content"
-          style={{ originX: 0 }}
-          initial={enabled ? { opacity: 0, x: -16, scale: 0.992 } : false}
+          initial={false}
           animate={{ opacity: 1, x: 0, scale: 1 }}
           exit={enabled ? { opacity: 0, x: -8, scale: 0.996 } : undefined}
           transition={
@@ -262,32 +259,28 @@ export function MagneticButton({
   className?: string;
 }) {
   const reduced = !useContext(CinemaContext).enabled;
-  const x = useMotionValue(0),
-    y = useMotionValue(0);
-  const sx = useSpring(x, { stiffness: 250, damping: 22 });
-  const sy = useSpring(y, { stiffness: 250, damping: 22 });
+  const magnet = useRef<HTMLButtonElement>(null);
   return (
-    <motion.button
+    <button
+      ref={magnet}
       className={className}
       onClick={onClick}
-      style={{ x: reduced ? 0 : sx, y: reduced ? 0 : sy }}
-      whileTap={reduced ? undefined : { scale: 0.97 }}
       onPointerMove={(event) => {
-        if (reduced || event.pointerType !== "mouse") return;
+        if (reduced || event.pointerType !== "mouse" || !magnet.current) return;
         const bounds = event.currentTarget.getBoundingClientRect();
-        x.set((event.clientX - bounds.left - bounds.width / 2) * 0.07);
-        y.set((event.clientY - bounds.top - bounds.height / 2) * 0.12);
+        const x = (event.clientX - bounds.left - bounds.width / 2) * 0.07;
+        const y = (event.clientY - bounds.top - bounds.height / 2) * 0.12;
+        magnet.current.style.transform = `translate(${x}px, ${y}px)`;
       }}
       onPointerLeave={() => {
-        x.set(0);
-        y.set(0);
+        if (magnet.current) magnet.current.style.transform = "";
       }}
     >
       {children}
       <span className="button-icon">
         <ArrowUpRight size={17} />
       </span>
-    </motion.button>
+    </button>
   );
 }
 
