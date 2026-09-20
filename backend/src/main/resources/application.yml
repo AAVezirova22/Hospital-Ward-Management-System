@@ -2,7 +2,7 @@ spring:
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:hospital}}
     username: ${DATABASE_USER:hospital}
-    password: ${DATABASE_PASSWORD:hospital-local-only}
+    password: ${DATABASE_PASSWORD:}
   jpa:
     open-in-view: false
     hibernate:
@@ -26,6 +26,7 @@ server:
     include-message: never
 app:
   demo: ${DEMO_MODE:false}
+  demo-token: ${DEMO_TOKEN:}
   public-url: ${PUBLIC_APP_URL:}
   registration:
     enabled: ${REGISTRATION_ENABLED:true}
