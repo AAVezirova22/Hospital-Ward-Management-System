@@ -226,4 +226,60 @@ class WorkspaceIsolationTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_CODE"));
   }
+
+  @Test
+  void hospitalJoinDoesNotOpenDepartmentRecords() throws Exception {
+    String name = "hosp" + unique();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                name,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Code Clinic " + unique(), "departmentName", "Oncology"),
+                1L),
+            201);
+    long hospitalId = created.get("hospitalId").asLong();
+    long departmentId = created.get("departmentId").asLong();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/patients",
+            Map.of(
+                "patientIdentifier",
+                "CODE-" + unique(),
+                "firstName",
+                "Hidden",
+                "lastName",
+                "Record",
+                "dateOfBirth",
+                "1977-07-07"),
+            departmentId),
+        201);
+    var workspaces = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
+    String code = null;
+    for (JsonNode hospital : workspaces.get("hospitals")) {
+      if (hospital.get("id").asLong() == hospitalId) code = hospital.get("joinCode").asText();
+    }
+    body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
+    call(name, "GET", "/api/v1/patients", null, departmentId)
+        .andExpect(status().isForbidden());
+  }
 }
