@@ -94,3 +94,62 @@
 .drawer-facts dd {
   margin: 0 0 16px;
 }
+.care-timeline {
+  padding: 28px;
+  margin-block: 28px;
+}
+.care-timeline ol {
+  list-style: none;
+  padding: 12px 0 0;
+}
+.care-event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 24px;
+  padding: 0 0 30px 26px;
+  border-left: 1px solid var(--line);
+}
+.care-event::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--mint);
+}
+.care-event.procedure::before {
+  background: var(--information);
+}
+.care-event.transfer::before {
+  background: var(--gold);
+}
+.care-event.pending::before {
+  background: var(--panel);
+  outline: 1px solid var(--gold);
+}
+.care-event time,
+.care-event small,
+.care-event > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.care-event p {
+  margin: 8px 0;
+}
+.care-event:last-child {
+  border-color: transparent;
+  padding-bottom: 0;
+}
+.care-record-details > summary {
+  cursor: pointer;
+  padding: 20px 0;
+}
+@media (max-width: 760px) {
+  .care-event {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}

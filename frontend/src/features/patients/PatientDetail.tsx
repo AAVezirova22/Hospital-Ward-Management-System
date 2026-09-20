@@ -16,6 +16,7 @@ import {
 import { Plus, MoveRight, ArrowRight } from "lucide-react";
 import { EntityForm } from "../administration/Catalogue";
 import { Workflow } from "../admissions/Workflow";
+import { CareTimeline } from "./CareTimeline";
 export function PatientDetail({ id }: { id: string }) {
   const { data, error, isLoading } = useData("/patients/" + id);
   const [edit, setEdit] = useState(false),
@@ -121,71 +122,76 @@ export function PatientDetail({ id }: { id: string }) {
           </div>
         </section>
       )}
-      <div className="section-heading">
-        <div>
-          <span className="eyebrow">OPERATIONAL HISTORY</span>
-          <h2>Admission timeline</h2>
+      <CareTimeline admissions={data.admissions} />
+      <details className="care-record-details">
+        <summary>Detailed admission records and costs</summary>
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">OPERATIONAL HISTORY</span>
+            <h2>Admission timeline</h2>
+          </div>
         </div>
-      </div>
-      {data.admissions.length === 0 ? (
-        <Empty text="No hospitalizations recorded for this patient." />
-      ) : (
-        data.admissions.map((v: Row) => (
-          <section className="panel stay" key={v.admission.id}>
-            <div className="section-heading">
-              <div>
-                <h3>{v.admission.admissionNumber}</h3>
-                <p>
-                  {date(v.admission.admissionDateTime)} →{" "}
-                  {v.admission.dischargeDateTime
-                    ? date(v.admission.dischargeDateTime)
-                    : "Present"}
-                </p>
-              </div>
-              <Status value={v.admission.status} />
-            </div>
-            <div className="stay-body">
-              <div>
-                <span className="eyebrow">ROOM MOVEMENTS</span>
-                <ol className="timeline">
-                  {v.rooms.map((r: Row) => (
-                    <li key={r.assignment.id}>
-                      <span>Room {r.room.roomNumber}</span>
-                      <small>
-                        {date(r.assignment.assignedAt)}
-                        {r.assignment.releasedAt
-                          ? " → " + date(r.assignment.releasedAt)
-                          : " · Current placement"}
-                      </small>
-                      <p>{r.assignment.reason}</p>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-              <div>
-                <div className="section-heading">
-                  <span className="eyebrow">PERFORMED PROCEDURES</span>
-                  <strong>{money(v.totalCost)}</strong>
+        {data.admissions.length === 0 ? (
+          <Empty text="No hospitalizations recorded for this patient." />
+        ) : (
+          data.admissions.map((v: Row) => (
+            <section className="panel stay" key={v.admission.id}>
+              <div className="section-heading">
+                <div>
+                  <h3>{v.admission.admissionNumber}</h3>
+                  <p>
+                    {date(v.admission.admissionDateTime)} →{" "}
+                    {v.admission.dischargeDateTime
+                      ? date(v.admission.dischargeDateTime)
+                      : "Present"}
+                  </p>
                 </div>
-                {v.procedures.length === 0 ? (
-                  <p className="muted">No procedures recorded.</p>
-                ) : (
-                  v.procedures.map((r: Row) => (
-                    <div className="procedure-record" key={r.record.id}>
-                      <strong>{r.procedure.procedureName}</strong>
-                      <span>{money(r.record.priceAtExecution)}</span>
-                      <small>
-                        {date(r.record.performedAt)} · Dr. {fullName(r.doctor)}
-                      </small>
-                      {r.record.note && <p>{r.record.note}</p>}
-                    </div>
-                  ))
-                )}
+                <Status value={v.admission.status} />
               </div>
-            </div>
-          </section>
-        ))
-      )}
+              <div className="stay-body">
+                <div>
+                  <span className="eyebrow">ROOM MOVEMENTS</span>
+                  <ol className="timeline">
+                    {v.rooms.map((r: Row) => (
+                      <li key={r.assignment.id}>
+                        <span>Room {r.room.roomNumber}</span>
+                        <small>
+                          {date(r.assignment.assignedAt)}
+                          {r.assignment.releasedAt
+                            ? " → " + date(r.assignment.releasedAt)
+                            : " · Current placement"}
+                        </small>
+                        <p>{r.assignment.reason}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                <div>
+                  <div className="section-heading">
+                    <span className="eyebrow">PERFORMED PROCEDURES</span>
+                    <strong>{money(v.totalCost)}</strong>
+                  </div>
+                  {v.procedures.length === 0 ? (
+                    <p className="muted">No procedures recorded.</p>
+                  ) : (
+                    v.procedures.map((r: Row) => (
+                      <div className="procedure-record" key={r.record.id}>
+                        <strong>{r.procedure.procedureName}</strong>
+                        <span>{money(r.record.priceAtExecution)}</span>
+                        <small>
+                          {date(r.record.performedAt)} · Dr.{" "}
+                          {fullName(r.doctor)}
+                        </small>
+                        {r.record.note && <p>{r.record.note}</p>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+          ))
+        )}
+      </details>
       {edit && (
         <EntityForm kind="patients" record={p} onClose={() => setEdit(false)} />
       )}{" "}
