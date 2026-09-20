@@ -161,7 +161,7 @@ public class AiToolRegistry {
               "Recorded operational history.",
               h.summary(resolve(a.get("patientQuery"), selected).id));
       case "getAvailableRooms", "getRoomOccupancy" -> {
-        int n = Integer.parseInt(a.getOrDefault("minimumFreeBeds", "0"));
+        int n = intArg(a.getOrDefault("minimumFreeBeds", "0"));
         if (n < 0 || n > 100) throw new IllegalArgumentException();
         yield response(
             "ROOM_LIST",
@@ -177,10 +177,10 @@ public class AiToolRegistry {
           response(
               "REPORT_RESULT",
               "Admission record.",
-              h.admissionView(h.admission(Long.valueOf(a.get("admissionId")))));
+              h.admissionView(h.admission(longArg(a.get("admissionId")))));
       case "getAdmissions" -> {
-        var from = LocalDate.parse(a.get("from"));
-        var to = LocalDate.parse(a.get("to"));
+        var from = dateArg(a.get("from"));
+        var to = dateArg(a.get("to"));
         if (from.isAfter(to)) throw new IllegalArgumentException();
         yield response(
             "REPORT_RESULT",
@@ -202,8 +202,8 @@ public class AiToolRegistry {
               "REPORT_RESULT",
               "Procedure totals calculated from saved records.",
               h.procedureReport(
-                  LocalDate.parse(a.getOrDefault("from", LocalDate.now(ZoneOffset.UTC).toString())),
-                  LocalDate.parse(a.getOrDefault("to", LocalDate.now(ZoneOffset.UTC).toString())),
+                  dateArg(a.getOrDefault("from", LocalDate.now(ZoneOffset.UTC).toString())),
+                  dateArg(a.getOrDefault("to", LocalDate.now(ZoneOffset.UTC).toString())),
                   null,
                   null));
       case "getDashboardSummary" ->
@@ -312,9 +312,40 @@ public class AiToolRegistry {
       }
       default -> throw new IllegalArgumentException();
       };
-    } catch (NumberFormatException | DateTimeParseException | IllegalArgumentException e) {
-      throw new ApiException(
-          400, "INVALID_TOOL_CALL", "The assistant returned an invalid tool request.");
+    } catch (NumberFormatException | DateTimeParseException | IllegalArgumentException | NullPointerException e) {
+      throw invalidToolCall();
+    }
+  }
+
+  private static ApiException invalidToolCall() {
+    return new ApiException(
+        400, "INVALID_TOOL_CALL", "The assistant returned an invalid tool request.");
+  }
+
+  private static int intArg(String raw) {
+    if (raw == null || raw.isBlank()) throw invalidToolCall();
+    try {
+      return Integer.parseInt(raw.trim());
+    } catch (NumberFormatException e) {
+      throw invalidToolCall();
+    }
+  }
+
+  private static long longArg(String raw) {
+    if (raw == null || raw.isBlank()) throw invalidToolCall();
+    try {
+      return Long.parseLong(raw.trim());
+    } catch (NumberFormatException e) {
+      throw invalidToolCall();
+    }
+  }
+
+  private static LocalDate dateArg(String raw) {
+    if (raw == null || raw.isBlank()) throw invalidToolCall();
+    try {
+      return LocalDate.parse(raw.trim());
+    } catch (DateTimeParseException e) {
+      throw invalidToolCall();
     }
   }
 }

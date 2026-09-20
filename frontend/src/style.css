@@ -265,19 +265,6 @@ a.primary,
   display: flex;
   min-height: 100vh;
 }
-.sidebar {
-  width: 240px;
-  position: fixed;
-  left: 0;
-  top: 0;
-  height: 100dvh;
-  background: #0d1d21;
-  border-right: 1px solid var(--line);
-  padding: 29px 20px 18px;
-  display: flex;
-  flex-direction: column;
-  z-index: 30;
-}
 .department {
   display: flex;
   align-items: center;
@@ -308,32 +295,6 @@ a.primary,
   font-size: 9px;
   letter-spacing: 1.8px;
   margin: 0 12px 12px;
-}
-.sidebar nav > a {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #a2babc;
-  font-size: 12px;
-  padding: 11px 12px;
-  margin: 3px 0;
-  border-radius: 6px;
-}
-.sidebar nav > a.active {
-  background: #a4e8c212;
-  color: #c5f4d9;
-}
-.sidebar nav > a:hover {
-  background: #ffffff06;
-}
-.nav-active-dot {
-  margin-left: auto;
-}
-.active .nav-active-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--mint);
 }
 .admin-label {
   margin-top: 23px;
@@ -481,41 +442,6 @@ main {
   padding: 9px 11px;
   border-radius: 20px;
   white-space: nowrap;
-}
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 15px;
-  margin-bottom: 22px;
-}
-.metric {
-  background: linear-gradient(140deg, #182c30, #112125);
-  border: 1px solid #2a3d41;
-  padding: 20px 22px;
-  border-radius: 8px;
-}
-.metric > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
-  color: #a9c0c3;
-}
-.metric svg {
-  color: #80a59f;
-}
-.metric strong {
-  display: block;
-  font-size: 35px;
-  letter-spacing: -1.5px;
-  font-weight: 450;
-  margin-top: 18px;
-  line-height: 1.2;
-}
-.metric small {
-  font-size: 10px;
-  margin-top: 9px;
 }
 .brief {
   display: flex;

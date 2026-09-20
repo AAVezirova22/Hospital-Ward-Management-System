@@ -25,6 +25,7 @@ public class AiAssistantService {
   private final Actor actor;
   private final HospitalService h;
   private final AuditService audit;
+  private final RateLimitService rates;
   private final int limit;
   @Autowired private AiSourceService sources;
   @Autowired private ObjectMapper json;
@@ -32,11 +33,7 @@ public class AiAssistantService {
   private final ConcurrentHashMap<String, Conversation> conversations = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Long, Window> windows = new ConcurrentHashMap<>();
 
-  private static class Window {
-    long start = System.currentTimeMillis();
-    int count = 0;
-    boolean busy = false;
-  }
+
 
   public AiAssistantService(
       AiModelClient m,
@@ -46,6 +43,7 @@ public class AiAssistantService {
       Actor a,
       HospitalService h,
       AuditService au,
+      RateLimitService rates,
       @Value("${app.ai.rate-limit}") int l) {
     model = m;
     tools = t;
@@ -54,6 +52,7 @@ public class AiAssistantService {
     actor = a;
     this.h = h;
     audit = au;
+    this.rates = rates;
     limit = l;
   }
 
@@ -84,14 +83,15 @@ public class AiAssistantService {
     var u = actor.user();
     var window = windows.computeIfAbsent(u.id, k -> new Window());
     synchronized (window) {
-      if (System.currentTimeMillis() - window.start >= 60000) {
-        window.start = System.currentTimeMillis();
-        window.count = 0;
-      }
-      if (window.busy || window.count >= limit)
+      if (window.busy)
         throw new ApiException(
             429, "AI_RATE_LIMIT", "Wait before sending another assistant request.");
-      window.count++;
+      rates.hit(
+          "ai:" + u.id,
+          limit,
+          Duration.ofMinutes(1),
+          "AI_RATE_LIMIT",
+          "Wait before sending another assistant request.");
       window.busy = true;
     }
     var interaction = new AiInteraction();

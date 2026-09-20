@@ -1,6 +1,5 @@
 package com.example.hospital.api;
 
-import com.example.hospital.service.HospitalService;
 import com.example.hospital.service.ReportService;
 import java.time.LocalDate;
 import java.util.List;
@@ -12,11 +11,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/reports")
 public class ReportController {
   private final ReportService reports;
-  private final HospitalService hospital;
 
-  public ReportController(ReportService reports, HospitalService hospital) {
+  public ReportController(ReportService reports) {
     this.reports = reports;
-    this.hospital = hospital;
   }
 
   @GetMapping("/dashboard")
@@ -32,7 +29,7 @@ public class ReportController {
 
   @GetMapping("/capacity")
   public Object capacity() {
-    return hospital.rooms(0);
+    return reports.capacity();
   }
 
   @GetMapping("/procedures")
@@ -55,19 +52,19 @@ public class ReportController {
     var out = new StringBuilder("Department,Record,Admission,Procedure,Performed at,Cost EUR\r\n");
     for (Object o : (List<?>) report.get("rows")) {
       var row = (Map<?, ?>) o;
-      var r = (com.example.hospital.domain.PerformedProcedure) row.get("record");
+      var r = (Map<?, ?>) row.get("record");
       out.append(
           departmentId
               + ","
-              + r.id
+              + r.get("id")
               + ","
-              + r.admissionId
+              + r.get("admissionId")
               + ","
-              + r.medicalProcedureId
+              + r.get("medicalProcedureId")
               + ","
-              + r.performedAt
+              + r.get("performedAt")
               + ","
-              + r.priceAtExecution
+              + r.get("priceAtExecution")
               + "\r\n");
     }
     return ResponseEntity.ok()

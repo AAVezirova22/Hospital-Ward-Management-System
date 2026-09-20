@@ -349,6 +349,9 @@ button:hover .button-icon {
 
 /* Operational workspace. Typography is larger; data retains its compact rhythm. */
 .sidebar {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
   left: 16px;
   top: 16px;
   bottom: 16px;
@@ -365,6 +368,8 @@ button:hover .button-icon {
   margin-left: 9px;
 }
 .department {
+  display: flex;
+  align-items: center;
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--line);
@@ -453,6 +458,7 @@ button.workspace-switcher[aria-expanded="true"] {
   gap: 14px;
 }
 .nav-label {
+  display: block;
   color: var(--muted);
   font-size: 8px;
   letter-spacing: 0.16em;
@@ -461,6 +467,9 @@ button.workspace-switcher[aria-expanded="true"] {
 .sidebar nav > a {
   position: relative;
   isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   color: var(--muted);
   border-radius: 12px;
   padding: 12px 14px;
@@ -585,6 +594,11 @@ kbd {
   outline: none;
   overflow-x: clip;
 }
+@media (max-width: 760px) {
+  .workspace main {
+    padding-bottom: 160px;
+  }
+}
 .page-heading {
   padding-top: 20px;
   margin-bottom: 34px;
@@ -668,6 +682,8 @@ kbd {
   line-height: 1.6;
 }
 .metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 0;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -687,6 +703,9 @@ kbd {
   border: 0;
 }
 .metric > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   color: var(--muted);
   font-size: 11px;
 }
@@ -706,6 +725,8 @@ kbd {
   margin-top: 9px;
 }
 .brief {
+  display: flex;
+  align-items: center;
   padding: 25px;
   gap: 20px;
   border-radius: 22px;
@@ -740,6 +761,7 @@ kbd {
   padding: 8px 9px 8px 16px;
 }
 .overview-grid {
+  display: grid;
   align-items: start;
   grid-template-columns: 1.2fr 1fr;
   gap: 24px;

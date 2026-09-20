@@ -286,9 +286,6 @@
     background: transparent;
     color: var(--text);
   }
-  .workspace main {
-    padding-bottom: 160px;
-  }
 }
 @media print {
   .mobile-bottom-nav,

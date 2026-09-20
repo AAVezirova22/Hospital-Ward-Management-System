@@ -33,6 +33,6 @@ public class AuthController {
 
   @GetMapping("/auth/me")
   public Object me() {
-    return actor.user();
+    return Views.account(actor.user());
   }
 }

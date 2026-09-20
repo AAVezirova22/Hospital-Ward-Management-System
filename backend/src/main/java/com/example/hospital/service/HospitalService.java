@@ -148,14 +148,10 @@ public class HospitalService {
     return rooms.findAll().stream()
         .map(
             r -> {
-              Map<String, Object> m = new LinkedHashMap<>();
-              m.put("id", r.id);
-              m.put("roomNumber", r.roomNumber);
-              m.put("bedCount", r.bedCount);
-              m.put("active", r.active);
-              m.put("version", r.version);
-              m.put("occupiedBeds", occupied(r.id));
-              m.put("availableBeds", r.active ? r.bedCount - occupied(r.id) : 0);
+              Map<String, Object> m = new LinkedHashMap<>(Views.room(r));
+              long used = occupied(r.id);
+              m.put("occupiedBeds", used);
+              m.put("availableBeds", r.active ? r.bedCount - used : 0);
               return m;
             })
         .filter(m -> ((Number) m.get("availableBeds")).intValue() >= minFree)
@@ -164,14 +160,14 @@ public class HospitalService {
 
   public Map<String, Object> admissionView(Admission a) {
     Map<String, Object> v = new LinkedHashMap<>();
-    v.put("admission", a);
-    v.put("patient", patient(a.patientId));
-    v.put("doctor", doctors.findById(a.attendingDoctorId).orElseThrow());
-    v.put("assignment", assignments.findByAdmissionIdAndReleasedAtIsNull(a.id).orElse(null));
+    v.put("admission", Views.admission(a));
+    v.put("patient", Views.patient(patient(a.patientId)));
+    v.put("doctor", Views.doctor(doctors.findById(a.attendingDoctorId).orElseThrow()));
+    v.put("assignment", Views.assignment(assignments.findByAdmissionIdAndReleasedAtIsNull(a.id).orElse(null)));
     v.put(
         "rooms",
         assignments.findByAdmissionIdOrderByAssignedAt(a.id).stream()
-            .map(ra -> Map.of("assignment", ra, "room", room(ra.roomId)))
+            .map(ra -> Map.of("assignment", Views.assignment(ra), "room", Views.room(room(ra.roomId))))
             .toList());
     var ps = performed.findByAdmissionIdOrderByPerformedAtDesc(a.id);
     v.put(
@@ -181,11 +177,11 @@ public class HospitalService {
                 pp ->
                     Map.of(
                         "record",
-                        pp,
+                        Views.performed(pp),
                         "procedure",
-                        catalogue.findById(pp.medicalProcedureId).orElseThrow(),
+                        Views.procedure(catalogue.findById(pp.medicalProcedureId).orElseThrow()),
                         "doctor",
-                        doctors.findById(pp.performedByDoctorId).orElseThrow()))
+                        Views.doctor(doctors.findById(pp.performedByDoctorId).orElseThrow()))
             .toList());
     v.put(
         "totalCost",
@@ -197,7 +193,7 @@ public class HospitalService {
     var p = patient(id);
     return Map.of(
         "patient",
-        p,
+        Views.patient(p),
         "admissions",
         admissions.findByPatientIdOrderByAdmissionDateTimeDesc(id).stream()
             .filter(this::visible)
@@ -515,13 +511,13 @@ public class HospitalService {
                   var a = admissions.findById(p.admissionId).orElseThrow();
                   return Map.of(
                       "record",
-                      p,
+                      Views.performed(p),
                       "patient",
-                      patient(a.patientId),
+                      Views.patient(patient(a.patientId)),
                       "doctor",
-                      doctors.findById(p.performedByDoctorId).orElseThrow(),
+                      Views.doctor(doctors.findById(p.performedByDoctorId).orElseThrow()),
                       "procedure",
-                      catalogue.findById(p.medicalProcedureId).orElseThrow());
+                      Views.procedure(catalogue.findById(p.medicalProcedureId).orElseThrow()));
                 })
             .toList();
     Map<Long, BigDecimal> grouped = new LinkedHashMap<>();

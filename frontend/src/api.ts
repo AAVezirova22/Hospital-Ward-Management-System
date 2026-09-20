@@ -1,3 +1,26 @@
+import type { Admission, Doctor, Patient } from "./api/contracts";
+export type Row = Record<string, unknown> & {
+  id?: number;
+  admission?: Admission;
+  patient?: Patient;
+  doctor?: Doctor;
+  rooms?: unknown;
+  admissions?: unknown;
+  assignment?: unknown;
+  eventType?: string;
+  entityType?: string;
+  entityId?: number;
+  userId?: number;
+  source?: string;
+  timestamp?: string;
+  metadata?: string;
+  firstName?: string;
+  lastName?: string;
+  patientIdentifier?: string;
+  roomNumber?: string;
+  availableBeds?: number;
+  status?: string;
+};
 export type Row = Record<string, any>;
 export type User = {
   id: number;
