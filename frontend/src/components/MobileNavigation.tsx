@@ -116,7 +116,7 @@ export function MobileNavigation({ onAssistant }: { onAssistant: () => void }) {
             </Link>
           );
         })}
-        <button onClick={onAssistant}>
+        <button aria-label="Ask operations assistant" onClick={onAssistant}>
           <Sparkles size={20} strokeWidth={1.5} />
           Assistant
         </button>
