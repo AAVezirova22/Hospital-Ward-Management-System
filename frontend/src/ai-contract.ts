@@ -28,6 +28,28 @@ const base = {
 export const aiResponse = z.discriminatedUnion("responseType", [
   z.object({
     ...base,
+    responseType: z.literal("FILE_REQUEST"),
+    data: z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(10) }),
+  }),
+  z.object({
+    ...base,
+    responseType: z.literal("WORKFLOW_PROPOSAL"),
+    data: z.object({
+      action: z.object({
+        id: z.number().int().positive(), actionType: z.literal("WORKFLOW"),
+        expiresAt: z.string().datetime(), status: z.literal("PENDING"),
+      }).passthrough(),
+      workflow: z.object({
+        title: z.string(),
+        steps: z.array(z.object({
+          key: z.string(), operation: z.string(), source: z.string(),
+          fields: z.record(z.unknown()),
+        })).min(1).max(50),
+      }),
+    }),
+  }),
+  z.object({
+    ...base,
     responseType: z.literal("TEXT"),
     data: z.record(z.unknown()),
   }),
