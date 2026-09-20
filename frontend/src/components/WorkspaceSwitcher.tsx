@@ -96,6 +96,7 @@ export function WorkspaceSwitcher() {
     }
   };
   return (
+    <>
     <button
       type="button"
       className="department workspace-switcher"
@@ -110,5 +111,12 @@ export function WorkspaceSwitcher() {
       </div>
       <ChevronDown size={16} aria-hidden="true" />
     </button>
+    {open && (
+      <Modal title="Hospitals and departments" onClose={close}>
+        <ErrorBox error={error || formError} />
+        {isLoading && <p>Loading workspaces…</p>}
+      </Modal>
+    )}
+    </>
   );
 }
