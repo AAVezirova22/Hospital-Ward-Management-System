@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { login, token } from "./api";
+import { api, login, setActiveDepartment, token } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("secure-session failures", () => {
