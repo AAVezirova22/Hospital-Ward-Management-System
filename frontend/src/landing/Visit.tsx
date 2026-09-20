@@ -34,11 +34,7 @@ export function Visit() {
             </a>
           </div>
         </div>
-        <FilmMedia
-          still={still("entrance")}
-          alt="Medcore entrance at night"
-          drift
-        />
+        <FilmMedia still={still("entrance")} alt="Medcore entrance at night" />
       </div>
     </section>
   );
