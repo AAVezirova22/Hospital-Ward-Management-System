@@ -112,4 +112,23 @@ class WorkspaceIsolationTest {
     assertThat(away.toString()).contains(otherPatient.get("patientIdentifier").asText());
     assertThat(away.toString()).doesNotContain(homePatient.get("patientIdentifier").asText());
   }
+
+  @Test
+  void reportsStayInsideTheSelectedDepartment() throws Exception {
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Report Clinic " + unique(), "departmentName", "Imaging"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var home = body(call("admin", "GET", "/api/v1/reports/dashboard", null, 1L), 200);
+    var away = body(call("admin", "GET", "/api/v1/reports/dashboard", null, other), 200);
+    assertThat(away.get("activeAdmissions").asInt()).isZero();
+    assertThat(away.get("totalBeds").asInt()).isZero();
+    assertThat(home.get("totalBeds").asInt()).isGreaterThan(away.get("totalBeds").asInt());
+  }
 }
