@@ -58,7 +58,7 @@ export function Workflow({
         HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
       >,
     ) =>
-      setValues((v) => ({ ...v, [key]: e.target.value }));
+      setValues((v: Row) => ({ ...v, [key]: e.target.value }));
   const submit = async () => {
     setError(null);
     setBusy(true);
