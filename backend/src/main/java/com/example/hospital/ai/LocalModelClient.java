@@ -32,7 +32,10 @@ public class LocalModelClient implements AiModelClient {
               "reports",
               "procedures",
               "dashboard",
-              "users")
+              "users",
+              "planner",
+              "audit",
+              "presentation")
           .contains(route)) return new ToolCall("navigate", Map.of("route", "/app/" + route));
     }
     if (l.startsWith("move ") || l.startsWith("transfer ")) {

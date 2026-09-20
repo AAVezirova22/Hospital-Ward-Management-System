@@ -5,6 +5,7 @@ import com.example.hospital.domain.*;
 import com.example.hospital.security.Actor;
 import com.example.hospital.service.*;
 import java.time.*;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -115,7 +116,8 @@ public class AiToolRegistry {
     if (actor.doctor() && call.name().startsWith("prepare"))
       throw new AccessDeniedException("Doctors cannot prepare admission changes");
     var a = call.arguments();
-    return switch (call.name()) {
+    try {
+      return switch (call.name()) {
       case "help" ->
           response(
               "TEXT",
@@ -221,9 +223,13 @@ public class AiToolRegistry {
                     "/app/doctors",
                     "/app/reports",
                     "/app/procedures",
-                    "/app/users")
+                    "/app/users",
+                    "/app/planner",
+                    "/app/audit",
+                    "/app/presentation")
                 .contains(route)
-            || !actor.user().role.equals("ADMIN") && route.equals("/app/users"))
+            && !route.matches("^/app/patients/.+")
+            || !actor.user().role.equals("ADMIN") && (route.equals("/app/users") || route.equals("/app/audit")))
           throw new AccessDeniedException("Route not available");
         yield response("NAVIGATION_COMMAND", "Open requested view.", Map.of("route", route));
       }
@@ -281,6 +287,10 @@ public class AiToolRegistry {
                     p.id, admissionId, roomId, doctorId, version, "User-requested AI transfer")));
       }
       default -> throw new IllegalArgumentException();
-    };
+      };
+    } catch (NumberFormatException | DateTimeParseException | IllegalArgumentException e) {
+      throw new ApiException(
+          400, "INVALID_TOOL_CALL", "The assistant returned an invalid tool request.");
+    }
   }
 }

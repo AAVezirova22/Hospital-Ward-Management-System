@@ -14,7 +14,7 @@ import {
   Title,
 } from "../../components/workspace";
 import { Sparkles, X, ArrowUpRight, ArrowRight, Activity } from "lucide-react";
-import { aiResponse } from "../../ai-contract";
+import { aiResponse, safeRoute } from "../../ai-contract";
 import { CommandResults } from "./CommandResults";
 import { ProposalPreview } from "./ProposalPreview";
 export function Assistant({ onClose }: { onClose: () => void }) {
@@ -172,11 +172,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
               <button
                 className="primary"
                 onClick={() => {
-                  if (
-                    /^\/app\/(dashboard|patients(?:\/\d+)?|rooms|admissions|doctors|procedures|reports|users)$/.test(
-                      r.data.route,
-                    )
-                  ) {
+                  if (safeRoute.safeParse(r.data.route).success) {
                     router.push(r.data.route);
                     onClose();
                   }
