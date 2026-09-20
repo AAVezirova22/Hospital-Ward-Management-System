@@ -91,4 +91,3 @@ public class AiSourceService {
 
   public synchronized void remove(String id) { purge(); owned(id); sources.remove(id); }
 }
-
