@@ -61,6 +61,17 @@ test("redesigned workspace has working navigation and both themes", async ({
   await expect(
     page.getByRole("button", { name: /Medcore Hospital/i }),
   ).toBeVisible();
+  await page.getByRole("button", { name: /Medcore Hospital/i }).click();
+  await expect(
+    page.getByRole("heading", { name: "Hospitals and departments" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Join with a code" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Create a hospital" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.locator(".overview-hero")).toHaveCSS("opacity", "1");
   await page.screenshot({
