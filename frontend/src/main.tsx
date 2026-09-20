@@ -27,6 +27,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api, login, logout, type User } from "./api";
 import { Auth, Link, useUser, ErrorBox } from "./components/workspace";
+import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { DemoAccess, DemoReset, WakeScreen } from "./features/demo/DemoAccess";
 import {
   Registration,
