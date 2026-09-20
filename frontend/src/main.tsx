@@ -84,13 +84,7 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
       className={active ? "active" : undefined}
       aria-current={active ? "page" : undefined}
     >
-      {active && (
-        <motion.span
-          className="nav-selection"
-          layoutId="nav-selection"
-          transition={{ type: "spring", stiffness: 330, damping: 32 }}
-        />
-      )}
+      <span className="nav-selection" aria-hidden="true" />
       {children}
     </NextLink>
   );

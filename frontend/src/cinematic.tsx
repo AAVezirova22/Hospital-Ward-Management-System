@@ -13,7 +13,6 @@ import dynamic from "next/dynamic";
 import {
   motion,
   MotionConfig,
-  AnimatePresence,
   useInView,
   useMotionValue,
   useSpring,
@@ -31,6 +30,7 @@ const CinemaContext = createContext({
   systemReduced: false,
   toggle: () => {},
 });
+const WorkspaceSceneContext = createContext(false);
 
 function subscribeToMotionPreference(onChange: () => void) {
   const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -158,18 +158,20 @@ export function SceneTransition({
 }) {
   const { enabled } = useContext(CinemaContext);
   return (
-    <AnimatePresence mode="wait" initial={false}>
+    <WorkspaceSceneContext.Provider value={true}>
       <motion.div
         key={scene}
         className="scene-content"
-        initial={enabled ? { opacity: 0, y: 12 } : false}
-        animate={{ opacity: 1, y: 0 }}
-        exit={enabled ? { opacity: 0, y: -6 } : { opacity: 1 }}
-        transition={{ duration: enabled ? 0.24 : 0, ease }}
+        initial={enabled ? { opacity: 0.86 } : false}
+        animate={{ opacity: 1 }}
+        transition={{
+          duration: enabled ? 0.18 : 0,
+          ease: [0.25, 0.1, 0.25, 1],
+        }}
       >
         {children}
       </motion.div>
-    </AnimatePresence>
+    </WorkspaceSceneContext.Provider>
   );
 }
 
@@ -183,6 +185,9 @@ export function Reveal({
   delay?: number;
 }) {
   const reduced = !useContext(CinemaContext).enabled;
+  const inWorkspace = useContext(WorkspaceSceneContext);
+  // Menu changes have one quiet transition; child panels appear together.
+  if (inWorkspace) return <div className={className}>{children}</div>;
   return (
     <motion.div
       className={className}
