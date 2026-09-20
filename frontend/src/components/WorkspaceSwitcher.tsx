@@ -48,6 +48,11 @@ export function WorkspaceSwitcher() {
   const [departmentName, setDepartmentName] = useState("");
   const [hostHospital, setHostHospital] = useState<WorkspaceHospital>();
   const current = useMemo(() => currentNames(data), [data]);
+  useEffect(() => {
+    if (data?.activeDepartmentId && !activeDepartment()) {
+      setActiveDepartment(data.activeDepartmentId);
+    }
+  }, [data]);
 
   const refresh = async (id?: number) => {
     if (id) setActiveDepartment(id);
