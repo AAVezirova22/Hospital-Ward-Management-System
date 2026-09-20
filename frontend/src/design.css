@@ -385,6 +385,8 @@ button.workspace-switcher {
   width: 100%;
   text-align: left;
   cursor: pointer;
+  background: transparent;
+  color: inherit;
 }
 button.workspace-switcher > svg:last-child {
   margin-left: auto;
