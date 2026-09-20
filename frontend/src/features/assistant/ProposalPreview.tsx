@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, AlertCircle } from "../../icons";
 import type { AdmissionView, RoomCapacity } from "../../api/contracts";
 export function ProposalPreview({
   current,

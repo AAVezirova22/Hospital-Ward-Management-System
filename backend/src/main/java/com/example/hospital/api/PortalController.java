@@ -7,5 +7,5 @@ import org.springframework.web.bind.annotation.*;
 public class PortalController {
   private final Actor actor; private final HospitalService hospital;
   public PortalController(Actor actor,HospitalService hospital) {this.actor=actor;this.hospital=hospital;}
-  @GetMapping("/me") public Object me() {return hospital.summary(actor.user().patientId);}
+  @GetMapping("/me") public Object me() {return hospital.summary(actor.user().getPatientId());}
 }

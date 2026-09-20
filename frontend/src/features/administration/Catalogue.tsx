@@ -9,7 +9,7 @@ import {
   Status,
   Title,
 } from "../../components/workspace";
-import { Plus, ArrowUpRight } from "lucide-react";
+import { Plus, ArrowUpRight } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { EntityForm, configs } from "./EntityForm";
 export function Catalogue({ kind }: { kind: string }) {
@@ -25,7 +25,7 @@ export function Catalogue({ kind }: { kind: string }) {
   return (
     <>
       <Title
-        eyebrow="DEPARTMENT DIRECTORY"
+        eyebrow="Department directory"
         title={cfg.title}
         description={cfg.description}
       >

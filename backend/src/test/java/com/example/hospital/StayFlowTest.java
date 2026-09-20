@@ -2,7 +2,7 @@ package com.example.hospital;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.getStatus();
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -39,7 +39,7 @@ class StayFlowTest extends HospitalSupport {
             Map.of("version", moved.get("version").asLong()))
         .andExpect(status().isOk());
     assertThat(assignments.countByRoomIdAndReleasedAtIsNull(r2.get("id").asLong())).isZero();
-    assertThat(admissions.findById(id).orElseThrow().status).isEqualTo("DISCHARGED");
+    assertThat(admissions.findById(id).orElseThrow().getStatus()).isEqualTo("DISCHARGED");
     request(
             "admin",
             "POST",
@@ -136,6 +136,48 @@ class StayFlowTest extends HospitalSupport {
                 false,
                 "version",
                 0))
+        .andExpect(status().isConflict());
+  }
+
+  @Test
+  void doctorReassignmentUpdatesAccessAndInactiveRoomsRejectPlacement() throws Exception {
+    var p = createPatient();
+    var r = room(1);
+    var a = admit(p, r);
+    request(
+            "admin",
+            "POST",
+            "/api/v1/admissions/" + a.get("id").asLong() + "/doctor",
+            Map.of("doctorId", 2, "version", 0))
+        .andExpect(status().isOk());
+    request("doctor", "GET", "/api/v1/admissions/" + a.get("id").asLong(), null)
+        .andExpect(status().isForbidden());
+    var inactive = room(1);
+    request(
+            "admin",
+            "PUT",
+            "/api/v1/rooms/" + inactive.get("id").asLong(),
+            Map.of(
+                "roomNumber",
+                inactive.get("roomNumber").asText(),
+                "bedCount",
+                1,
+                "active",
+                false,
+                "version",
+                0))
+        .andExpect(status().isOk());
+    request(
+            "admin",
+            "POST",
+            "/api/v1/admissions",
+            Map.of(
+                "patientId",
+                createPatient().get("id").asLong(),
+                "doctorId",
+                1,
+                "roomId",
+                inactive.get("id").asLong()))
         .andExpect(status().isConflict());
   }
 }

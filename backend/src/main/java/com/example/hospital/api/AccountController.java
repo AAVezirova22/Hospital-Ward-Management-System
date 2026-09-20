@@ -57,6 +57,6 @@ public class AccountController {
         "page", safePage,
         "size", safeSize,
         "total", all.getTotalElements(),
-        "events", all.getContent());
+        "events", all.getContent().stream().map(Views::audit).toList());
   }
 }

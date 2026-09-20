@@ -13,7 +13,7 @@ import {
   Modal,
   Title,
 } from "../../components/workspace";
-import { Plus, BedDouble } from "lucide-react";
+import { Plus, BedDouble } from "../../icons";
 import { motion } from "motion/react";
 import { RoomCard } from "./RoomCard";
 import { EntityForm } from "../administration/EntityForm";
@@ -27,7 +27,7 @@ export function Rooms() {
   return (
     <>
       <Title
-        eyebrow="CAPACITY MATRIX"
+        eyebrow="Capacity matrix"
         title="The right space, in view."
         description="Live bed availability. Capacity is checked again at admission and transfer."
       >

@@ -13,7 +13,7 @@ import {
   Modal,
   Title,
 } from "../../components/workspace";
-import { Download } from "lucide-react";
+import { Download } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { ProcedureCharts, CapacityChart } from "./ReportCharts";
 export function Reports() {
@@ -47,7 +47,7 @@ export function Reports() {
   return (
     <>
       <Title
-        eyebrow="OPERATIONAL REPORTING"
+        eyebrow="Operational reporting"
         title="Decisions, grounded in data."
         description="Authoritative reports calculated from saved department records."
       />

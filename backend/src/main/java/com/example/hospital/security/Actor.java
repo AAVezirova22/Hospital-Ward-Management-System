@@ -19,33 +19,33 @@ public class Actor {
     if (a == null) throw new AccessDeniedException("Unauthenticated");
     var user = users
         .findByUsername(a.getName())
-        .filter(u -> u.enabled)
+        .filter(u -> u.isEnabled())
         .orElseThrow(() -> new AccessDeniedException("Account unavailable"));
     var scope = DepartmentContext.current();
     if (scope == null) return user;
     // Never overwrite the managed account's global role with a workspace role.
     var view = new AppUser();
-    view.id = user.id; view.version = user.version; view.username = user.username;
-    view.role = scope.role(); view.doctorId = scope.doctorId();
-    view.patientId = user.patientId; view.email = user.email;
-    view.emailVerified = user.emailVerified; view.requestedRole = user.requestedRole;
-    view.enabled = user.enabled; view.lastLoginAt = user.lastLoginAt;
-    view.createdAt = user.createdAt; view.updatedAt = user.updatedAt;
-    view.accountRole = user.role;
-    view.departmentRole = scope.role();
+    view.setId(user.getId()); view.setVersion(user.getVersion()); view.setUsername(user.getUsername());
+    view.setRole(scope.role()); view.setDoctorId(scope.doctorId());
+    view.setPatientId(user.getPatientId()); view.setEmail(user.getEmail());
+    view.setEmailVerified(user.isEmailVerified()); view.setRequestedRole(user.getRequestedRole());
+    view.setEnabled(user.isEnabled()); view.setLastLoginAt(user.getLastLoginAt());
+    view.setCreatedAt(user.getCreatedAt()); view.setUpdatedAt(user.getUpdatedAt());
+    view.setAccountRole(user.getRole());
+    view.setDepartmentRole(scope.role());
     return view;
   }
 
   public boolean doctor() {
-    return user().role.equals("DOCTOR");
+    return user().getRole().equals("DOCTOR");
   }
 
   public void staff() {
-    if (!java.util.Set.of("ADMIN", "MEDICAL_STAFF").contains(user().role))
+    if (!java.util.Set.of("ADMIN", "MEDICAL_STAFF").contains(user().getRole()))
       throw new AccessDeniedException("Staff required");
   }
 
   public void admin() {
-    if (!user().role.equals("ADMIN")) throw new AccessDeniedException("Admin required");
+    if (!user().getRole().equals("ADMIN")) throw new AccessDeniedException("Admin required");
   }
 }
