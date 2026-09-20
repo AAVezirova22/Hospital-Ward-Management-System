@@ -6,6 +6,7 @@ import React, {
   useRef,
   createContext,
   useContext,
+  useCallback,
 } from "react";
 import NextLink from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -48,6 +49,11 @@ import { z } from "zod";
 import { api, login, logout, fullName, money, date, Row, User } from "./api";
 import { aiResponse } from "./ai-contract";
 import { defaultProcedureTime } from "./workflow-time";
+import { WardPlanner } from "./features/planner/WardPlanner";
+import { OperationsOverview } from "./features/dashboard/OperationsOverview";
+import { DemoAccess, DemoReset, WakeScreen } from "./features/demo/DemoAccess";
+import { Registration, EmailVerification, ResendConfirmation } from "./features/auth/Registration";
+import { PatientPortal } from "./features/patients/PatientPortal";
 import {
   LoginScene,
   Reveal,
@@ -158,7 +164,10 @@ function Modal({
 function App() {
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(true);
+  const [awake,setAwake] = useState(false);
+  const ready = useCallback(() => setAwake(true),[]);
   useEffect(() => {
+    if (!awake) return;
     api<User>("/auth/me")
       .then(setUser)
       .catch(() => {})
@@ -169,7 +178,9 @@ function App() {
     };
     window.addEventListener("session-expired", expired);
     return () => window.removeEventListener("session-expired", expired);
-  }, []);
+  }, [awake]);
+  const signOut = async () => {try {await logout();} finally {setUser(null);qc.clear();}};
+  if (!awake) return <WakeScreen onReady={ready}/>;
   if (loading)
     return (
       <div className="boot">
@@ -177,6 +188,7 @@ function App() {
         <p>Connecting to department…</p>
       </div>
     );
+  if (user?.role === "PATIENT") return <PatientPortal user={user} onLogout={signOut}/>;
   return user ? (
     <Auth.Provider value={user}>
       <Shell
@@ -197,6 +209,8 @@ function App() {
 function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [error, setError] = useState<Error | null>(null),
     [busy, setBusy] = useState(false);
+  const [signup,setSignup] = useState(false), [verification,setVerification] = useState("");
+  useEffect(() => {const value=new URLSearchParams(window.location.hash.slice(1)).get("verify");if(value)setVerification(value);},[]);
   const {
     register,
     handleSubmit,
@@ -206,6 +220,8 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
       z.object({ username: z.string().min(1), password: z.string().min(1) }),
     ),
   });
+  if (verification) return <LoginScene><EmailVerification token={verification} onBack={() => {setVerification("");window.history.replaceState(null,"",window.location.pathname);}}/></LoginScene>;
+  if (signup) return <LoginScene><Registration onBack={() => setSignup(false)}/></LoginScene>;
   return (
     <LoginScene>
       <motion.form
@@ -266,6 +282,9 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
         <p className="login-note">
           <ShieldCheck size={16} /> Access is restricted to authorized staff.
         </p>
+        <button type="button" className="text-button" onClick={() => setSignup(true)}>Create a patient account</button>
+        <ResendConfirmation/>
+        <DemoAccess onLogin={onLogin}/>
       </motion.form>
     </LoginScene>
   );
@@ -275,6 +294,8 @@ const nav = [
   ["patients", "Patients", Users],
   ["admissions", "Admissions", ClipboardList],
   ["rooms", "Room capacity", BedDouble],
+  ["planner", "Ward planner", MoveRight],
+  ["presentation", "Presentation", LayoutDashboard],
   ["doctors", "Doctors", Stethoscope],
   ["procedures", "Procedures", Activity],
   ["reports", "Reports", ChartNoAxesCombined],
@@ -330,7 +351,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   }, []);
   useEffect(() => setMobile(false), [pathname]);
   return (
-    <div className="app">
+    <div className={"app " + (pathname === "/app/presentation" ? "presentation-mode" : "")}>
       <a className="skip-link" href="#workspace-content">
         Skip to workspace
       </a>
@@ -437,6 +458,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           </div>
         </header>
         <main id="workspace-content" tabIndex={-1}>
+          <DemoReset user={user}/>
           <SceneTransition scene={pathname}>
             <RouteView
               pathname={pathname}
@@ -484,6 +506,8 @@ function RouteView({
         "/app/users",
         "/app/reports",
         "/app/audit",
+        "/app/planner",
+        "/app/presentation",
       ].includes(pathname);
     if (!known) router.replace("/app/dashboard");
   }, [pathname, patientId, router]);
@@ -493,6 +517,8 @@ function RouteView({
   if (pathname === "/app/patients") return <Patients />;
   if (patientId) return <PatientDetail id={patientId} />;
   if (pathname === "/app/admissions") return <Admissions />;
+  if (pathname === "/app/planner") return <WardPlanner user={user}/>;
+  if (pathname === "/app/presentation") return <><div className="presentation-toolbar"><div><h1>Medcore · Live ward</h1><p>Current operations · {user.role === "DOCTOR" ? "Assigned patient scope" : "Department"}</p></div><div className="actions"><button className="secondary" onClick={() => {if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(() => {});}}>Toggle full screen</button><Link to="/app/dashboard">Exit presentation</Link></div></div><OperationsOverview presentation/></>;
   if (pathname === "/app/rooms") return <Rooms />;
   if (pathname === "/app/doctors") return <Catalogue kind="doctors" />;
   if (pathname === "/app/procedures") return <Catalogue kind="procedures" />;
@@ -553,6 +579,7 @@ function Dashboard({ onAssistant }: { onAssistant: () => void }) {
           </span>
         </Title>
       </OverviewHero>
+      <OperationsOverview/>
       <ErrorBox error={error} />
       {isLoading ? (
         <div className="skeleton">Loading department state…</div>
