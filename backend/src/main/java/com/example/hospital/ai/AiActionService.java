@@ -19,6 +19,7 @@ public class AiActionService {
   private final WorkflowLockRepository lock;
   private final Actor actor;
   private final HospitalService h;
+  private final StayService stays;
   private final AuditService audit;
   private final ObjectMapper json;
   private final int ttl;
@@ -29,6 +30,7 @@ public class AiActionService {
       WorkflowLockRepository l,
       Actor actor,
       HospitalService h,
+      StayService stays,
       AuditService au,
       ObjectMapper j,
       @Value("${app.ai.action-ttl-seconds}") int ttl,
@@ -37,6 +39,7 @@ public class AiActionService {
     lock = l;
     this.actor = actor;
     this.h = h;
+    this.stays = stays;
     audit = au;
     json = j;
     this.ttl = ttl;
@@ -132,11 +135,11 @@ public class AiActionService {
     Object result =
         switch (a.actionType) {
           case "ADMISSION" ->
-              h.admit(new AdmissionInput(p.patientId(), p.doctorId(), p.roomId()), "AI");
+              stays.create(new AdmissionInput(p.patientId(), p.doctorId(), p.roomId()), "AI");
           case "TRANSFER" ->
-              h.transfer(
+              stays.move(
                   p.admissionId(), new TransferInput(p.roomId(), p.reason(), p.version()), "AI");
-          case "DISCHARGE" -> h.discharge(p.admissionId(), p.version(), "AI");
+          case "DISCHARGE" -> stays.close(p.admissionId(), p.version(), "AI");
           default -> throw new IllegalArgumentException();
         };
     a.status = "EXECUTED";
