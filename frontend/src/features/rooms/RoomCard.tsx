@@ -13,7 +13,7 @@ import {
   Modal,
   Title,
 } from "../../components/workspace";
-import { BedDouble, ArrowUpRight } from "lucide-react";
+import { BedDouble, ArrowUpRight } from "../../icons";
 export function RoomCard({
   room: r,
   compact = false,
