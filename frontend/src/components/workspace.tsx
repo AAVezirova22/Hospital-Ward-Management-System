@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useRef } from "react";
 import NextLink from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ClipboardList, X } from "lucide-react";
-import { api, type Row, type User } from "../api";
+import { api, activeDepartment, type Row, type User } from "../api";
 export const Auth = createContext<User>(null!);
 export const useUser = () => useContext(Auth);
 export const useData = (key: string, path = key) =>
