@@ -18,6 +18,7 @@ import { aiResponse } from "../../ai-contract";
 import { CommandResults } from "./CommandResults";
 import { ProposalPreview } from "./ProposalPreview";
 import { AssistantSources, useAssistantSources } from "./AssistantSources";
+import { WorkflowProposal } from "./WorkflowProposal";
 export function Assistant({ onClose }: { onClose: () => void }) {
   const user = useUser();
   const router = useRouter(),
@@ -202,33 +203,8 @@ export function Assistant({ onClose }: { onClose: () => void }) {
             )}
             {r.responseType === "REPORT_RESULT" && <AiReport data={r.data} />}
             {r.responseType === "WORKFLOW_PROPOSAL" && (
-              <div className="confirmation">
-                <h3>{r.data.workflow.title}</h3>
-                <p>All steps are applied together. If a step fails, no changes are saved.</p>
-                <ol>
-                  {r.data.workflow.steps.map((step: Row) => (
-                    <li key={step.key}>
-                      <strong>{step.operation} · {step.key}</strong>
-                      <p>Source: {step.source}</p>
-                      <dl>
-                        {Object.entries(step.fields).map(([key, value]) => (
-                          <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>
-                        ))}
-                      </dl>
-                    </li>
-                  ))}
-                </ol>
-                <p>Expires {date(r.data.action.expiresAt)}</p>
-                {r.done ? <Status value={r.done} /> : (
-                  <div className="actions">
-                    <button className="secondary" disabled={busy}
-                      onClick={() => action(r.data.action.id, "cancel", i)}>Cancel proposal</button>
-                    <button className="primary"
-                      disabled={busy || Date.parse(r.data.action.expiresAt) <= Date.now()}
-                      onClick={() => action(r.data.action.id, "confirm", i)}>Confirm workflow</button>
-                  </div>
-                )}
-              </div>
+              <WorkflowProposal data={r.data} done={r.done} busy={busy}
+                onAction={op => action(r.data.action.id, op, i)} />
             )}
             {r.responseType === "NAVIGATION_COMMAND" && (
               <button
