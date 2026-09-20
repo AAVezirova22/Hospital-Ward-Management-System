@@ -124,3 +124,10 @@ export interface WorkspaceDepartment {
   role: string;
   joinCode: string | null;
 }
+export interface WorkspaceHospital {
+  id: number;
+  name: string;
+  owner: boolean;
+  joinCode: string | null;
+  departments: WorkspaceDepartment[];
+}
