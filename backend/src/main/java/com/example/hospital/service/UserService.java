@@ -64,6 +64,8 @@ public class UserService {
     view.version = user.version;
     view.username = user.username;
     view.role = String.valueOf(row.get("role"));
+    view.accountRole = user.role;
+    view.departmentRole = view.role;
     view.doctorId = row.get("doctor_id") == null ? null : ((Number) row.get("doctor_id")).longValue();
     view.patientId = user.patientId;
     view.email = user.email;

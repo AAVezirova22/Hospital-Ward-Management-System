@@ -15,4 +15,6 @@ public class AppUser extends BaseEntity {
   public boolean emailVerified;
   public String requestedRole;
   public java.time.Instant lastLoginAt;
+  @Transient public String accountRole;
+  @Transient public String departmentRole;
 }
