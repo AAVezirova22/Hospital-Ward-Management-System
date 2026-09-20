@@ -16,7 +16,7 @@ import {
 import { Plus, BedDouble } from "lucide-react";
 import { motion } from "motion/react";
 import { RoomCard } from "./RoomCard";
-import { EntityForm } from "../administration/Catalogue";
+import { EntityForm } from "../administration/EntityForm";
 import { useUrlState } from "../../components/useUrlState";
 export function Rooms() {
   const [edit, setEdit] = useState<Row | null>(null),

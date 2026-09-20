@@ -14,7 +14,7 @@ import {
   Title,
 } from "../../components/workspace";
 import { Plus, Search, ArrowUpRight } from "lucide-react";
-import { EntityForm } from "../administration/Catalogue";
+import { EntityForm } from "../administration/EntityForm";
 import { DataTable } from "../../components/data-table/DataTable";
 import { useUrlState } from "../../components/useUrlState";
 import { LoadingState } from "../../components/LoadingState";
