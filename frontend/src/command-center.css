@@ -388,3 +388,32 @@
 .system-health small {
   color: var(--muted);
 }
+.overview-hero .page-heading h1 {
+  max-width: 22ch;
+  font-size: clamp(28px, 3.2vw, 46px);
+  text-wrap: balance;
+}
+.overview-hero-caption {
+  display: none;
+}
+.ward-room .lucide,
+.mobile-bottom-nav .lucide {
+  stroke-width: 1.5;
+}
+.ward-patient {
+  transition:
+    background 180ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.ward-patient:not(:disabled):active {
+  transform: scale(0.985);
+}
+.ward-patient:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ward-patient {
+    transition: none;
+  }
+}
