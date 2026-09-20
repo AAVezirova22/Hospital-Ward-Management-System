@@ -2,10 +2,16 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ChatCircle } from "@phosphor-icons/react";
-import { useScroll } from "motion/react";
-import { Reveal } from "./SiteMotion";
+import {
+  ArrowUpRight,
+  ChatCircle,
+  Pause,
+  Play,
+  ArrowCounterClockwise,
+} from "@phosphor-icons/react";
+import { Reveal, useSiteMotion } from "./SiteMotion";
 import { PhoneScene } from "./PhoneScene";
+import { useFilmPlayback } from "./useFilmPlayback";
 
 const conversations = [
   {
@@ -35,10 +41,9 @@ export function MessageExperience() {
   const [selected, setSelected] = useState(0);
   const section = useRef<HTMLElement>(null);
   const conversation = conversations[selected];
-  const { scrollYProgress } = useScroll({
-    target: section,
-    offset: ["start start", "end end"],
-  });
+  const stage = useRef<HTMLDivElement>(null);
+  const { reduced } = useSiteMotion();
+  const film = useFilmPlayback(stage);
 
   return (
     <section
@@ -49,11 +54,45 @@ export function MessageExperience() {
     >
       <div className="mc-phone-sticky">
         <div className="mc-wrap mc-phone-grid">
-          <PhoneScene
-            conversation={conversation}
-            showFile={selected === 1}
-            scrollProgress={scrollYProgress}
-          />
+          <div
+            className="mc-phone-film"
+            ref={stage}
+            data-playing={film.playing}
+            data-complete={film.completed}
+          >
+            <PhoneScene
+              conversation={conversation}
+              showFile={selected === 1}
+              progress={film.progress}
+            />
+            <div className="mc-film-controls-slot">
+              {!reduced && (
+                <div
+                  className="mc-film-controls"
+                  aria-label="Conversation animation"
+                >
+                  <button
+                    type="button"
+                    onClick={film.toggle}
+                    disabled={film.completed}
+                    aria-label={
+                      film.paused ? "Play conversation" : "Pause conversation"
+                    }
+                  >
+                    {film.paused ? <Play size={16} /> : <Pause size={16} />}
+                    {film.paused ? "Play" : "Pause"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={film.replay}
+                    aria-label="Replay conversation"
+                  >
+                    <ArrowCounterClockwise size={16} /> Replay
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
 
           <Reveal className="mc-messages-copy">
             <ChatCircle
