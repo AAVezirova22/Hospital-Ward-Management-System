@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -207,7 +206,7 @@ public class WorkspaceService {
         jdbc.update("update " + table + " set join_code_expires_at=?, join_code_single_use=? where id=?", expires, singleUse, id);
         audit.log("JOIN_CODE_ROTATED", hospital ? "Hospital" : "Department", id, "UI");
         return next;
-      } catch (DuplicateKeyException | DataIntegrityViolationException e) {
+      } catch (DataIntegrityViolationException e) {
         if (attempt == 7)
           throw new ApiException(409, "JOIN_CODE_COLLISION", "Could not allocate a unique join code. Try again.");
       }
