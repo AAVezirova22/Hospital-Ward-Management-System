@@ -7,9 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.sql.Timestamp;
 import java.time.*;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.beans.factory.annotation.Value;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,15 +21,15 @@ public class RegistrationService {
   private final ConfirmationEmailService email;
   private final JdbcTemplate jdbc;
   private final WorkflowLockRepository lock;
+  private final RateLimitService rates;
   private final boolean enabled;
   private final int expiryMinutes;
-  private final Map<String, Instant> attempts = new ConcurrentHashMap<>();
   public RegistrationService(AppUserRepository users, PatientRepository patients, PasswordEncoder encoder,
-      ConfirmationEmailService email, JdbcTemplate jdbc, WorkflowLockRepository lock,
+      ConfirmationEmailService email, JdbcTemplate jdbc, WorkflowLockRepository lock, RateLimitService rates,
       @Value("${app.registration.enabled:true}") boolean enabled,
       @Value("${app.registration.expiry-minutes:30}") int expiryMinutes) {
     this.users=users; this.patients=patients; this.encoder=encoder; this.email=email;
-    this.jdbc=jdbc; this.lock=lock; this.enabled=enabled; this.expiryMinutes=expiryMinutes;
+    this.jdbc=jdbc; this.lock=lock; this.rates=rates; this.enabled=enabled; this.expiryMinutes=expiryMinutes;
   }
   public boolean available() { return enabled && email.configured(); }
 
@@ -50,11 +48,13 @@ public class RegistrationService {
     return ids.getFirst();
   }
 
-  public synchronized void limit(String address) {
-    Instant now = Instant.now(); attempts.entrySet().removeIf(e -> e.getValue().isBefore(now.minusSeconds(60)));
-    if (attempts.containsKey(address) || attempts.size() >= 10000)
-      throw new ApiException(429,"RATE_LIMITED","Please wait a minute before requesting another confirmation email.");
-    attempts.put(address,now);
+  public void limit(String address) {
+    rates.hit(
+        "reg:" + address,
+        1,
+        Duration.ofSeconds(60),
+        "RATE_LIMITED",
+        "Please wait a minute before requesting another confirmation email.");
   }
   @Transactional
   public void signup(String username, String address, String password, String first, String last, LocalDate dob, String requestedRole, Long hospitalId) {
