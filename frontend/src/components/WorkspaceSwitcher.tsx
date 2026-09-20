@@ -310,6 +310,40 @@ export function WorkspaceSwitcher() {
             </div>
           </form>
         )}
+        {panel === "department" && hostHospital && (
+          <form
+            className="workspace-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submit(() =>
+                api(
+                  `/workspaces/hospitals/${hostHospital.id}/departments`,
+                  "POST",
+                  { name: departmentName },
+                ),
+              );
+            }}
+          >
+            <p>This department is added to {hostHospital.name}. You administer it.</p>
+            <label>
+              Department name
+              <input
+                autoFocus
+                value={departmentName}
+                onChange={(e) => setDepartmentName(e.target.value)}
+                maxLength={120}
+              />
+            </label>
+            <div className="actions">
+              <button type="button" className="secondary" onClick={() => setPanel("list")}>
+                Back
+              </button>
+              <button className="primary" disabled={busy || !departmentName.trim()}>
+                {busy ? "Creating…" : "Create department"}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     )}
     </>
