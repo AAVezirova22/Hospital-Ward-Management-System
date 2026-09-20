@@ -6,8 +6,10 @@ RUN npm ci
 FROM node:25-alpine AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG API_INTERNAL_URL=http://backend:8080
-ENV API_INTERNAL_URL=${API_INTERNAL_URL}
+ARG API_INTERNAL_URL
+ARG API_INTERNAL_HOSTPORT
+ENV API_INTERNAL_URL=${API_INTERNAL_URL} \
+    API_INTERNAL_HOSTPORT=${API_INTERNAL_HOSTPORT}
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -17,8 +19,7 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
-    PORT=3000 \
-    API_INTERNAL_URL=http://backend:8080
+    PORT=3000
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
 COPY --from=build /app/public ./public

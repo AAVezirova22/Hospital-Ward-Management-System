@@ -1,11 +1,21 @@
 import type { NextConfig } from "next";
 
-const apiOrigin = (
-  process.env.API_INTERNAL_URL ||
-  (process.env.API_INTERNAL_HOSTPORT
-    ? `http://${process.env.API_INTERNAL_HOSTPORT}`
-    : "http://127.0.0.1:8080")
-).replace(/\/$/, "");
+function resolveApiOrigin() {
+  const hostport = process.env.API_INTERNAL_HOSTPORT?.trim();
+  const configured =
+    process.env.API_INTERNAL_URL?.trim() ||
+    (hostport ? `http://${hostport}` : undefined);
+  if (configured) return configured.replace(/\/$/, "");
+  if (process.env.RENDER === "true") {
+    throw new Error(
+      "The hospital API target is missing. Set API_INTERNAL_HOSTPORT to the backend's " +
+        "Render private host:port, or set API_INTERNAL_URL before building the frontend.",
+    );
+  }
+  return "http://127.0.0.1:8080";
+}
+
+const apiOrigin = resolveApiOrigin();
 
 const nextConfig: NextConfig = {
   output: "standalone",
