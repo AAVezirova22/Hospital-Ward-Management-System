@@ -1,11 +1,12 @@
+import type { Admission, Doctor, Patient } from "./api/contracts";
 export type Row = Record<string, unknown> & {
   id?: number;
-  admission?: any;
-  patient?: any;
-  doctor?: any;
-  rooms?: any;
-  admissions?: any;
-  assignment?: any;
+  admission?: Admission;
+  patient?: Patient;
+  doctor?: Doctor;
+  rooms?: unknown;
+  admissions?: unknown;
+  assignment?: unknown;
   eventType?: string;
   entityType?: string;
   entityId?: number;
