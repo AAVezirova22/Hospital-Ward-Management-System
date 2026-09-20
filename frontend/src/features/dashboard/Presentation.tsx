@@ -10,11 +10,20 @@ export function Presentation() {
   useEffect(() => {
     const link = new URL("/app/dashboard", window.location.origin).href;
     setUrl(link);
+    const theme = document.documentElement.getAttribute("data-theme");
+    const styles = getComputedStyle(document.documentElement);
+    const dark =
+      styles.getPropertyValue("--ink").trim() ||
+      styles.getPropertyValue("--text").trim() ||
+      (theme === "light" ? "#13251c" : "#e7eee6");
+    const light =
+      styles.getPropertyValue("--panel").trim() ||
+      (theme === "light" ? "#f8faf6" : "#122226");
     if (canvas.current)
       QRCode.toCanvas(canvas.current, link, {
         width: 100,
         margin: 2,
-        color: { dark: "#13251c", light: "#f8faf6" },
+        color: { dark: dark || "#13251c", light: light || "#f8faf6" },
       }).catch(() => {});
   }, []);
   return (
