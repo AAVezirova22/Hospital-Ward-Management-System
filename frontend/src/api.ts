@@ -77,18 +77,19 @@ export async function api<T = any>(
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = {};
+  const multipart = typeof FormData !== "undefined" && body instanceof FormData;
   const department = activeDepartment();
   if (department) headers["X-Department-Id"] = department;
   if (method !== "GET") {
     const t = csrf || (await token());
     headers[t.headerName] = t.token;
-    headers["Content-Type"] = "application/json";
+    if (!multipart) headers["Content-Type"] = "application/json";
   }
   const r = await fetch("/api/v1" + path, {
     method,
     headers,
     credentials: "include",
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : multipart ? body as FormData : JSON.stringify(body),
   });
   if (!r.ok) {
     const e = await r.json().catch(() => ({}));
