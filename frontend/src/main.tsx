@@ -37,6 +37,7 @@ import { PatientPortal } from "./features/patients/PatientPortal";
 import { Assistant } from "./features/assistant/Assistant";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { LiveOperations } from "./components/LiveOperations";
+import { MobileNavigation } from "./components/MobileNavigation";
 import {
   LoginScene,
   ThemeToggle,
@@ -426,14 +427,7 @@ function Shell({
       </div>
       <SavedNotice />
       {pathname !== "/app/presentation" && (
-        <button
-          className="mobile-assistant"
-          aria-label="Ask operations assistant"
-          onClick={() => setAssistant(true)}
-        >
-          <Sparkles size={20} />
-          Ask assistant
-        </button>
+        <MobileNavigation onAssistant={() => setAssistant(true)} />
       )}
       {assistant && <Assistant onClose={() => setAssistant(false)} />}
     </div>

@@ -187,3 +187,98 @@
     scroll-snap-align: start;
   }
 }
+.mobile-bottom-nav,
+.mobile-quick-actions {
+  display: none;
+}
+.quick-patients {
+  display: grid;
+  gap: 8px;
+  max-height: 45dvh;
+  overflow: auto;
+  margin-block: 18px;
+}
+.quick-patients button {
+  justify-content: space-between;
+}
+.connection-state {
+  font-size: 11px;
+  color: var(--gold);
+}
+.connection-state.connected {
+  color: var(--mint);
+}
+@media (max-width: 760px) {
+  .connection-state {
+    display: none;
+  }
+  .mobile-bottom-nav {
+    position: fixed;
+    z-index: 24;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    padding: 10px 6px calc(10px + env(safe-area-inset-bottom));
+  }
+  .mobile-bottom-nav a,
+  .mobile-bottom-nav button {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .mobile-bottom-nav [aria-current="page"] {
+    color: var(--mint);
+  }
+  .mobile-quick-actions {
+    display: block;
+    position: fixed;
+    bottom: calc(88px + env(safe-area-inset-bottom));
+    right: 20px;
+    z-index: 25;
+  }
+  .quick-action-toggle {
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--mint);
+    color: var(--accent-ink);
+    margin-left: auto;
+  }
+  .quick-action-menu {
+    display: grid;
+    padding: 8px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 32px #10201920;
+  }
+  .quick-action-menu a,
+  .quick-action-menu button {
+    text-align: left;
+    padding: 14px 18px;
+    background: transparent;
+    color: var(--text);
+  }
+  .workspace main {
+    padding-bottom: 160px;
+  }
+}
+@media print {
+  .mobile-bottom-nav,
+  .mobile-quick-actions {
+    display: none;
+  }
+}
