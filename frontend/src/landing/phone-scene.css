@@ -482,3 +482,23 @@ html[data-site-theme="dark"] .mc-phone-face {
 .mc-phone-stage > .mc-ambient {
   mask-image: radial-gradient(ellipse at center, #000 20%, transparent 72%);
 }
+
+/* Let the hovered surface read as the foreground in the product handoff. */
+.mc-phone-device {
+  filter: drop-shadow(0 0 0 transparent);
+  transition: filter 420ms var(--mc-ease);
+}
+.mc-phone-anchor[data-front="true"] .mc-phone-device {
+  filter: drop-shadow(
+    0 30px 40px color-mix(in srgb, var(--mc-green) 24%, transparent)
+  );
+}
+.mc-phone-workspace {
+  filter: drop-shadow(0 0 0 transparent);
+  transition: filter 420ms var(--mc-ease);
+}
+.mc-phone-workspace[data-front="true"] {
+  filter: drop-shadow(
+    0 32px 44px color-mix(in srgb, var(--mc-green) 26%, transparent)
+  );
+}
