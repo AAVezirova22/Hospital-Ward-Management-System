@@ -2,6 +2,41 @@ import { describe, it, expect } from "vitest";
 import { aiResponse, safeRoute } from "./ai-contract";
 const base = { message: "Result", sessionId: "session-1", model: "test" };
 describe("assistant response boundaries", () => {
+  it("accepts populated workflow fields and structured text data in Zod 4", () => {
+    const result = aiResponse.parse({
+      ...base,
+      responseType: "WORKFLOW_PROPOSAL",
+      data: {
+        action: {
+          id: 1,
+          actionType: "WORKFLOW",
+          expiresAt: "2026-09-20T12:00:00Z",
+          status: "PENDING",
+        },
+        workflow: {
+          title: "Create a patient",
+          steps: [
+            {
+              key: "patient",
+              operation: "createPatient",
+              source: "admissions.csv",
+              fields: { firstName: "Vera", active: true, count: 2 },
+            },
+          ],
+        },
+      },
+    });
+    expect(result.responseType).toBe("WORKFLOW_PROPOSAL");
+    for (const responseType of ["TEXT", "ERROR", "REPORT_RESULT"]) {
+      expect(
+        aiResponse.parse({
+          ...base,
+          responseType,
+          data: { detail: "Result", count: 3 },
+        }).data,
+      ).toEqual({ detail: "Result", count: 3 });
+    }
+  });
   it("accepts authoritative room lists", () => {
     expect(
       aiResponse.parse({
@@ -34,7 +69,9 @@ describe("assistant response boundaries", () => {
   });
   it("accepts only known internal routes", () => {
     expect(safeRoute.parse("/app/patients/42")).toBe("/app/patients/42");
-    expect(safeRoute.parse("/app/patients/PAT-0001")).toBe("/app/patients/PAT-0001");
+    expect(safeRoute.parse("/app/patients/PAT-0001")).toBe(
+      "/app/patients/PAT-0001",
+    );
     expect(safeRoute.parse("/app/reports")).toBe("/app/reports");
   });
   it("rejects unknown response types", () => {
