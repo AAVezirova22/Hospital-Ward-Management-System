@@ -1,12 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api";
 
 export function Registration({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [requestedRole, setRole] = useState("PATIENT");
+    [requestedRole, setRole] = useState("PATIENT"),
+    [hospitals, setHospitals] = useState<{ id: number; name: string }[]>([]);
+  useEffect(() => {
+    api<{ id: number; name: string }[]>("/registration/hospitals")
+      .then(setHospitals)
+      .catch((e) => setError((e as Error).message));
+  }, []);
   return (
     <form
       className="login-form registration-form"
@@ -28,6 +34,7 @@ export function Registration({ onBack }: { onBack: () => void }) {
               lastName: form.get("lastName"),
               dateOfBirth: form.get("dateOfBirth"),
               requestedRole,
+              hospitalId: Number(form.get("hospitalId")),
             },
           );
           setNotice(response.message);
@@ -82,6 +89,19 @@ export function Registration({ onBack }: { onBack: () => void }) {
               autoComplete="bday"
               required
             />
+          </label>
+          <label>
+            Hospital
+            <select name="hospitalId" required defaultValue="">
+              <option value="" disabled>
+                Select your hospital
+              </option>
+              {hospitals.map((hospital) => (
+                <option key={hospital.id} value={hospital.id}>
+                  {hospital.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Email
@@ -140,7 +160,7 @@ export function Registration({ onBack }: { onBack: () => void }) {
               {error}
             </p>
           )}
-          <button className="primary" disabled={busy}>
+          <button className="primary" disabled={busy || hospitals.length === 0}>
             {busy ? "Sending confirmation…" : "Create account"}
           </button>
           <button
