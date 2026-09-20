@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties={"app.seed=true","app.bootstrap-password=IntegrationPassword123!","app.registration.enabled=true","server.servlet.session.cookie.secure=false"})
 @AutoConfigureMockMvc
 class RegistrationIntegrationTest {
- @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalIntegrationTest.database(r);}
+ @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalSupport.database(r);}
  @Autowired MockMvc mvc; @Autowired ObjectMapper json; @Autowired AppUserRepository users; @Autowired JdbcTemplate jdbc;
  @MockitoBean ConfirmationEmailService email;
  @BeforeEach void setup(){when(email.configured()).thenReturn(true);}
