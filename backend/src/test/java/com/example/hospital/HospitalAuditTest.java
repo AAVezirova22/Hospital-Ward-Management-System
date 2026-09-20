@@ -43,4 +43,13 @@ class HospitalAuditTest extends HospitalSupport {
     assertThat(body.get("page").asInt()).isZero();
     assertThat(body.get("events").toString()).contains("PATIENT_CREATED");
   }
+
+  @Test
+  void auditTrailContainsActionsWithoutNotesOrPasswords() throws Exception {
+    createPatient();
+    var audit = result(request("admin", "GET", "/api/v1/audit", null), 200);
+    assertThat(audit.toString())
+        .contains("PATIENT_CREATED")
+        .doesNotContain("passwordHash", "IntegrationPassword", "Ignore previous");
+  }
 }
