@@ -398,6 +398,12 @@ button.workspace-switcher[aria-expanded="true"] {
   display: grid;
   gap: 18px;
 }
+.workspace-list header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
 .nav-label {
   color: var(--muted);
   font-size: 8px;
