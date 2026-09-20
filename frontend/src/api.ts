@@ -192,6 +192,9 @@ export async function logout() {
     csrf = null;
     setActiveDepartment(null);
     bindAccount(null);
+    try {
+      localStorage.removeItem("medcore-department");
+    } catch {}
   }
 }
 export const fullName = (
