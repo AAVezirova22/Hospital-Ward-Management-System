@@ -176,6 +176,7 @@ export function SceneTransition({
       <motion.div
         key={scene}
         className="scene-content"
+        style={{ originX: 0 }}
         initial={enabled ? { opacity: 0, x: -28 } : false}
         animate={{ opacity: 1, x: 0 }}
         exit={enabled ? { opacity: 0, x: -16 } : undefined}
