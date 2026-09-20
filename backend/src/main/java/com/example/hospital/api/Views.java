@@ -49,4 +49,41 @@ public final class Views {
     row.put("active", d.active);
     return row;
   }
+
+  public static Map<String, Object> procedure(MedicalProcedure p) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", p.id);
+    row.put("version", p.version);
+    row.put("procedureCode", p.procedureCode);
+    row.put("procedureName", p.procedureName);
+    row.put("currentCost", p.currentCost);
+    row.put("active", p.active);
+    return row;
+  }
+
+  public static Map<String, Object> admission(Admission a) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", a.id);
+    row.put("version", a.version);
+    row.put("admissionNumber", a.admissionNumber);
+    row.put("patientId", a.patientId);
+    row.put("attendingDoctorId", a.attendingDoctorId);
+    row.put("admissionDateTime", a.admissionDateTime);
+    row.put("dischargeDateTime", a.dischargeDateTime);
+    row.put("expectedDischargeDate", a.expectedDischargeDate);
+    row.put("status", a.status);
+    return row;
+  }
+
+  public static Map<String, Object> performed(PerformedProcedure p) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", p.id);
+    row.put("admissionId", p.admissionId);
+    row.put("medicalProcedureId", p.medicalProcedureId);
+    row.put("performedByDoctorId", p.performedByDoctorId);
+    row.put("performedAt", p.performedAt);
+    row.put("priceAtExecution", p.priceAtExecution);
+    row.put("note", p.note);
+    return row;
+  }
 }
