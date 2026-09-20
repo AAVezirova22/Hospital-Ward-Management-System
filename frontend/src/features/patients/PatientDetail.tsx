@@ -34,7 +34,7 @@ export function PatientDetail({ id }: { id: string }) {
         ← Patient directory
       </Link>
       <Title
-        eyebrow={"PATIENT DOSSIER / " + p.patientIdentifier}
+        eyebrow={"Patient dossier / " + p.patientIdentifier}
         title={fullName(p)}
         description={
           "Born " +
@@ -81,7 +81,7 @@ export function PatientDetail({ id }: { id: string }) {
       {active && (
         <section className="active-stay">
           <div>
-            <span className="eyebrow">CURRENT ADMISSION</span>
+            <span className="eyebrow">Current admission</span>
             <h2>
               Room{" "}
               {
@@ -127,7 +127,7 @@ export function PatientDetail({ id }: { id: string }) {
         <summary>Detailed admission records and costs</summary>
         <div className="section-heading">
           <div>
-            <span className="eyebrow">OPERATIONAL HISTORY</span>
+            <span className="eyebrow">Operational history</span>
             <h2>Admission timeline</h2>
           </div>
         </div>
@@ -150,7 +150,7 @@ export function PatientDetail({ id }: { id: string }) {
               </div>
               <div className="stay-body">
                 <div>
-                  <span className="eyebrow">ROOM MOVEMENTS</span>
+                  <span className="eyebrow">Room movements</span>
                   <ol className="timeline">
                     {v.rooms.map((r: Row) => (
                       <li key={r.assignment.id}>
@@ -168,7 +168,7 @@ export function PatientDetail({ id }: { id: string }) {
                 </div>
                 <div>
                   <div className="section-heading">
-                    <span className="eyebrow">PERFORMED PROCEDURES</span>
+                    <span className="eyebrow">Performed procedures</span>
                     <strong>{money(v.totalCost)}</strong>
                   </div>
                   {v.procedures.length === 0 ? (
