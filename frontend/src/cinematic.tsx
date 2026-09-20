@@ -31,6 +31,7 @@ const CinemaContext = createContext({
   toggle: () => {},
 });
 const WorkspaceSceneContext = createContext(false);
+export const useCinematicMotion = () => useContext(CinemaContext).enabled;
 
 function subscribeToMotionPreference(onChange: () => void) {
   const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -173,11 +174,11 @@ export function SceneTransition({
       <motion.div
         key={scene}
         className="scene-content"
-        initial={enabled ? { opacity: 0.86 } : false}
-        animate={{ opacity: 1 }}
+        initial={enabled ? { opacity: 0, x: 18 } : false}
+        animate={{ opacity: 1, x: 0 }}
         transition={{
-          duration: enabled ? 0.18 : 0,
-          ease: [0.25, 0.1, 0.25, 1],
+          duration: enabled ? 0.32 : 0,
+          ease,
         }}
       >
         {children}
