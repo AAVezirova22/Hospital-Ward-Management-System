@@ -16,6 +16,10 @@ const geist = localFont({
 export const metadata: Metadata = {
   title: "Medcore | Hospital Operations",
   description: "Hospital department operations workspace",
+  applicationName: "Medcore",
+  appleWebApp: { capable: true, title: "Medcore", statusBarStyle: "default" },
+  openGraph: {title:"Medcore | Hospital Operations",description:"Live ward planning, clear care history, and human-confirmed operational assistance.",type:"website"},
+  twitter: {card:"summary_large_image"},
   icons: { icon: "/favicon.svg" },
 };
 
