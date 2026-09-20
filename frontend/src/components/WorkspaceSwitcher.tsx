@@ -205,6 +205,31 @@ export function WorkspaceSwitcher() {
                 )}
               </section>
             ))}
+            <div className="workspace-actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setJoinCode("");
+                  setPanel("join");
+                }}
+              >
+                <KeyRound size={16} />
+                Join with a code
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setHospitalName("");
+                  setDepartmentName("");
+                  setPanel("hospital");
+                }}
+              >
+                <Plus size={16} />
+                Create a hospital
+              </button>
+            </div>
           </div>
         )}
       </Modal>
