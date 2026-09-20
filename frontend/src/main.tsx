@@ -62,7 +62,7 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
           layoutId={animated ? "sidebar-selection" : undefined}
           className="nav-selection"
           aria-hidden="true"
-          transition={{ type: "spring", stiffness: 420, damping: 38 }}
+          transition={{ type: "spring", stiffness: 260, damping: 32, mass: 0.7 }}
         />
       )}
       {children}
