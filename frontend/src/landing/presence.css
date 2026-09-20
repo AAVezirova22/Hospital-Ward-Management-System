@@ -327,21 +327,44 @@ html:has(.mc):has(dialog[open]) {
 }
 .mc-hero-image {
   position: absolute;
-  inset: -45px 0;
+  inset: 0;
   z-index: -2;
 }
 .mc-hero-image img {
   object-position: center 47%;
 }
-.mc-hero-liquid {
-  position: absolute !important;
+.mc-ambient {
+  position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
 }
-.mc-liquid-surface {
+.mc-hero-frame > .mc-ambient {
+  z-index: -1;
+}
+.mc-ambient-canvas,
+.mc-ambient-surface,
+.mc-ambient .clouds-layer {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  min-height: 790px;
+}
+.mc-ambient .clouds-source-off,
+.mc-ambient .clouds-output-failed {
+  display: none;
+}
+.mc-ambient .clouds-source {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.mc-ambient .clouds-output {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 .mc-hero-wash {
   position: absolute;
@@ -1150,7 +1173,7 @@ html:has(.mc):has(dialog[open]) {
   overflow: hidden;
 }
 .mc-close-photo img {
-  object-position: 78% center;
+  object-position: 50% center;
 }
 .mc-close .mc-actions {
   gap: 22px;
