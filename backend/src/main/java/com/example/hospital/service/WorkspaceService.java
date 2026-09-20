@@ -116,7 +116,8 @@ public class WorkspaceService {
     long id = hospitals.getFirst();
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", id, user.id);
     audit.log("WORKSPACE_JOINED", "Hospital", id, "UI");
-    return Map.of("hospitalId", id);
+    String hospitalName = jdbc.queryForObject("select name from hospitals where id=?", String.class, id);
+    return Map.of("hospitalId", id, "hospitalName", hospitalName == null ? "" : hospitalName);
   }
 
   private String joinKey(Long userId, String remoteAddr) {

@@ -47,6 +47,7 @@ export function WorkspaceSwitcher() {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<Error | null>(null);
   const [joinCode, setJoinCode] = useState("");
+  const [joinHint, setJoinHint] = useState("");
   const [hospitalName, setHospitalName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
   const [hostHospital, setHostHospital] = useState<WorkspaceHospital>();
@@ -67,13 +68,32 @@ export function WorkspaceSwitcher() {
     setOpen(false);
   };
 
-  const submit = async (run: () => Promise<{ departmentId?: number }>) => {
+  const submit = async (
+    run: () => Promise<{
+      departmentId?: number;
+      hospitalId?: number;
+      hospitalName?: string;
+    }>,
+  ) => {
     setBusy(true);
     setFormError(null);
+    setJoinHint("");
     try {
       const result = await run();
-      setPanel("list");
-      await refresh(result.departmentId);
+      if (result.departmentId) {
+        setPanel("list");
+        await refresh(result.departmentId);
+      } else if (result.hospitalId && !result.departmentId) {
+        setJoinCode("");
+        setPanel("join");
+        setJoinHint(
+          `Joined ${result.hospitalName || "the hospital"}. Paste a department code to open its records.`,
+        );
+        await client.invalidateQueries({ queryKey: ["/workspaces"] });
+      } else {
+        setPanel("list");
+        await refresh(result.departmentId);
+      }
     } catch (e) {
       setFormError(e as Error);
     } finally {
@@ -318,6 +338,11 @@ export function WorkspaceSwitcher() {
                 opens that department as medical staff, never as an
                 administrator.
               </p>
+              {joinHint && (
+                <p className="muted" role="status">
+                  {joinHint}
+                </p>
+              )}
               <label>
                 Join code
                 <input
