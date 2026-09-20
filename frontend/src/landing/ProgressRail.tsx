@@ -3,15 +3,15 @@
 import { useEffect, useState } from "react";
 
 const BEATS = [
-  { id: "care", label: "Care" },
-  { id: "specialists", label: "Specialists" },
-  { id: "technology", label: "Technology" },
-  { id: "patients", label: "Patients" },
-  { id: "visit", label: "Visit" },
+  { id: "product", label: "Product" },
+  { id: "assistant", label: "Assistant" },
+  { id: "workflow", label: "Workflow" },
+  { id: "specialists", label: "Floor" },
+  { id: "start", label: "Start" },
 ] as const;
 
 export function ProgressRail() {
-  const [here, setHere] = useState("care");
+  const [here, setHere] = useState("product");
   useEffect(() => {
     const nodes = BEATS.map((beat) => document.getElementById(beat.id)).filter(
       (node): node is HTMLElement => Boolean(node),

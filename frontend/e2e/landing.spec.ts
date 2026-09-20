@@ -1,33 +1,32 @@
 import { expect, test } from "@playwright/test";
 
-test("cinematic landing opens on the public home and can book", async ({
+test("product landing opens the assistant and a walkthrough request", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Advanced care. Human at heart." }),
+    page.getByRole("heading", { name: "The ward, in the moment." }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "See the assistant" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Ask the ward. Confirm before anything writes.",
+    }),
   ).toBeVisible();
   await page.locator("[data-film-book]").click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Book an Appointment" }),
+    page.getByRole("heading", { name: "Request a walkthrough" }),
   ).toBeVisible();
   await page.getByLabel("Full name").fill("Kalina Ruseva");
   await page.getByLabel("Phone").fill("+359 88 412 903");
   await page.getByRole("link", { name: "Cancel" }).click();
-  await page.getByRole("link", { name: "Find a Specialist" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Meet your care team" }),
-  ).toBeVisible();
 });
 
-test("staff sign-in from the landing reaches the workspace login", async ({
-  page,
-}) => {
+test("workspace link from the landing reaches sign-in", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Menu" }).click();
-  await page.getByRole("link", { name: "Staff sign-in" }).click();
+  await page.getByRole("link", { name: "Open the workspace" }).first().click();
   await expect(page).toHaveURL(/\/app/);
   await expect(
     page.getByRole("heading", {

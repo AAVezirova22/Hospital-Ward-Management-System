@@ -3,9 +3,9 @@ import { LandingPage } from "../src/landing/LandingPage";
 import "../src/landing/landing.css";
 
 export const metadata: Metadata = {
-  title: "Medcore | Advanced care. Human at heart.",
+  title: "Medcore | The ward, in the moment.",
   description:
-    "Specialist care, modern diagnostics, and treatment built around you.",
+    "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
 };
 
 export default function Home() {

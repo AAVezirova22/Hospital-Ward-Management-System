@@ -12,20 +12,20 @@ import { EcgLine } from "./EcgLine";
 
 const STEPS = [
   {
-    title: "Book",
-    copy: "A time that fits, a specialist who already has your notes.",
+    title: "Arrive",
+    copy: "A file, an iMessage, or a typed command lands in the assistant.",
   },
   {
-    title: "Diagnose",
-    copy: "Imaging and conversation in the same week, not a month of waiting.",
+    title: "Plan",
+    copy: "Named steps, source fields, and the rooms that actually have beds.",
   },
   {
-    title: "Treat",
-    copy: "The plan is written with you in the room, then carried out by the same team.",
+    title: "Confirm",
+    copy: "An owned, expiring proposal. A person still has to say yes.",
   },
   {
-    title: "Recover",
-    copy: "Follow-up that does not vanish after discharge.",
+    title: "Write",
+    copy: "The same authorized services as the rest of Medcore. Failures roll back.",
   },
 ];
 

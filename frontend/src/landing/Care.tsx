@@ -11,9 +11,9 @@ const Displacement = dynamic(() => import("../vendor/canvasui/Displacement"), {
 });
 
 const STATS = [
-  { value: "186", label: "consultants across the campus" },
-  { value: "14", label: "specialist departments" },
-  { value: "42,800", label: "patients treated last year" },
+  { value: "8", label: "validated tools, never raw SQL" },
+  { value: "1", label: "human confirm before a write" },
+  { value: "30m", label: "source text lives in memory, then goes" },
 ];
 
 export function Care() {
@@ -46,7 +46,7 @@ export function Care() {
       )}
       <div className="film-care-shade" />
       <div className="film-care-copy">
-        <h2>Care when it matters most</h2>
+        <h2>The floor stays yours</h2>
         <div className="film-stats">
           {STATS.map((stat, index) => (
             <motion.p

@@ -44,17 +44,17 @@ const socialImage = "/opengraph-image";
 export const metadata: Metadata = {
   metadataBase: new URL(publicUrl),
   title: {
-    default: "Medcore | Advanced care. Human at heart.",
+    default: "Medcore | The ward, in the moment.",
     template: "%s | Medcore",
   },
   description:
-    "Specialist care, modern diagnostics, and treatment built around you.",
+    "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
   applicationName: "Medcore",
   appleWebApp: { capable: true, title: "Medcore", statusBarStyle: "default" },
   openGraph: {
-    title: "Medcore | Advanced care. Human at heart.",
+    title: "Medcore | The ward, in the moment.",
     description:
-      "Specialist care, modern diagnostics, and treatment built around you.",
+      "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
     type: "website",
     url: "/",
     siteName: "Medcore",
@@ -69,9 +69,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Medcore | Advanced care. Human at heart.",
+    title: "Medcore | The ward, in the moment.",
     description:
-      "Specialist care, modern diagnostics, and treatment built around you.",
+      "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
     images: [socialImage],
   },
   icons: { icon: "/favicon.svg" },

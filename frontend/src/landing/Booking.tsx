@@ -27,10 +27,10 @@ export function Booking() {
         <div className="film-booking-done">
           <h2 id="booking-title">We have the request</h2>
           <p>
-            A coordinator will call you to confirm the time. Nothing is booked
-            until that call.
+            Someone from Medcore will call about a walkthrough of the workspace.
+            Nothing is provisioned until that call.
           </p>
-          <a className="film-btn" href="#care">
+          <a className="film-btn" href="#product">
             Close
           </a>
         </div>
@@ -53,7 +53,7 @@ export function Booking() {
             setSent(true);
           }}
         >
-          <h2 id="booking-title">Book an Appointment</h2>
+          <h2 id="booking-title">Request a walkthrough</h2>
           <EcgLine className="film-ecg" draw />
           <label className="film-field" htmlFor="booking-name">
             Full name
@@ -83,11 +83,11 @@ export function Booking() {
           </label>
           {error ? <p className="film-error">{error}</p> : null}
           <div className="film-booking-actions">
-            <a className="film-ghost" href="#care">
+            <a className="film-ghost" href="#product">
               Cancel
             </a>
             <button className="film-btn" type="submit">
-              Request a time
+              Request a walkthrough
               <span className="film-btn-ico" aria-hidden="true">
                 <ArrowRight size={14} weight="light" />
               </span>

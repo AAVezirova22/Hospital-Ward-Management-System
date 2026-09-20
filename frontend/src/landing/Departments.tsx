@@ -34,7 +34,7 @@ export function Departments() {
   const gpu = useGpuScene();
   return (
     <section className="film-departments" id="specialists">
-      <h2 className="film-kicker">Departments</h2>
+      <h2 className="film-kicker">The floor it runs</h2>
       <div className="film-dept-track">
         {DEPTS.map((dept) => {
           const face = (

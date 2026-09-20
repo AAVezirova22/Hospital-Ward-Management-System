@@ -28,7 +28,7 @@ const TEAM = [
 export function Team() {
   return (
     <section className="film-team" id="team" aria-labelledby="team-title">
-      <h2 id="team-title">Meet your care team</h2>
+      <h2 id="team-title">People who still confirm the work</h2>
       <div className="film-portraits">
         {TEAM.map((person) => (
           <article className="film-portrait" key={person.key}>

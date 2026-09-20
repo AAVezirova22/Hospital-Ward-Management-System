@@ -12,8 +12,10 @@ export function Story() {
       />
       <div className="film-story-shade" />
       <blockquote>
-        <p>They treated the scan, then they treated me as a person.</p>
-        <footer>Kalina Ruseva, spinal recovery</footer>
+        <p>
+          The assistant drafted the night list. I still had to confirm the beds.
+        </p>
+        <footer>Night coordinator, Cardiology</footer>
       </blockquote>
     </section>
   );

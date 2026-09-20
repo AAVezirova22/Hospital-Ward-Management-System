@@ -1,10 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { ArrowRight, CaretDown } from "@phosphor-icons/react";
 import { FilmMedia } from "./FilmMedia";
 import { still } from "./media";
 import { useGpuScene } from "./gpu";
+import { Pulse } from "./Pulse";
 
 const Liquid = dynamic(() => import("../vendor/canvasui/Liquid"), {
   ssr: false,
@@ -20,7 +22,7 @@ export function Hero() {
     />
   );
   return (
-    <section className="film-hero" id="care" aria-label="Medcore">
+    <section className="film-hero" id="product" aria-label="Medcore">
       {gpu ? (
         <Liquid
           className="film-hero-gpu"
@@ -42,32 +44,34 @@ export function Hero() {
       )}
       <div className="film-hero-shade" />
       <div className="film-hero-copy">
+        <Pulse />
         <h1>
-          <span className="film-title-line">Advanced care.</span>
-          <span className="film-title-line">Human at heart.</span>
+          <span className="film-title-line">The ward,</span>
+          <span className="film-title-line">in the moment.</span>
         </h1>
         <p className="film-hero-lede">
-          Specialist care, modern diagnostics, and treatment built around you.
+          Hospital operations with an assistant that plans from files and
+          Messages, then waits for a human to confirm.
         </p>
         <div className="film-ctas">
-          <a className="film-btn" href="#booking" data-film-book="true">
-            Book an Appointment
+          <Link className="film-btn" href="/app">
+            Open the workspace
             <span className="film-btn-ico" aria-hidden="true">
               <ArrowRight size={14} weight="light" />
             </span>
-          </a>
-          <a className="film-text-link" href="#team">
-            Find a Specialist
+          </Link>
+          <a className="film-text-link" href="#assistant">
+            See the assistant
             <ArrowRight size={16} weight="light" />
           </a>
         </div>
       </div>
       <div className="film-hero-floor">
-        <a href="#visit">24/7 Emergency Care</a>
+        <a href="#workflow">iMessage and files</a>
         <a
           className="film-hero-down"
-          href="#numbers"
-          aria-label="Continue to care"
+          href="#assistant"
+          aria-label="Continue to the assistant"
         >
           <CaretDown size={18} weight="light" />
         </a>

@@ -37,10 +37,10 @@ export function Technology() {
   return (
     <section className="film-tech" id="technology" ref={ref}>
       <div className="film-tech-copy">
-        <h2>Seen clearly, treated precisely</h2>
+        <h2>Planner, theatre, the rooms you already have</h2>
         <p>
-          Imaging, theatre, and robotic assistance photographed as they are:
-          quiet rooms, real light, no spectacle.
+          Ward maps, bed locks, and the imaging floor photographed as they are.
+          The assistant never bypasses capacity checks.
         </p>
       </div>
       {lens ? (

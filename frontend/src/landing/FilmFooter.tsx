@@ -6,14 +6,14 @@ export function FilmFooter() {
       <div className="film-footer-row">
         <strong>Medcore</strong>
         <nav aria-label="Footer">
-          <a href="#specialists">Specialists</a>
-          <a href="#visit">Visit</a>
-          <Link href="/app">Staff sign-in</Link>
+          <a href="#assistant">Assistant</a>
+          <a href="#workflow">Workflow</a>
+          <Link href="/app">Open the workspace</Link>
         </nav>
       </div>
       <small>
-        Medcore Hospital, Sofia. Clinical records stay in the department that
-        holds them.
+        Clinical records stay in the department that holds them. AI writes need
+        an owned, expiring confirmation.
       </small>
     </footer>
   );

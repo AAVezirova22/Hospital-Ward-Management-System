@@ -6,11 +6,11 @@ import { List, X } from "@phosphor-icons/react";
 import Link from "next/link";
 
 const LINKS = [
-  { href: "#care", label: "Care" },
-  { href: "#specialists", label: "Specialists" },
-  { href: "#technology", label: "Technology" },
-  { href: "#patients", label: "Patients" },
-  { href: "#visit", label: "Visit" },
+  { href: "#product", label: "Product" },
+  { href: "#assistant", label: "Assistant" },
+  { href: "#workflow", label: "Workflow" },
+  { href: "#specialists", label: "Floor" },
+  { href: "#start", label: "Start" },
 ];
 
 export function FilmNav() {
@@ -27,12 +27,12 @@ export function FilmNav() {
   return (
     <>
       <header className="film-nav">
-        <a className="film-mark" href="#care">
+        <a className="film-mark" href="#product">
           Medcore
         </a>
         <div className="film-nav-end">
-          <a className="film-nav-link" href="#specialists">
-            Specialists
+          <a className="film-nav-link" href="#assistant">
+            Assistant
           </a>
           <button
             className="film-nav-menu"
@@ -96,7 +96,7 @@ export function FilmNav() {
                   }}
                 >
                   <Link href="/app" onClick={() => setOpen(false)}>
-                    Staff sign-in
+                    Open the workspace
                   </Link>
                 </motion.div>
               </li>

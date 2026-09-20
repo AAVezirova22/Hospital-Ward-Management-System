@@ -775,6 +775,7 @@ html:has(.film) body {
   gap: 16px;
   margin-top: 28px;
 }
+.film-visit a.film-btn,
 .film-visit button.film-btn {
   background: var(--paper);
   color: #16202c;
@@ -937,6 +938,212 @@ html:has(.film) body {
   }
 }
 
+.film-pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 1.1rem;
+  font-family: var(--data);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(242, 245, 247, 0.78);
+}
+.film-pulse span {
+  color: var(--ecg);
+}
+.film-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7dba8c;
+  box-shadow: 0 0 0 0 rgba(125, 186, 140, 0.7);
+  animation: film-pulse 2.2s var(--ease) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .film-pulse-dot {
+    animation: none;
+  }
+}
+@keyframes film-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(125, 186, 140, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(125, 186, 140, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(125, 186, 140, 0);
+  }
+}
+
+.film-live,
+.film-msg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  padding: 14vh 8vw;
+}
+.film-live-kicker {
+  margin: 0 0 12px;
+  font-family: var(--data);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.film-live h2,
+.film-msg h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  line-height: 0.98;
+  max-width: 14ch;
+}
+.film-live-copy p,
+.film-msg-copy p {
+  margin: 18px 0 0;
+  max-width: 42ch;
+  color: var(--quiet);
+}
+.film-live-points,
+.film-msg-steps {
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  max-width: 46ch;
+}
+.film-live-points li,
+.film-msg-steps li {
+  padding-left: 16px;
+  border-left: 2px solid var(--accent);
+  color: var(--ink);
+}
+.film-live-board,
+.film-phone-shell {
+  background: #0c121c;
+  color: var(--paper);
+  border: 1px solid rgba(242, 245, 247, 0.1);
+  min-height: 420px;
+  padding: 22px;
+}
+.film-live-board header {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--data);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.film-live-board em {
+  font-style: normal;
+  color: var(--ecg);
+}
+.film-live-thread {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.film-live-msg {
+  margin: 0;
+  max-width: 36ch;
+  padding: 10px 12px;
+  background: rgba(242, 245, 247, 0.08);
+  font-size: 0.95rem;
+}
+.film-live-msg.is-user {
+  justify-self: end;
+  background: rgba(92, 135, 160, 0.28);
+}
+.film-live-msg.is-file {
+  font-family: var(--data);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ecg);
+  background: transparent;
+  padding-left: 0;
+}
+.film-proposal {
+  padding: 14px;
+  border: 1px solid rgba(242, 245, 247, 0.16);
+}
+.film-proposal p {
+  margin: 0 0 10px;
+  font-family: var(--data);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ecg);
+}
+.film-proposal ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+.film-proposal-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  min-height: 40px;
+  padding: 0 12px;
+  background: var(--paper);
+  color: #16202c;
+  font-size: 0.88rem;
+}
+.film-phone-shell {
+  max-width: 360px;
+  justify-self: end;
+  border-radius: 28px;
+  padding: 18px 16px 24px;
+}
+.film-phone-notch {
+  width: 88px;
+  height: 8px;
+  margin: 0 auto 14px;
+  border-radius: 8px;
+  background: rgba(242, 245, 247, 0.18);
+}
+.film-phone-label {
+  margin: 0 0 16px;
+  text-align: center;
+  font-family: var(--data);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(242, 245, 247, 0.55);
+}
+.film-phone-thread {
+  display: grid;
+  gap: 8px;
+}
+.film-bubble {
+  margin: 0;
+  max-width: 28ch;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+.film-bubble.is-staff {
+  justify-self: end;
+  background: #1278ff;
+  color: #fff;
+  border-radius: 16px 16px 4px 16px;
+}
+.film-bubble.is-medcore {
+  justify-self: start;
+  background: rgba(242, 245, 247, 0.12);
+  border-radius: 16px 16px 16px 4px;
+}
+
 @media (max-width: 960px) {
   .film-rail {
     display: none;
@@ -955,15 +1162,23 @@ html:has(.film) body {
   .film-journey-pin,
   .film-story blockquote,
   .film-visit,
-  .film-footer {
+  .film-footer,
+  .film-live,
+  .film-msg {
     padding-left: 1.25rem;
     padding-right: 1.25rem;
   }
   .film-stats,
   .film-portraits,
   .film-tech-grid,
-  .film-visit-grid {
+  .film-visit-grid,
+  .film-live,
+  .film-msg {
     grid-template-columns: 1fr;
+  }
+  .film-phone-shell {
+    justify-self: stretch;
+    max-width: none;
   }
   .film-portrait:nth-child(even) {
     margin-top: 0;

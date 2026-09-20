@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useScroll, useMotionValueEvent } from "motion/react";
+import { AssistantLive } from "./AssistantLive";
 import { Booking } from "./Booking";
 import { Care } from "./Care";
 import { Departments } from "./Departments";
@@ -9,6 +10,7 @@ import { FilmFooter } from "./FilmFooter";
 import { FilmNav } from "./FilmNav";
 import { Hero } from "./Hero";
 import { Journey } from "./Journey";
+import { Messages } from "./Messages";
 import { ProgressRail } from "./ProgressRail";
 import { Story } from "./Story";
 import { Team } from "./Team";
@@ -37,7 +39,7 @@ export function LandingPage() {
     document.documentElement.dataset.film = "ready";
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && location.hash === "#booking") {
-        location.hash = "care";
+        location.hash = "product";
       }
     };
     window.addEventListener("keydown", onKey);
@@ -45,7 +47,7 @@ export function LandingPage() {
   }, []);
   return (
     <div className="film" ref={root}>
-      <a className="film-skip" href="#care">
+      <a className="film-skip" href="#product">
         Skip to content
       </a>
       <div className="film-void" aria-hidden="true" />
@@ -55,10 +57,12 @@ export function LandingPage() {
       <main className="film-stage">
         <Hero />
         <Care />
+        <AssistantLive />
+        <Messages />
+        <Journey />
         <Departments />
         <Team />
         <Technology />
-        <Journey />
         <Story />
         <Visit />
       </main>
