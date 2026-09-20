@@ -3,6 +3,8 @@ export type User = {
   id: number;
   username: string;
   role: "ADMIN" | "MEDICAL_STAFF" | "DOCTOR" | "PATIENT";
+  accountRole?: "ADMIN" | "MEDICAL_STAFF" | "DOCTOR" | "PATIENT";
+  departmentRole?: "ADMIN" | "MEDICAL_STAFF" | "DOCTOR" | "PATIENT";
   doctorId: number | null;
   patientId?: number | null;
   requestedRole?: string | null;
