@@ -2,7 +2,8 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { CinematicProvider, LoginScene } from "../../src/cinematic";
+import { CinematicProvider } from "../../src/cinematic";
+import { LoginScene } from "../../src/login-scene";
 import { EmailVerification } from "../../src/features/auth/Registration";
 
 const client = new QueryClient({
