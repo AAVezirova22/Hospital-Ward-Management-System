@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, type Row, type User } from "../../api";
+import { api, fullName, money, date, setActiveDepartment, type Row, type User } from "../../api";
 import {
   Link,
   useUser,
@@ -17,6 +17,7 @@ import { Sparkles, X, ArrowUpRight, ArrowRight, Activity } from "lucide-react";
 import { aiResponse } from "../../ai-contract";
 import { CommandResults } from "./CommandResults";
 import { ProposalPreview } from "./ProposalPreview";
+import { AssistantSources, useAssistantSources } from "./AssistantSources";
 export function Assistant({ onClose }: { onClose: () => void }) {
   const user = useUser();
   const router = useRouter(),
@@ -28,27 +29,57 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState<Error | null>(null);
   const ref = useRef<HTMLDialogElement>(null);
+  const sources = useAssistantSources();
+  const mounted = useRef(true);
   useEffect(() => {
+    mounted.current = true;
     ref.current?.showModal();
-    return () => ref.current?.close();
+    const close = () => onClose();
+    window.addEventListener("workspace-changed", close);
+    return () => {
+      mounted.current = false;
+      ref.current?.close();
+      window.removeEventListener("workspace-changed", close);
+    };
   }, []);
+  async function fileAction(action: () => Promise<void>) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try { await action(); }
+    catch (e) { if ((e as Error).name !== "AbortError") setError(e as Error); }
+    finally { setBusy(false); }
+  }
   async function send(text: string) {
     if (!text.trim() || busy) return;
     setBusy(true);
     setError(null);
     setMessage("");
     try {
+      let nextSession = session;
+      for (let round = 0; round < 4; round++) {
       const raw = await api("/assistant/messages", "POST", {
         message: text,
-        sessionId: session,
+        sessionId: nextSession,
+        sourceIds: sources.sourceIds(),
+        connectedFiles: sources.manifest(),
         route: pathname,
         selectedPatientId: /\/patients\/\d+$/.test(pathname)
           ? Number(pathname.split("/").pop())
           : null,
       });
       const result = aiResponse.parse(raw);
+      if (!mounted.current) return;
+      nextSession = result.sessionId;
       setSession(result.sessionId);
+      if (result.responseType === "FILE_REQUEST") {
+        if (round === 3) throw new Error("The request needs too many file reads. Try a smaller folder or a more specific request.");
+        await sources.read(result.data.ids);
+        continue;
+      }
       setResults((r) => [...r, { query: text, ...result }]);
+      break;
+      }
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -59,7 +90,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await api(`/ai-actions/${id}/${op}`, "POST");
+      const completed = await api(`/ai-actions/${id}/${op}`, "POST");
       setResults((r) =>
         r.map((v, i) =>
           i === index
@@ -68,6 +99,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
         ),
       );
       await client.invalidateQueries();
+      if (op === "confirm" && completed?.departmentId) setActiveDepartment(completed.departmentId);
     } catch (e) {
       setError(e as Error);
       await client.invalidateQueries();
@@ -92,9 +124,10 @@ export function Assistant({ onClose }: { onClose: () => void }) {
         <span className="eyebrow">A SHORTER PATH TO THE ANSWER</span>
         <h2>What needs your attention?</h2>
         <p>
-          Find records, explore capacity, or prepare a task for your
-          confirmation.
+          Connect a folder or upload files, then describe the workflow you want.
+          Review the proposed steps before applying changes.
         </p>
+        <AssistantSources model={sources} busy={busy} run={fileAction} />
         <CommandResults query={message} onClose={onClose} user={user} />
         <div className="suggestions">
           {[
@@ -168,6 +201,35 @@ export function Assistant({ onClose }: { onClose: () => void }) {
               </>
             )}
             {r.responseType === "REPORT_RESULT" && <AiReport data={r.data} />}
+            {r.responseType === "WORKFLOW_PROPOSAL" && (
+              <div className="confirmation">
+                <h3>{r.data.workflow.title}</h3>
+                <p>All steps are applied together. If a step fails, no changes are saved.</p>
+                <ol>
+                  {r.data.workflow.steps.map((step: Row) => (
+                    <li key={step.key}>
+                      <strong>{step.operation} · {step.key}</strong>
+                      <p>Source: {step.source}</p>
+                      <dl>
+                        {Object.entries(step.fields).map(([key, value]) => (
+                          <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>
+                        ))}
+                      </dl>
+                    </li>
+                  ))}
+                </ol>
+                <p>Expires {date(r.data.action.expiresAt)}</p>
+                {r.done ? <Status value={r.done} /> : (
+                  <div className="actions">
+                    <button className="secondary" disabled={busy}
+                      onClick={() => action(r.data.action.id, "cancel", i)}>Cancel proposal</button>
+                    <button className="primary"
+                      disabled={busy || Date.parse(r.data.action.expiresAt) <= Date.now()}
+                      onClick={() => action(r.data.action.id, "confirm", i)}>Confirm workflow</button>
+                  </div>
+                )}
+              </div>
+            )}
             {r.responseType === "NAVIGATION_COMMAND" && (
               <button
                 className="primary"
@@ -278,12 +340,14 @@ export function Assistant({ onClose }: { onClose: () => void }) {
         <span>Operational support · Human-confirmed changes</span>
         <button
           className="text-button"
-          onClick={async () => {
+          disabled={busy}
+          onClick={() => fileAction(async () => {
             if (session)
               await api(`/assistant/sessions/${session}/clear`, "POST");
+            await sources.clear();
             setSession(null);
             setResults([]);
-          }}
+          })}
         >
           Clear
         </button>
