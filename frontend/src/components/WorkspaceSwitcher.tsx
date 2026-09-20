@@ -54,6 +54,20 @@ export function WorkspaceSwitcher() {
     await refresh(id);
     setOpen(false);
   };
+
+  const submit = async (run: () => Promise<{ departmentId?: number }>) => {
+    setBusy(true);
+    setFormError(null);
+    try {
+      const result = await run();
+      setPanel("list");
+      await refresh(result.departmentId);
+    } catch (e) {
+      setFormError(e as Error);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <button
       type="button"
