@@ -94,6 +94,7 @@ public class AiWorkflowService {
       }
       if (!newHospital && Set.of("createDoctor", "createRoom", "createProcedure").contains(step.operation())) actor.admin();
       ObjectNode resolved = step.fields().deepCopy();
+      final boolean inNewHospital = newHospital;
       resolved.fields().forEachRemaining(e -> {
         if (e.getValue().isTextual() && e.getValue().asText().startsWith("$") && e.getKey().endsWith("Id")) {
           String refType = keys.get(e.getValue().asText().substring(1));
@@ -104,7 +105,7 @@ public class AiWorkflowService {
           };
           if (!expected.equals(refType)) throw invalid();
           resolved.put(e.getKey(), 1L);
-        } else if (e.getKey().endsWith("Id") && (!e.getValue().isIntegralNumber() || e.getValue().asLong() <= 0 || newHospital)) {
+        } else if (e.getKey().endsWith("Id") && (!e.getValue().isIntegralNumber() || e.getValue().asLong() <= 0 || inNewHospital)) {
           // Existing IDs cannot be imported into a freshly created department.
           throw invalid();
         }
