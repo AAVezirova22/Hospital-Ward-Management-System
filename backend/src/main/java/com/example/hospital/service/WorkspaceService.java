@@ -42,7 +42,7 @@ public class WorkspaceService {
   }
   private void owner(long hospitalId) {
     if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=? and owner=true", Boolean.class, hospitalId, actor.user().id)))
-      throw new ApiException(403, "HOSPITAL_OWNER_REQUIRED", "Only a hospital owner can create departments.");
+      throw new ApiException(403, "HOSPITAL_OWNER_REQUIRED", "Only a hospital owner can manage this hospital.");
   }
 
   @Transactional
