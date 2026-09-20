@@ -223,8 +223,8 @@ export function OperationsOverview({
             </div>
           </div>
         </section>
-        <section className="panel">
-          <h2>Recent operational activity</h2>
+        <section className="panel activity-panel">
+          <details open><summary>Live activity</summary>
           <ol className="operational-feed">
             {d.activity.slice(0, presentation ? 5 : 8).map((e) => {
               const v = admissions.find(
@@ -234,16 +234,20 @@ export function OperationsOverview({
                 <li key={e.id}>
                   <span>{e.eventType.toLowerCase().replaceAll("_", " ")}</span>
                   <strong>
-                    {v
-                      ? `${v.patient.firstName} ${v.patient.lastName}`
-                      : "Admission"}
+                    {v ? <Link href={`/app/patients/${v.patient.id}`}>{v.patient.firstName} {v.patient.lastName} →</Link> : "Admission unavailable"}
                   </strong>
+                  <span className="muted">
+                    {v
+                      ? v.admission.admissionNumber
+                      : ""}
+                  </span>
                   <small>{date(e.timestamp)}</small>
                 </li>
               );
             })}
           </ol>
           {!d.activity.length && <p>No activity in your scope yet.</p>}
+          </details>
         </section>
       </div>
       {!presentation && (
