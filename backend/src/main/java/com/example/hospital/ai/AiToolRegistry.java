@@ -13,12 +13,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiToolRegistry {
   private final HospitalService h;
+  private final ReportService reports;
   private final AiActionService actions;
   private final Actor actor;
   private final WorkspaceService workspaces;
 
-  public AiToolRegistry(HospitalService h, AiActionService a, Actor actor, WorkspaceService workspaces) {
+  public AiToolRegistry(
+      HospitalService h, ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces) {
     this.h = h;
+    this.reports = reports;
     actions = a;
     this.actor = actor;
     this.workspaces = workspaces;
@@ -172,7 +175,7 @@ public class AiToolRegistry {
           response(
               "REPORT_RESULT",
               "Current assigned patients.",
-              Map.of("admissions", h.census(null, doctor(a.getOrDefault("doctorQuery", "")).id)));
+              Map.of("admissions", reports.census(null, doctor(a.getOrDefault("doctorQuery", "")).id)));
       case "getAdmission" ->
           response(
               "REPORT_RESULT",
@@ -201,13 +204,13 @@ public class AiToolRegistry {
           response(
               "REPORT_RESULT",
               "Procedure totals calculated from saved records.",
-              h.procedureReport(
+              reports.procedures(
                   dateArg(a.getOrDefault("from", LocalDate.now(ZoneOffset.UTC).toString())),
                   dateArg(a.getOrDefault("to", LocalDate.now(ZoneOffset.UTC).toString())),
                   null,
                   null));
       case "getDashboardSummary" ->
-          response("REPORT_RESULT", "Current department operations.", h.dashboard());
+          response("REPORT_RESULT", "Current department operations.", reports.dashboard());
       case "listWorkspaces" ->
           response(
               "REPORT_RESULT",
