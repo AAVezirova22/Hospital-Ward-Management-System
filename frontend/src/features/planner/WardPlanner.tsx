@@ -106,7 +106,7 @@ export function WardPlanner({ user }: { user: User }) {
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">WARD PLANNER</span>
+          <span className="eyebrow">Ward planner</span>
           <h1>Make room for what’s next.</h1>
           <p>Explore placements, review the impact, then confirm your plan.</p>
         </div>
