@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { fullName, money, date, patientHref, type Row } from "../../api";
 import { Status } from "../../components/workspace";
-import { ArrowUpRight, ArrowRight } from "lucide-react";
+import { ArrowUpRight, ArrowRight } from "../../icons";
 import { safeRoute } from "../../ai-contract";
 import { ProposalPreview } from "./ProposalPreview";
 import type { AdmissionView, RoomCapacity } from "../../api/contracts";
