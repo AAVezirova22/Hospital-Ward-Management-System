@@ -160,6 +160,7 @@
 }
 .scene-content {
   min-width: 0;
+  transform-origin: left center;
 }
 
 @keyframes aperture-open {
