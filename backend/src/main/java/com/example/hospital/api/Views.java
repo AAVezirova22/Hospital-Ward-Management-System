@@ -127,4 +127,18 @@ public final class Views {
     row.put("departmentRole", u.departmentRole);
     return row;
   }
+
+  public static Map<String, Object> audit(AuditEvent e) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", e.id);
+    row.put("userId", e.userId);
+    row.put("eventType", e.eventType);
+    row.put("entityType", e.entityType);
+    row.put("entityId", e.entityId);
+    row.put("source", e.source);
+    row.put("timestamp", e.timestamp);
+    row.put("metadata", e.metadata);
+    return row;
+  }
 }
+
