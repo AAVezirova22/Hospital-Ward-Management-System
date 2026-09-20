@@ -47,8 +47,10 @@
 .atrium-image {
   background-position: 59% center;
 }
-@media (max-width:800px) {
-  .atrium-image { background-image:url("/medcore-atrium-640.webp"); }
+@media (max-width: 800px) {
+  .atrium-image {
+    background-image: url("/medcore-atrium-640.webp");
+  }
 }
 .atrium-shade {
   background: linear-gradient(

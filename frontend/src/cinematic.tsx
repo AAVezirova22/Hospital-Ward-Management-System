@@ -113,12 +113,14 @@ function Atmosphere() {
   const [idle, setIdle] = useState(false);
   useEffect(() => {
     if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(() => setIdle(true), { timeout:3000 });
+      const id = window.requestIdleCallback(() => setIdle(true), {
+        timeout: 3000,
+      });
       return () => window.cancelIdleCallback(id);
     }
-    const timer = setTimeout(() => setIdle(true),2500);
+    const timer = setTimeout(() => setIdle(true), 2500);
     return () => clearTimeout(timer);
-  },[]);
+  }, []);
   useEffect(() => {
     const screen = matchMedia("(min-width: 801px)");
     const update = () => setAvailable(!document.hidden && screen.matches);
