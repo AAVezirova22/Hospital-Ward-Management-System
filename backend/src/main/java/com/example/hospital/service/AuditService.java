@@ -28,6 +28,6 @@ public class AuditService {
     e.timestamp = Instant.now();
     e.metadata = "";
     events.save(e);
-    publisher.publishEvent(new OperationsStream.Changed());
+    publisher.publishEvent(new OperationsStream.Changed(com.example.hospital.security.DepartmentContext.id()));
   }
 }
