@@ -165,6 +165,71 @@ public class WorkspaceService {
     throw new ApiException(409, "JOIN_CODE_COLLISION", "Could not allocate a unique join code. Try again.");
   }
 
+  private boolean hospitalOwner(long hospitalId, long userId) {
+    return Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=? and owner=true",
+        Boolean.class, hospitalId, userId));
+  }
+
+  private long ownerCount(long hospitalId) {
+    Long count = jdbc.queryForObject(
+        "select count(*) from hospital_memberships where hospital_id=? and owner=true", Long.class, hospitalId);
+    return count == null ? 0 : count;
+  }
+
+  private void departmentAdmin(long departmentId) {
+    if (Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'",
+        Boolean.class, departmentId, actor.user().id))) return;
+    Long hospitalId = jdbc.queryForObject("select hospital_id from departments where id=?", Long.class, departmentId);
+    if (hospitalId == null) throw new ApiException(404, "NOT_FOUND", "Department not found.");
+    owner(hospitalId);
+  }
+
+  @Transactional
+  public void leaveDepartment(long departmentId) {
+    long userId = actor.user().id;
+    if (!Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from department_memberships where department_id=? and user_id=?", Boolean.class, departmentId, userId)))
+      throw new ApiException(404, "NOT_FOUND", "You are not a member of this department.");
+    jdbc.update("delete from department_memberships where department_id=? and user_id=?", departmentId, userId);
+    audit.log("DEPARTMENT_LEFT", "Department", departmentId, "UI");
+  }
+
+  @Transactional
+  public void leaveHospital(long hospitalId) {
+    long userId = actor.user().id;
+    if (!Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, hospitalId, userId)))
+      throw new ApiException(404, "NOT_FOUND", "You are not a member of this hospital.");
+    if (hospitalOwner(hospitalId, userId) && ownerCount(hospitalId) <= 1)
+      throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before leaving.");
+    jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
+    jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
+    audit.log("HOSPITAL_LEFT", "Hospital", hospitalId, "UI");
+  }
+
+  @Transactional
+  public void revokeDepartment(long departmentId, long userId) {
+    departmentAdmin(departmentId);
+    if (userId == actor.user().id) {
+      leaveDepartment(departmentId);
+      return;
+    }
+    jdbc.update("delete from department_memberships where department_id=? and user_id=?", departmentId, userId);
+    audit.log("DEPARTMENT_MEMBER_REVOKED", "Department", departmentId, "UI");
+  }
+
+  @Transactional
+  public void revokeHospital(long hospitalId, long userId) {
+    owner(hospitalId);
+    if (hospitalOwner(hospitalId, userId) && ownerCount(hospitalId) <= 1)
+      throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before removing the last owner.");
+    jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
+    jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
+    audit.log("HOSPITAL_MEMBER_REVOKED", "Hospital", hospitalId, "UI");
+  }
+
   public void enroll(long userId, String role, Long doctorId) {
     long departmentId = DepartmentContext.id();
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) select hospital_id,? from departments where id=? on conflict do nothing", userId, departmentId);

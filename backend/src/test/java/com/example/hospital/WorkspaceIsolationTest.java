@@ -303,6 +303,51 @@ class WorkspaceIsolationTest {
   }
 
   @Test
+  void staffCanLeaveADepartmentAndOwnersCannotAbandonTheHospital() throws Exception {
+    String name = "leave" + unique();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                name,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Leave Clinic " + unique(), "departmentName", "Ward"),
+                1L),
+            201);
+    long hospitalId = created.get("hospitalId").asLong();
+    long departmentId = created.get("departmentId").asLong();
+    var workspaces = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
+    String code = null;
+    for (JsonNode hospital : workspaces.get("hospitals")) {
+      for (JsonNode department : hospital.get("departments")) {
+        if (department.get("id").asLong() == departmentId) code = department.get("joinCode").asText();
+      }
+    }
+    body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
+    body(call(name, "POST", "/api/v1/workspaces/departments/" + departmentId + "/leave", Map.of(), 1L), 200);
+    call(name, "GET", "/api/v1/patients", null, departmentId).andExpect(status().isForbidden());
+    call("admin", "POST", "/api/v1/workspaces/hospitals/" + hospitalId + "/leave", Map.of(), 1L)
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("LAST_OWNER"));
+  }
+
+  @Test
   void auditHistoryStaysInsideTheSelectedDepartment() throws Exception {
     var created =
         body(

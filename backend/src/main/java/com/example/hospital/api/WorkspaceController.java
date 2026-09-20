@@ -36,4 +36,12 @@ public class WorkspaceController {
   public Object hospitalCode(@PathVariable long id) { return Map.of("code", workspaces.rotate(true, id)); }
   @PostMapping("/departments/{id}/code")
   public Object departmentCode(@PathVariable long id) { return Map.of("code", workspaces.rotate(false, id)); }
+  @PostMapping("/hospitals/{id}/leave")
+  public void leaveHospital(@PathVariable long id) { workspaces.leaveHospital(id); }
+  @PostMapping("/departments/{id}/leave")
+  public void leaveDepartment(@PathVariable long id) { workspaces.leaveDepartment(id); }
+  @DeleteMapping("/hospitals/{id}/members/{userId}")
+  public void revokeHospital(@PathVariable long id, @PathVariable long userId) { workspaces.revokeHospital(id, userId); }
+  @DeleteMapping("/departments/{id}/members/{userId}")
+  public void revokeDepartment(@PathVariable long id, @PathVariable long userId) { workspaces.revokeDepartment(id, userId); }
 }
