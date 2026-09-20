@@ -1,11 +1,13 @@
 "use client";
 import { OverviewHero } from "../../cinematic";
-import { Title } from "../../components/workspace";
+import { Title, useUser } from "../../components/workspace";
+import { SystemHealth } from "../../components/SystemHealth";
 import { OperationsOverview } from "./OperationsOverview";
 import { HospitalSimulation } from "../demo/HospitalSimulation";
 export function Dashboard({
   onAssistant = () => window.dispatchEvent(new Event("open-assistant")),
 }: { onAssistant?: () => void } = {}) {
+  const user = useUser();
   return (
     <>
       <OverviewHero>
@@ -21,6 +23,7 @@ export function Dashboard({
       </OverviewHero>
       <OperationsOverview />
       <HospitalSimulation />
+      {user.role === "ADMIN" && <SystemHealth />}
     </>
   );
 }

@@ -370,3 +370,21 @@
 .simulation-events small {
   color: var(--muted);
 }
+.system-health {
+  padding: 24px;
+  margin-top: 24px;
+}
+.system-health summary {
+  cursor: pointer;
+}
+.system-health dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.system-health dd {
+  margin: 0;
+}
+.system-health small {
+  color: var(--muted);
+}
