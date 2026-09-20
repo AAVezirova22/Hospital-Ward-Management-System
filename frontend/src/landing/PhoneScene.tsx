@@ -46,7 +46,6 @@ export function PhoneScene({
   const workspaceScale = useTransform(progress, [0.66, 0.95], [0.86, 1]);
   const workspacePointerEvents = useTransform(
     progress,
-    [0.66, 0.76],
     (value) => (value >= 0.74 ? "auto" : "none"),
   );
   const workspaceX = useTransform(progress, [0.66, 0.95], ["10%", "0%"]);
