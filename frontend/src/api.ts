@@ -100,7 +100,9 @@ export async function api<T = any>(
     if (
       r.status === 403 &&
       e.code === "DEPARTMENT_ACCESS_DENIED" &&
-      department
+      department &&
+      !path.startsWith("/assistant/") &&
+      !path.startsWith("/ai-actions/")
     ) {
       setActiveDepartment(null);
       return api(path, method, body);
