@@ -15,7 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties={"app.demo=true","app.seed=true","app.bootstrap-password=IntegrationPassword123!","server.servlet.session.cookie.secure=false", "spring.flyway.default-schema=demo_verification", "spring.jpa.properties.hibernate.default_schema=demo_verification", "spring.datasource.hikari.connection-init-sql=SET search_path TO demo_verification"})
 @AutoConfigureMockMvc
 class DemoOperationsIntegrationTest {
- @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalIntegrationTest.database(r);}
+ @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalSupport.database(r);}
  @Autowired MockMvc mvc; @Autowired ObjectMapper json;
  @Test void telemetryIsAdministratorOnlyAndStreamRequiresStaffSession() throws Exception {
   mvc.perform(get("/api/v1/management/health")).andExpect(status().isUnauthorized());
