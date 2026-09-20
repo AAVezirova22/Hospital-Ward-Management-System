@@ -13,8 +13,11 @@ import org.hibernate.annotations.ParamDef;
 @Filter(name = "department")
 public abstract class DepartmentEntity extends BaseEntity {
   @Column(nullable = false, updatable = false)
-  public Long departmentId;
+  private Long departmentId;
 
   @PrePersist
   void scope() { departmentId = DepartmentContext.id(); }
+
+  public Long getDepartmentId() { return departmentId; }
+  public void setDepartmentId(Long departmentId) { this.departmentId = departmentId; }
 }

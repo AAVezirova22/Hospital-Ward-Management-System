@@ -6,8 +6,8 @@ import com.example.hospital.security.DepartmentContext;
 import java.io.*;
 import java.time.Instant;
 import java.util.*;
-import org.apache.tika.metadata.Metadata;
-import org.apache.tika.metadata.TikaCoreProperties;
+import org.apache.tika.getMetadata().Metadata;
+import org.apache.tika.getMetadata().TikaCoreProperties;
 import org.apache.tika.parser.*;
 import org.apache.tika.parser.pdf.PDFParserConfig;
 import org.apache.tika.sax.BodyContentHandler;
@@ -30,7 +30,7 @@ public class AiSourceService {
 
   public synchronized Map<String, Object> upload(MultipartFile file) {
     purge();
-    long owner = actor.user().id;
+    long owner = actor.user().getId();
     if (file.isEmpty() || file.getSize() > MAX_BYTES)
       throw new ApiException(400, "FILE_SIZE", "Choose a nonempty file up to 5 MB.");
     if (sources.size() >= 500 || sources.values().stream().filter(s -> s.userId() == owner).count() >= 20)
@@ -84,7 +84,7 @@ public class AiSourceService {
 
   private Source owned(String id) {
     var s = sources.get(id);
-    if (s == null || s.userId() != actor.user().id || s.departmentId() != DepartmentContext.id())
+    if (s == null || s.userId() != actor.user().getId() || s.departmentId() != DepartmentContext.id())
       throw new ApiException(404, "SOURCE_UNAVAILABLE", "This attachment expired or is unavailable in this workspace. Attach it again.");
     return s;
   }

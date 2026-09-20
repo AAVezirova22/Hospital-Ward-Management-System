@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { X, ArrowRight } from "lucide-react";
+import { X, ArrowRight } from "../../icons";
 import { date, fullName, patientHref } from "../../api";
 import type { AdmissionView } from "../../api/contracts";
 import { useUser } from "../../components/workspace";
@@ -32,7 +32,7 @@ export function BedDrawer({
         onCancel={onClose}
       >
         <div className="modal-title">
-          <span className="eyebrow">CURRENT PLACEMENT</span>
+          <span className="eyebrow">Current placement</span>
           <button
             className="icon"
             aria-label="Close patient details"

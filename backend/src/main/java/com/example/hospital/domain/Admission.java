@@ -1,16 +1,35 @@
 package com.example.hospital.domain;
 
 import jakarta.persistence.*;
+import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "admissions")
 public class Admission extends DepartmentEntity {
-  public String admissionNumber;
-  public Long patientId;
-  public Long attendingDoctorId;
-  public java.time.Instant admissionDateTime;
-  public java.time.Instant dischargeDateTime;
-  public java.time.LocalDate expectedDischargeDate;
-  public String status = "ACTIVE";
-  public Long createdBy;
+  private String admissionNumber;
+  private Long patientId;
+  private Long attendingDoctorId;
+  private Instant admissionDateTime;
+  private Instant dischargeDateTime;
+  private LocalDate expectedDischargeDate;
+  private String status = "ACTIVE";
+  private Long createdBy;
+
+  public String getAdmissionNumber() { return admissionNumber; }
+  public void setAdmissionNumber(String admissionNumber) { this.admissionNumber = admissionNumber; }
+  public Long getPatientId() { return patientId; }
+  public void setPatientId(Long patientId) { this.patientId = patientId; }
+  public Long getAttendingDoctorId() { return attendingDoctorId; }
+  public void setAttendingDoctorId(Long attendingDoctorId) { this.attendingDoctorId = attendingDoctorId; }
+  public Instant getAdmissionDateTime() { return admissionDateTime; }
+  public void setAdmissionDateTime(Instant admissionDateTime) { this.admissionDateTime = admissionDateTime; }
+  public Instant getDischargeDateTime() { return dischargeDateTime; }
+  public void setDischargeDateTime(Instant dischargeDateTime) { this.dischargeDateTime = dischargeDateTime; }
+  public LocalDate getExpectedDischargeDate() { return expectedDischargeDate; }
+  public void setExpectedDischargeDate(LocalDate expectedDischargeDate) { this.expectedDischargeDate = expectedDischargeDate; }
+  public String getStatus() { return status; }
+  public void setStatus(String status) { this.status = status; }
+  public Long getCreatedBy() { return createdBy; }
+  public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
 }

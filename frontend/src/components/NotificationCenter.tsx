@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bell } from "lucide-react";
+import { Bell } from "../icons";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api, activeDepartment } from "../api";

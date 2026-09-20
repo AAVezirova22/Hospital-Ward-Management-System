@@ -4,7 +4,7 @@ import {
   Copy,
   KeyRound,
   Plus,
-} from "lucide-react";
+} from "../icons";
 import type { WorkspaceHospital } from "../api/contracts";
 
 type Props = {

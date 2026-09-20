@@ -9,9 +9,34 @@ import {
   Status,
   Title,
 } from "../../components/workspace";
-import { Plus, ArrowUpRight } from "lucide-react";
+import { Plus, ArrowUpRight } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
-import { EntityForm } from "./EntityForm";
+import { EntityForm, type EntityConfig } from "./EntityForm";
+
+const userConfig: EntityConfig = {
+  title: "Access with accountability.",
+  singular: "user",
+  description:
+    "Manage staff accounts, physician links and role-based permissions.",
+  fields: [
+    { key: "username", label: "Username", required: true },
+    { key: "password", label: "Password (12+ characters)", type: "password" },
+    {
+      key: "role",
+      label: "Role",
+      type: "select",
+      required: true,
+      options: [
+        { value: "MEDICAL_STAFF", label: "Medical staff" },
+        { value: "DOCTOR", label: "Doctor" },
+        { value: "ADMIN", label: "Administrator" },
+        { value: "PATIENT", label: "Patient (registered account)" },
+      ],
+    },
+    { key: "doctorId", label: "Linked doctor", type: "select" },
+    { key: "enabled", label: "Enabled", type: "checkbox" },
+  ],
+};
 
 export function UserAdmin() {
   const { data, error, isLoading } = useData("/users");
@@ -21,7 +46,7 @@ export function UserAdmin() {
   return (
     <>
       <Title
-        eyebrow="TEAM ACCESS"
+        eyebrow="Team access"
         title="Access with accountability."
         description="Manage staff accounts, physician links and role-based permissions."
       >
@@ -108,7 +133,12 @@ export function UserAdmin() {
         )}
       </section>
       {edit && (
-        <EntityForm kind="users" record={edit} onClose={() => setEdit(null)} />
+        <EntityForm
+          kind="users"
+          record={edit}
+          onClose={() => setEdit(null)}
+          config={userConfig}
+        />
       )}
     </>
   );

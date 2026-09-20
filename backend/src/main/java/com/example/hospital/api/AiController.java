@@ -44,7 +44,7 @@ public class AiController {
 
   @GetMapping("/ai-actions/{id}")
   public Object action(@PathVariable Long id) {
-    return actions.get(id);
+    return Views.pendingAction(actions.get(id));
   }
 
   @PostMapping("/ai-actions/{id}/confirm")
