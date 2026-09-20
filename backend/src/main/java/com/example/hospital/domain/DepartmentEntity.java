@@ -18,11 +18,6 @@ public abstract class DepartmentEntity extends BaseEntity {
   @PrePersist
   void scope() { departmentId = DepartmentContext.id(); }
 
-  public Long getDepartmentId() {
-    return departmentId;
-  }
-
-  public void setDepartmentId(Long departmentId) {
-    this.departmentId = departmentId;
-  }
+  public Long getDepartmentId() { return departmentId; }
+  public void setDepartmentId(Long departmentId) { this.departmentId = departmentId; }
 }

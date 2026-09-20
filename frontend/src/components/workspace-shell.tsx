@@ -20,7 +20,7 @@ import {
   Menu,
   History,
   Presentation,
-} from "lucide-react";
+} from "../icons";
 import { Link, useUser } from "./workspace";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { DemoReset } from "../features/demo/DemoAccess";

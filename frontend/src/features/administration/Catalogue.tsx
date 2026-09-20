@@ -10,7 +10,7 @@ import {
   Status,
   Title,
 } from "../../components/workspace";
-import { Plus, ArrowUpRight } from "lucide-react";
+import { Plus, ArrowUpRight } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { EntityForm, configs } from "./EntityForm";
 /** One screen serves both catalogue kinds, so a row carries either shape. */
@@ -30,7 +30,7 @@ export function Catalogue({ kind }: { kind: string }) {
   return (
     <>
       <Title
-        eyebrow="DEPARTMENT DIRECTORY"
+        eyebrow="Department directory"
         title={cfg.title}
         description={cfg.description}
       >

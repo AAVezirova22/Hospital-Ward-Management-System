@@ -13,18 +13,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiToolRegistry {
   private final HospitalService h;
-  private final PatientService patients;
-  private final StayService stays;
   private final ReportService reports;
   private final AiActionService actions;
   private final Actor actor;
   private final WorkspaceService workspaces;
 
-  public AiToolRegistry(HospitalService h, PatientService patients, StayService stays,
-      ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces) {
+  public AiToolRegistry(
+      HospitalService h, ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces) {
     this.h = h;
-    this.patients = patients;
-    this.stays = stays;
     this.reports = reports;
     actions = a;
     this.actor = actor;
@@ -166,7 +162,7 @@ public class AiToolRegistry {
           response(
               "PATIENT_SUMMARY",
               "Recorded operational history.",
-              patients.summary(resolve(a.get("patientQuery"), selected).getId()));
+              h.summary(resolve(a.get("patientQuery"), selected).getId()));
       case "getAvailableRooms", "getRoomOccupancy" -> {
         int n = intArg(a.getOrDefault("minimumFreeBeds", "0"));
         if (n < 0 || n > 100) throw new IllegalArgumentException();
@@ -184,7 +180,7 @@ public class AiToolRegistry {
           response(
               "REPORT_RESULT",
               "Admission record.",
-              stays.view(longArg(a.get("admissionId"))));
+              h.admissionView(h.admission(longArg(a.get("admissionId")))));
       case "getAdmissions" -> {
         var from = dateArg(a.get("from"));
         var to = dateArg(a.get("to"));
@@ -201,7 +197,7 @@ public class AiToolRegistry {
                                     from.atStartOfDay().toInstant(ZoneOffset.UTC))
                                 && ad.getAdmissionDateTime().isBefore(
                                     to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)))
-                    .map(stays::view)
+                    .map(h::admissionView)
                     .toList()));
       }
       case "getProcedureStatistics" ->

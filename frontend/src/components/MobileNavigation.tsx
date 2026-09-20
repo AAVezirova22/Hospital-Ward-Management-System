@@ -9,7 +9,7 @@ import {
   Sparkles,
   Plus,
   X,
-} from "lucide-react";
+} from "../icons";
 import { useUser, Modal, useData, ErrorBox } from "./workspace";
 import { fullName } from "../api";
 import type { Patient, AdmissionView } from "../api/contracts";

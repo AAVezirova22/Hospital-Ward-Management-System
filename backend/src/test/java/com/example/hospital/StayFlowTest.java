@@ -138,4 +138,46 @@ class StayFlowTest extends HospitalSupport {
                 0))
         .andExpect(status().isConflict());
   }
+
+  @Test
+  void doctorReassignmentUpdatesAccessAndInactiveRoomsRejectPlacement() throws Exception {
+    var p = createPatient();
+    var r = room(1);
+    var a = admit(p, r);
+    request(
+            "admin",
+            "POST",
+            "/api/v1/admissions/" + a.get("id").asLong() + "/doctor",
+            Map.of("doctorId", 2, "version", 0))
+        .andExpect(status().isOk());
+    request("doctor", "GET", "/api/v1/admissions/" + a.get("id").asLong(), null)
+        .andExpect(status().isForbidden());
+    var inactive = room(1);
+    request(
+            "admin",
+            "PUT",
+            "/api/v1/rooms/" + inactive.get("id").asLong(),
+            Map.of(
+                "roomNumber",
+                inactive.get("roomNumber").asText(),
+                "bedCount",
+                1,
+                "active",
+                false,
+                "version",
+                0))
+        .andExpect(status().isOk());
+    request(
+            "admin",
+            "POST",
+            "/api/v1/admissions",
+            Map.of(
+                "patientId",
+                createPatient().get("id").asLong(),
+                "doctorId",
+                1,
+                "roomId",
+                inactive.get("id").asLong()))
+        .andExpect(status().isConflict());
+  }
 }

@@ -81,14 +81,18 @@ public class AiActionService {
 
   public Object card(AiPendingAction a, Payload p) {
     Map<String, Object> m = new LinkedHashMap<>();
-    m.put("action", a);
-    m.put("patient", h.patient(p.patientId()));
-    if (p.roomId() != null) m.put("destination", h.room(p.roomId()));
-    if (p.admissionId() != null) m.put("current", stays.view(p.admissionId()));
+    m.put("action", Views.pendingAction(a));
+    m.put("patient", Views.patient(h.patient(p.patientId())));
+    if (p.roomId() != null) m.put("destination", Views.room(h.room(p.roomId())));
+    if (p.admissionId() != null) m.put("current", h.admissionView(h.admission(p.admissionId())));
     if (p.doctorId() != null)
       m.put(
           "doctor",
-          h.doctors().stream().filter(d -> d.getId().equals(p.doctorId())).findFirst().orElseThrow());
+          Views.doctor(
+              h.doctors().stream()
+                  .filter(d -> d.getId().equals(p.doctorId()))
+                  .findFirst()
+                  .orElseThrow()));
     return m;
   }
 
@@ -103,7 +107,7 @@ public class AiActionService {
     catch (Exception e) { throw new IllegalArgumentException(); }
     actions.saveAndFlush(a);
     audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.getId(), "AI");
-    return Map.of("action", a, "workflow", plan);
+    return Map.of("action", Views.pendingAction(a), "workflow", plan);
   }
 
   @Transactional(noRollbackFor = ExpiredActionException.class)
@@ -135,11 +139,11 @@ public class AiActionService {
     Object result =
         switch (a.getActionType()) {
           case "ADMISSION" ->
-              stays.admit(new AdmissionInput(p.patientId(), p.doctorId(), p.roomId()), "AI");
+              stays.create(new AdmissionInput(p.patientId(), p.doctorId(), p.roomId()), "AI");
           case "TRANSFER" ->
-              stays.transfer(
+              stays.move(
                   p.admissionId(), new TransferInput(p.roomId(), p.reason(), p.version()), "AI");
-          case "DISCHARGE" -> stays.discharge(p.admissionId(), p.version(), "AI");
+          case "DISCHARGE" -> stays.close(p.admissionId(), p.version(), "AI");
           default -> throw new IllegalArgumentException();
         };
     a.setStatus("EXECUTED");
@@ -158,6 +162,6 @@ public class AiActionService {
     a.setStatus("CANCELLED");
     actions.saveAndFlush(a);
     audit.log("AI_ACTION_CANCELLED", "AiPendingAction", a.getId(), "AI");
-    return a;
+    return Views.pendingAction(a);
   }
 }

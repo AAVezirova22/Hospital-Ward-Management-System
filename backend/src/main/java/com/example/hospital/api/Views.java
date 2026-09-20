@@ -127,4 +127,31 @@ public final class Views {
     row.put("departmentRole", u.getDepartmentRole());
     return row;
   }
+
+  public static Map<String, Object> audit(AuditEvent e) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", e.getId());
+    row.put("userId", e.getUserId());
+    row.put("eventType", e.getEventType());
+    row.put("entityType", e.getEntityType());
+    row.put("entityId", e.getEntityId());
+    row.put("source", e.getSource());
+    row.put("timestamp", e.getTimestamp());
+    row.put("metadata", e.getMetadata());
+    return row;
+  }
+
+  public static Map<String, Object> pendingAction(AiPendingAction a) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", a.getId());
+    row.put("version", a.getVersion());
+    row.put("userId", a.getUserId());
+    row.put("actionType", a.getActionType());
+    row.put("payload", a.getPayload());
+    row.put("status", a.getStatus());
+    row.put("expiresAt", a.getExpiresAt());
+    row.put("confirmedAt", a.getConfirmedAt());
+    return row;
+  }
 }
+

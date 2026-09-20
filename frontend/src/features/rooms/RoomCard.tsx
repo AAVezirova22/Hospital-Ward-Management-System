@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import type { RoomCapacity } from "../../api/contracts";
-import { BedDouble, ArrowUpRight } from "lucide-react";
+import { BedDouble, ArrowUpRight } from "../../icons";
 export function RoomCard({
   room: r,
   compact = false,

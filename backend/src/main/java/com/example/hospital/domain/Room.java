@@ -9,27 +9,10 @@ public class Room extends DepartmentEntity {
   private int bedCount;
   private boolean active = true;
 
-  public String getRoomNumber() {
-    return roomNumber;
-  }
-
-  public void setRoomNumber(String roomNumber) {
-    this.roomNumber = roomNumber;
-  }
-
-  public int getBedCount() {
-    return bedCount;
-  }
-
-  public void setBedCount(int bedCount) {
-    this.bedCount = bedCount;
-  }
-
-  public boolean isActive() {
-    return active;
-  }
-
-  public void setActive(boolean active) {
-    this.active = active;
-  }
+  public String getRoomNumber() { return roomNumber; }
+  public void setRoomNumber(String roomNumber) { this.roomNumber = roomNumber; }
+  public int getBedCount() { return bedCount; }
+  public void setBedCount(int bedCount) { this.bedCount = bedCount; }
+  public boolean isActive() { return active; }
+  public void setActive(boolean active) { this.active = active; }
 }

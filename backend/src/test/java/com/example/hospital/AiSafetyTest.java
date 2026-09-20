@@ -16,9 +16,6 @@ import org.springframework.security.access.AccessDeniedException;
 class AiSafetyTest {
   Actor actor;
   HospitalService hospital;
-  PatientService patients;
-  StayService stays;
-  ReportService reports;
   AiActionService actions;
   AiToolRegistry registry;
 
@@ -26,9 +23,6 @@ class AiSafetyTest {
   void setup() {
     actor = mock(Actor.class);
     hospital = mock(HospitalService.class);
-    patients = mock(PatientService.class);
-    stays = mock(StayService.class);
-    reports = mock(ReportService.class);
     actions = mock(AiActionService.class);
     var u = new AppUser();
     u.setId(1L);
@@ -37,9 +31,7 @@ class AiSafetyTest {
     u.setDoctorId(1L);
     when(actor.user()).thenReturn(u);
     when(actor.doctor()).thenReturn(true);
-    registry =
-        new AiToolRegistry(
-            hospital, patients, stays, reports, actions, actor, mock(WorkspaceService.class));
+    registry = new AiToolRegistry(hospital, mock(ReportService.class), actions, actor, mock(WorkspaceService.class));
   }
 
   @Test
@@ -52,7 +44,7 @@ class AiSafetyTest {
             new AiModelClient.ToolCall("confirmTransfer", Map.of()))) {
       assertThatThrownBy(() -> registry.execute(call, null)).isInstanceOf(ApiException.class);
     }
-    verifyNoInteractions(hospital, patients, stays, reports, actions);
+    verifyNoInteractions(hospital, actions);
   }
 
   @Test
@@ -94,7 +86,7 @@ class AiSafetyTest {
           .extracting("code")
           .isEqualTo("INVALID_TOOL_CALL");
     }
-    verifyNoInteractions(hospital, patients, stays, reports, actions);
+    verifyNoInteractions(hospital, actions);
   }
 
   @Test
@@ -133,7 +125,7 @@ class AiSafetyTest {
         .save(
             argThat(i -> i.getStatus().equals("FAILED") && i.getModelIdentifier().equals("failure-fixture")));
     assertThatThrownBy(() -> service.message(new MessageInput(null, "status", null, null)))
-        .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status).isEqualTo(429));
+        .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getStatus()).isEqualTo(429));
     verifyNoInteractions(hospital);
   }
 }

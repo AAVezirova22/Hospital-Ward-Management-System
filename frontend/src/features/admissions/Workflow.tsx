@@ -10,7 +10,7 @@ import type {
   RoomCapacity,
 } from "../../api/contracts";
 import { useUser, useData, ErrorBox, Modal } from "../../components/workspace";
-import { CheckCircle2, ArrowRight } from "lucide-react";
+import { CheckCircle2, ArrowRight } from "../../icons";
 import { defaultProcedureTime } from "../../workflow-time";
 /** Every field of the workflow form is edited as text and converted when it is submitted. */
 type WorkflowValues = {
@@ -135,7 +135,7 @@ export function Workflow({
       {review ? (
         <>
           <div className="review">
-            <span className="eyebrow">REVIEW & CONFIRM</span>
+            <span className="eyebrow">Review and confirm</span>
             <h3>
               {kind === "discharge"
                 ? "Close this admission?"

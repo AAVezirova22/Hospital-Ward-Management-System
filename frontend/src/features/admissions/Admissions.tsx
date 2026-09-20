@@ -12,14 +12,14 @@ import {
   Modal,
   Title,
 } from "../../components/workspace";
-import { ArrowUpRight, ClipboardList } from "lucide-react";
+import { ArrowUpRight, ClipboardList } from "../../icons";
 export function Admissions() {
   const { data, error, isLoading } = useData<AdmissionView[]>("/admissions");
   const [active, setActive] = useState(true);
   return (
     <>
       <Title
-        eyebrow="HOSPITALIZATION"
+        eyebrow="Hospitalization"
         title="Every stay, connected."
         description="Follow admissions from placement through transfer and discharge."
       />

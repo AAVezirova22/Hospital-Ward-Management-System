@@ -1,38 +1,31 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   api,
-  fullName,
-  date,
-  patientHref,
   activeDepartment,
   setActiveDepartment,
   type Row,
 } from "../../api";
-import { useUser, ErrorBox, Status, Modal } from "../../components/workspace";
-import { Sparkles, X, ArrowUpRight, ArrowRight, Activity } from "lucide-react";
-import { aiResponse, safeRoute, type AiResponse } from "../../ai-contract";
-import { CommandResults } from "./CommandResults";
-import { ProposalPreview } from "./ProposalPreview";
+import { ErrorBox, Modal } from "../../components/workspace";
+import { Sparkles, X, ArrowUpRight, ArrowRight, Activity } from "../../icons";
+import { aiResponse, type AiResponse } from "../../ai-contract";
 import { AssistantSources, useAssistantSources } from "./AssistantSources";
 import { WorkflowProposal } from "./WorkflowProposal";
-import { AiReport } from "./AssistantResults";
-/** One rendered turn: the authorized response plus the question that produced it. */
-type AiResult = Exclude<AiResponse, { responseType: "FILE_REQUEST" }> & {
-  query: string;
-  done?: string;
-};
+import { AssistantTurn } from "./AssistantResults";
 
+/** The confirmed shape of a workflow proposal turn, as validated by the response contract. */
+type WorkflowProposalData = Extract<
+  AiResponse,
+  { responseType: "WORKFLOW_PROPOSAL" }
+>["data"];
 export function Assistant({ onClose }: { onClose: () => void }) {
-  const user = useUser();
-  const router = useRouter(),
-    pathname = usePathname(),
+  const pathname = usePathname(),
     client = useQueryClient();
   const [message, setMessage] = useState(""),
     [session, setSession] = useState<string | null>(null),
-    [results, setResults] = useState<AiResult[]>([]),
+    [results, setResults] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<Error | null>(null);
   const sources = useAssistantSources();
@@ -145,14 +138,13 @@ export function Assistant({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <div className="assistant-content">
-        <span className="eyebrow">A SHORTER PATH TO THE ANSWER</span>
+        <span className="eyebrow">A shorter path to the answer</span>
         <h2>What needs your attention?</h2>
         <p>
           Connect a folder or upload files, then describe the workflow you want.
           Review the proposed steps before applying changes.
         </p>
         <AssistantSources model={sources} busy={busy} run={fileAction} />
-        <CommandResults query={message} onClose={onClose} user={user} />
         <div className="suggestions">
           {[
             "Show department status",
@@ -167,140 +159,24 @@ export function Assistant({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         {results.map((r, i) => (
-          <div
-            className="ai-result"
-            key={i}
-            ref={i === results.length - 1 ? lastResult : undefined}
-          >
-            <div className="ai-query">› {r.query}</div>
-            <p>{r.message}</p>
-            <small className="ai-mode">
-              {r.model === "local-command-model"
-                ? "Local command mode"
-                : "Configured model"}{" "}
-              · Backend-authorized results
-            </small>
-            {r.responseType === "PATIENT_LIST" &&
-              r.data.patients.map((p) => (
-                <button
-                  className="result-row"
-                  key={p.id}
-                  onClick={() => {
-                    router.push(patientHref(p));
-                    onClose();
-                  }}
-                >
-                  <span>
-                    {fullName(p)}
-                    <small>{p.patientIdentifier}</small>
-                  </span>
-                  <ArrowUpRight size={16} />
-                </button>
-              ))}
-            {r.responseType === "ROOM_LIST" &&
-              r.data.rooms.map((room) => (
-                <div className="result-row" key={room.id}>
-                  <span>Room {room.roomNumber}</span>
-                  <strong>{room.availableBeds} free</strong>
-                </div>
-              ))}
-            {r.responseType === "PATIENT_SUMMARY" && (
-              <>
-                <h3>{fullName(r.data.patient)}</h3>
-                <p>{r.data.admissions.length} recorded hospitalizations.</p>
-                {r.data.admissions.map((v) => (
-                  <div className="result-row" key={v.admission.id}>
-                    <span>
-                      {v.admission.admissionNumber}
-                      <small>Dr. {fullName(v.doctor)}</small>
-                    </span>
-                    <Status value={v.admission.status} />
-                  </div>
-                ))}
-                <button
-                  className="secondary"
-                  onClick={() => {
-                    router.push(patientHref(r.data.patient));
-                    onClose();
-                  }}
-                >
-                  Open dossier
-                </button>
-              </>
-            )}
-            {r.responseType === "REPORT_RESULT" && <AiReport data={r.data} />}
-            {r.responseType === "WORKFLOW_PROPOSAL" && (
+          <div key={i} ref={i === results.length - 1 ? lastResult : undefined}>
+            {r.responseType === "WORKFLOW_PROPOSAL" ? (
               <WorkflowProposal
-                data={r.data}
-                done={r.done}
+                data={r.data as WorkflowProposalData}
+                done={r.done as string | undefined}
                 busy={busy}
-                onAction={(op) => action(r.data.action.id, op, i)}
+                onAction={(op) =>
+                  action((r.data as WorkflowProposalData).action.id, op, i)
+                }
               />
-            )}
-            {r.responseType === "NAVIGATION_COMMAND" && (
-              <button
-                className="primary"
-                onClick={() => {
-                  if (safeRoute.safeParse(r.data.route).success) {
-                    router.push(r.data.route);
-                    onClose();
-                  }
-                }}
-              >
-                Open view
-                <ArrowRight size={16} />
-              </button>
-            )}
-            {r.responseType === "CONFIRMATION_CARD" && (
-              <div className="confirmation">
-                <span className="eyebrow">
-                  {r.data.action.actionType} PROPOSAL
-                </span>
-                <h3>{fullName(r.data.patient)}</h3>
-                <ProposalPreview
-                  current={r.data.current}
-                  destination={r.data.destination}
-                  actionType={r.data.action.actionType}
-                  expiresAt={r.data.action.expiresAt}
-                />
-                {r.data.current && (
-                  <p>
-                    Current room:{" "}
-                    {
-                      r.data.current.rooms.find((x) => !x.assignment.releasedAt)
-                        ?.room.roomNumber
-                    }
-                  </p>
-                )}
-                {r.data.destination && (
-                  <p>Destination: Room {r.data.destination.roomNumber}</p>
-                )}
-                {r.data.doctor && <p>Doctor: {fullName(r.data.doctor)}</p>}
-                <p>Expires {date(r.data.action.expiresAt)}</p>
-                {r.done ? (
-                  <Status value={r.done} />
-                ) : (
-                  <div className="actions">
-                    <button
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => action(r.data.action.id, "cancel", i)}
-                    >
-                      Cancel proposal
-                    </button>
-                    <button
-                      className="primary"
-                      disabled={
-                        busy ||
-                        Date.parse(r.data.action.expiresAt) <= Date.now()
-                      }
-                      onClick={() => action(r.data.action.id, "confirm", i)}
-                    >
-                      Confirm {r.data.action.actionType.toLowerCase()}
-                    </button>
-                  </div>
-                )}
-              </div>
+            ) : (
+              <AssistantTurn
+                r={r}
+                i={i}
+                busy={busy}
+                onClose={onClose}
+                onAction={action}
+              />
             )}
           </div>
         ))}

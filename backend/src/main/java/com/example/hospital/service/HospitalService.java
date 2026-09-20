@@ -4,17 +4,13 @@ import com.example.hospital.api.*;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
+import java.math.BigDecimal;
+import java.time.*;
 import java.util.*;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Department-scoped access control and the shared entity lookups every other business service
- * builds on. Stay workflows live in {@link StayService}, reporting in {@link ReportService},
- * patient records in {@link PatientService} and the doctor/room/procedure catalogue in
- * {@link CatalogueService}; none of those bodies belong here.
- */
 @Service
 @Transactional(readOnly = true)
 public class HospitalService {
@@ -24,6 +20,7 @@ public class HospitalService {
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
   private final MedicalProcedureRepository catalogue;
+  private final PerformedProcedureRepository performed;
   private final Actor actor;
   private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
@@ -34,6 +31,7 @@ public class HospitalService {
       AdmissionRepository a,
       RoomAssignmentRepository ra,
       MedicalProcedureRepository mp,
+      PerformedProcedureRepository pp,
       Actor actor,
       org.springframework.jdbc.core.JdbcTemplate jdbc) {
     patients = p;
@@ -42,6 +40,7 @@ public class HospitalService {
     admissions = a;
     assignments = ra;
     catalogue = mp;
+    performed = pp;
     this.actor = actor;
     this.jdbc = jdbc;
   }
@@ -93,16 +92,12 @@ public class HospitalService {
     return found;
   }
 
-  public Doctor doctor(Long id) {
-    return doctors.findById(id).orElseThrow(ApiException::missing);
+  public Map<String, Object> summary(String ref) {
+    return summary(patientByRef(ref).getId());
   }
 
   public List<Doctor> doctors() {
     return doctors.findAll();
-  }
-
-  public MedicalProcedure procedure(Long id) {
-    return catalogue.findById(id).orElseThrow(ApiException::missing);
   }
 
   public List<MedicalProcedure> procedures() {
@@ -155,6 +150,49 @@ public class HospitalService {
             })
         .filter(m -> ((Number) m.get("availableBeds")).intValue() >= minFree)
         .toList();
+  }
+
+  public Map<String, Object> admissionView(Admission a) {
+    Map<String, Object> v = new LinkedHashMap<>();
+    v.put("admission", Views.admission(a));
+    v.put("patient", Views.patient(patient(a.getPatientId())));
+    v.put("doctor", Views.doctor(doctors.findById(a.getAttendingDoctorId()).orElseThrow()));
+    v.put("assignment", Views.assignment(assignments.findByAdmissionIdAndReleasedAtIsNull(a.getId()).orElse(null)));
+    v.put(
+        "rooms",
+        assignments.findByAdmissionIdOrderByAssignedAt(a.getId()).stream()
+            .map(ra -> Map.of("assignment", Views.assignment(ra), "room", Views.room(room(ra.getRoomId()))))
+            .toList());
+    var ps = performed.findByAdmissionIdOrderByPerformedAtDesc(a.getId());
+    v.put(
+        "procedures",
+        ps.stream()
+            .map(
+                pp ->
+                    Map.of(
+                        "record",
+                        Views.performed(pp),
+                        "procedure",
+                        Views.procedure(catalogue.findById(pp.getMedicalProcedureId()).orElseThrow()),
+                        "doctor",
+                        Views.doctor(doctors.findById(pp.getPerformedByDoctorId()).orElseThrow())))
+            .toList());
+    v.put(
+        "totalCost",
+        ps.stream().map(pp -> pp.getPriceAtExecution()).reduce(BigDecimal.ZERO, BigDecimal::add));
+    return v;
+  }
+
+  public Map<String, Object> summary(Long id) {
+    var p = patient(id);
+    return Map.of(
+        "patient",
+        Views.patient(p),
+        "admissions",
+        admissions.findByPatientIdOrderByAdmissionDateTimeDesc(id).stream()
+            .filter(this::visible)
+            .map(this::admissionView)
+            .toList());
   }
 
   public static void version(BaseEntity e, Long v) {

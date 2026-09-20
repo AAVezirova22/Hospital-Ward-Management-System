@@ -6,7 +6,7 @@ import { useData, ErrorBox, Modal } from "../../components/workspace";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Check } from "lucide-react";
+import { Check } from "../../icons";
 type Field = {
   key: string;
   label: string;
@@ -15,10 +15,13 @@ type Field = {
   placeholder?: string;
   options?: { value: string; label: string }[];
 };
-export const configs: Record<
-  string,
-  { title: string; singular: string; description: string; fields: Field[] }
-> = {
+export type EntityConfig = {
+  title: string;
+  singular: string;
+  description: string;
+  fields: Field[];
+};
+export const configs: Record<string, EntityConfig> = {
   patients: {
     title: "Patients",
     singular: "patient",
@@ -80,41 +83,19 @@ export const configs: Record<
       { key: "active", label: "Active", type: "checkbox" },
     ],
   },
-  users: {
-    title: "Access with accountability.",
-    singular: "user",
-    description:
-      "Manage staff accounts, physician links and role-based permissions.",
-    fields: [
-      { key: "username", label: "Username", required: true },
-      { key: "password", label: "Password (12+ characters)", type: "password" },
-      {
-        key: "role",
-        label: "Role",
-        type: "select",
-        required: true,
-        options: [
-          { value: "MEDICAL_STAFF", label: "Medical staff" },
-          { value: "DOCTOR", label: "Doctor" },
-          { value: "ADMIN", label: "Administrator" },
-          { value: "PATIENT", label: "Patient (registered account)" },
-        ],
-      },
-      { key: "doctorId", label: "Linked doctor", type: "select" },
-      { key: "enabled", label: "Enabled", type: "checkbox" },
-    ],
-  },
 };
 export function EntityForm({
   kind,
   record,
   onClose,
+  config,
 }: {
   kind: string;
   record: Row;
   onClose: () => void;
+  config?: EntityConfig;
 }) {
-  const cfg = configs[kind],
+  const cfg = config ?? configs[kind],
     client = useQueryClient();
   const [error, setError] = useState<Error | null>(null),
     [busy, setBusy] = useState(false);

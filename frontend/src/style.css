@@ -299,115 +299,6 @@ a.primary,
 .admin-label {
   margin-top: 23px;
 }
-.assistant-launch {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  background: linear-gradient(125deg, #24423b, #1a3237);
-  border: 1px solid #3c5b54;
-  color: var(--mint);
-  padding: 13px 10px;
-  border-radius: 7px;
-  margin-top: auto;
-  text-align: left;
-  font-size: 10px;
-}
-.assistant-launch small {
-  font-size: 8px;
-  color: #96b7ae;
-  margin-top: 4px;
-}
-.assistant-launch kbd {
-  margin-left: auto;
-  font-size: 9px;
-  white-space: nowrap;
-}
-.profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 20px;
-  padding-top: 19px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-}
-.profile small {
-  text-transform: capitalize;
-  font-size: 10px;
-}
-.profile .icon {
-  margin-left: auto;
-}
-.avatar {
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #28403f;
-  border: 1px solid #395350;
-  color: #c3d9cd;
-  border-radius: 50%;
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-}
-.workspace {
-  margin-left: 240px;
-  flex: 1;
-  min-width: 0;
-}
-.topbar {
-  height: 78px;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 36px;
-  font-size: 11px;
-}
-.topbar > div {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.topbar > div > span:first-of-type {
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  color: #819da2;
-}
-.topbar strong {
-  font-weight: 400;
-  font-size: 11px;
-}
-.slash {
-  color: #426064;
-}
-.top-date {
-  color: #8aabaf;
-  font-size: 11px;
-}
-.command {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #14282b;
-  border: 1px solid #324448;
-  padding: 9px 12px;
-  border-radius: 6px;
-  color: #a9c2c5;
-  font-size: 10px;
-}
-kbd {
-  font-size: 9px;
-  color: #799599;
-  border: 1px solid #3a5054;
-  border-radius: 3px;
-  padding: 2px 4px;
-}
-.command kbd {
-  margin-left: 18px;
-}
 .mobile-menu {
   display: none;
 }
@@ -416,20 +307,6 @@ main {
   min-height: calc(100dvh - 133px);
   max-width: 1800px;
   margin: auto;
-}
-.page-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 25px;
-  margin: 5px 0 30px;
-}
-.page-heading .eyebrow {
-  margin-bottom: 13px;
-}
-.page-heading p {
-  font-size: 12px;
-  margin-top: 11px;
 }
 .live-label {
   display: flex;
@@ -483,11 +360,6 @@ main {
   display: grid;
   grid-template-columns: 1.05fr 1fr;
   gap: 23px;
-}
-.panel {
-  background: #122226;
-  border: 1px solid #2a3c40;
-  border-radius: 8px;
 }
 .section-heading {
   display: flex;

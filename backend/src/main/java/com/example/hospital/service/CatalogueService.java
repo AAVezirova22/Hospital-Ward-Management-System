@@ -18,35 +18,33 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** The department catalogue: doctors, rooms and billable procedures. */
 @Service
-@Transactional(readOnly = true)
 public class CatalogueService {
   private final HospitalService hospital;
-  private final DoctorRepository doctors;
-  private final RoomRepository rooms;
-  private final MedicalProcedureRepository procedures;
-  private final AdmissionRepository admissions;
   private final WorkflowLockRepository lock;
   private final Actor actor;
+  private final DoctorRepository doctors;
+  private final RoomRepository rooms;
+  private final MedicalProcedureRepository catalogue;
+  private final AdmissionRepository admissions;
   private final AuditService audit;
 
   public CatalogueService(
       HospitalService hospital,
-      DoctorRepository doctors,
-      RoomRepository rooms,
-      MedicalProcedureRepository procedures,
-      AdmissionRepository admissions,
       WorkflowLockRepository lock,
       Actor actor,
+      DoctorRepository doctors,
+      RoomRepository rooms,
+      MedicalProcedureRepository catalogue,
+      AdmissionRepository admissions,
       AuditService audit) {
     this.hospital = hospital;
-    this.doctors = doctors;
-    this.rooms = rooms;
-    this.procedures = procedures;
-    this.admissions = admissions;
     this.lock = lock;
     this.actor = actor;
+    this.doctors = doctors;
+    this.rooms = rooms;
+    this.catalogue = catalogue;
+    this.admissions = admissions;
     this.audit = audit;
   }
 
@@ -66,7 +64,7 @@ public class CatalogueService {
   public Doctor saveDoctor(Long id, DoctorInput in) {
     lock.acquire();
     actor.admin();
-    var d = id == null ? new Doctor() : hospital.doctor(id);
+    var d = id == null ? new Doctor() : doctors.findById(id).orElseThrow(ApiException::missing);
     if (id != null) HospitalService.version(d, in.version());
     if (!in.active() && id != null && admissions.existsByAttendingDoctorIdAndStatus(id, "ACTIVE"))
       throw ApiException.conflict(
@@ -104,13 +102,16 @@ public class CatalogueService {
   @Transactional
   public MedicalProcedure saveProcedure(Long id, ProcedureInput in) {
     actor.admin();
-    var p = id == null ? new MedicalProcedure() : hospital.procedure(id);
+    var p =
+        id == null
+            ? new MedicalProcedure()
+            : catalogue.findById(id).orElseThrow(ApiException::missing);
     if (id != null) HospitalService.version(p, in.version());
     p.setProcedureCode(in.procedureCode().trim());
     p.setProcedureName(in.procedureName().trim());
     p.setCurrentCost(in.currentCost());
     p.setActive(in.active());
-    procedures.saveAndFlush(p);
+    catalogue.saveAndFlush(p);
     audit.log("PROCEDURE_SAVED", "MedicalProcedure", p.getId(), "UI");
     return p;
   }

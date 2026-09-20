@@ -81,7 +81,7 @@ public class SecurityConfig {
                           r.getSession().setAttribute("credentialStamp", u.getSessionStamp());
                           r.getSession().setAttribute("accountId", u.getId());
                           s.setContentType("application/json");
-                          json.writeValue(s.getWriter(), u);
+                          json.writeValue(s.getWriter(), com.example.hospital.api.Views.account(u));
                         })
                     .failureHandler(
                         (r, s, e) -> {

@@ -10,6 +10,14 @@ public class ApiException extends RuntimeException {
     this.code = code;
   }
 
+  public int getStatus() {
+    return status;
+  }
+
+  public String getCode() {
+    return code;
+  }
+
   public static ApiException missing() {
     return new ApiException(404, "NOT_FOUND", "Record not found.");
   }

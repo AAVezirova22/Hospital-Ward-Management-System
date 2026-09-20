@@ -24,7 +24,7 @@ import org.springframework.test.web.servlet.*;
 @AutoConfigureMockMvc
 class AiWorkflowIntegrationTest {
   @DynamicPropertySource
-  static void database(DynamicPropertyRegistry r) { HospitalIntegrationTest.database(r); }
+  static void database(DynamicPropertyRegistry r) { HospitalSupport.database(r); }
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper json;
   @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;

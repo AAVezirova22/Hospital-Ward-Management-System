@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { Activity } from "lucide-react";
+import { Activity } from "./icons";
 import { api, bindAccount, logout, type User } from "./api";
 import { Auth } from "./components/workspace";
 import { WakeScreen } from "./features/demo/DemoAccess";

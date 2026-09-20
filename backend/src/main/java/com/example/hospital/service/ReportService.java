@@ -1,48 +1,27 @@
 package com.example.hospital.service;
 
 import com.example.hospital.api.ApiException;
-import com.example.hospital.api.Views;
-import com.example.hospital.domain.Admission;
-import com.example.hospital.repository.AdmissionRepository;
-import com.example.hospital.repository.PerformedProcedureRepository;
-import com.example.hospital.repository.RoomAssignmentRepository;
 import com.example.hospital.security.Actor;
 import com.example.hospital.security.DepartmentContext;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-/** Department dashboard, bed census, capacity and procedure reporting over saved records. */
 @Service
-@Transactional(readOnly = true)
 public class ReportService {
   private final HospitalService hospital;
-  private final StayService stays;
-  private final AdmissionRepository admissions;
-  private final RoomAssignmentRepository assignments;
-  private final PerformedProcedureRepository performed;
   private final Actor actor;
-  private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+  private final JdbcTemplate jdbc;
 
-  public ReportService(
-      HospitalService hospital,
-      StayService stays,
-      AdmissionRepository admissions,
-      RoomAssignmentRepository assignments,
-      PerformedProcedureRepository performed,
-      Actor actor,
-      org.springframework.jdbc.core.JdbcTemplate jdbc) {
+  public ReportService(HospitalService hospital, Actor actor, JdbcTemplate jdbc) {
     this.hospital = hospital;
-    this.stays = stays;
-    this.admissions = admissions;
-    this.assignments = assignments;
-    this.performed = performed;
     this.actor = actor;
     this.jdbc = jdbc;
   }
@@ -95,14 +74,14 @@ public class ReportService {
                 "select count(*) from performed_procedures where department_id=? and performed_at>=? and performed_at<?",
                 Long.class,
                 departmentId,
-                java.sql.Timestamp.from(start),
-                java.sql.Timestamp.from(end))
+                Timestamp.from(start),
+                Timestamp.from(end))
             : jdbc.queryForObject(
                 "select count(*) from performed_procedures pp join admissions a on a.id=pp.admission_id where pp.department_id=? and pp.performed_at>=? and pp.performed_at<? and a.attending_doctor_id=?",
                 Long.class,
                 departmentId,
-                java.sql.Timestamp.from(start),
-                java.sql.Timestamp.from(end),
+                Timestamp.from(start),
+                Timestamp.from(end),
                 doctorId);
     return Map.of(
         "activeAdmissions",
@@ -122,75 +101,134 @@ public class ReportService {
   }
 
   public List<Map<String, Object>> census(Long roomId, Long doctorId) {
-    return hospital.admissions().stream()
-        .filter(
-            a ->
-                a.getStatus().equals("ACTIVE")
-                    && (doctorId == null || a.getAttendingDoctorId().equals(doctorId)))
-        .filter(
-            a ->
-                roomId == null
-                    || assignments
-                        .findByAdmissionIdAndReleasedAtIsNull(a.getId())
-                        .map(ra -> ra.getRoomId().equals(roomId))
-                        .orElse(false))
-        .map(stays::view)
-        .toList();
+    long departmentId = DepartmentContext.id();
+    var sql = new StringBuilder("select a.id from admissions a where a.department_id=? and a.status='ACTIVE'");
+    var args = new ArrayList<Object>();
+    args.add(departmentId);
+    if (doctorId != null) {
+      sql.append(" and a.attending_doctor_id=?");
+      args.add(doctorId);
+    }
+    if (roomId != null) {
+      sql.append(
+          " and exists (select 1 from room_assignments ra where ra.admission_id=a.id and ra.released_at is null and ra.room_id=?)");
+      args.add(roomId);
+    }
+    if (actor.doctor()) {
+      sql.append(" and a.attending_doctor_id=?");
+      args.add(actor.user().getDoctorId());
+    }
+    sql.append(" order by a.admission_date_time desc");
+    return jdbc.query(
+        sql.toString(),
+        (rs, n) -> hospital.admissionView(hospital.admission(rs.getLong(1))),
+        args.toArray());
+  }
+
+  public Map<String, Object> procedures(LocalDate from, LocalDate to, Long patientId, Long doctorId) {
+    if (from.isAfter(to))
+      throw new ApiException(400, "INVALID_PERIOD", "Start date must be before end date.");
+    if (patientId != null) hospital.accessible(patientId);
+    long departmentId = DepartmentContext.id();
+    var start = Timestamp.from(from.atStartOfDay().toInstant(ZoneOffset.UTC));
+    var end = Timestamp.from(to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC));
+    var sql = new StringBuilder(
+        """
+        select pp.id rec_id, pp.admission_id, pp.medical_procedure_id, pp.performed_by_doctor_id,
+               pp.performed_at, pp.price_at_execution, pp.note,
+               p.id patient_id, p.version patient_version, p.patient_identifier, p.first_name, p.last_name,
+               p.date_of_birth, p.address, p.phone_number,
+               d.id doctor_id, d.version doctor_version, d.doctor_identifier, d.first_name doctor_first,
+               d.last_name doctor_last, d.specialty, d.active doctor_active,
+               mp.id proc_id, mp.version proc_version, mp.procedure_code, mp.procedure_name, mp.current_cost, mp.active proc_active
+        from performed_procedures pp
+        join admissions a on a.id=pp.admission_id
+        join patients p on p.id=a.patient_id
+        join doctors d on d.id=pp.performed_by_doctor_id
+        join medical_procedures mp on mp.id=pp.medical_procedure_id
+        where pp.department_id=? and pp.performed_at>=? and pp.performed_at<?
+        """);
+    var args = new ArrayList<Object>();
+    args.add(departmentId);
+    args.add(start);
+    args.add(end);
+    if (patientId != null) {
+      sql.append(" and a.patient_id=?");
+      args.add(patientId);
+    }
+    if (doctorId != null) {
+      sql.append(" and pp.performed_by_doctor_id=?");
+      args.add(doctorId);
+    }
+    if (actor.doctor()) {
+      sql.append(" and a.attending_doctor_id=?");
+      args.add(actor.user().getDoctorId());
+    }
+    sql.append(" order by pp.performed_at desc");
+    List<Map<String, Object>> rows =
+        jdbc.query(
+            sql.toString(),
+            (rs, n) -> {
+              Map<String, Object> record = new LinkedHashMap<>();
+              record.put("id", rs.getLong("rec_id"));
+              record.put("admissionId", rs.getLong("admission_id"));
+              record.put("medicalProcedureId", rs.getLong("medical_procedure_id"));
+              record.put("performedByDoctorId", rs.getLong("performed_by_doctor_id"));
+              record.put("performedAt", rs.getTimestamp("performed_at").toInstant());
+              record.put("priceAtExecution", rs.getBigDecimal("price_at_execution"));
+              record.put("note", rs.getString("note"));
+              Map<String, Object> patient = new LinkedHashMap<>();
+              patient.put("id", rs.getLong("patient_id"));
+              patient.put("version", rs.getLong("patient_version"));
+              patient.put("patientIdentifier", rs.getString("patient_identifier"));
+              patient.put("firstName", rs.getString("first_name"));
+              patient.put("lastName", rs.getString("last_name"));
+              patient.put("dateOfBirth", rs.getDate("date_of_birth").toLocalDate());
+              patient.put("address", rs.getString("address"));
+              patient.put("phoneNumber", rs.getString("phone_number"));
+              Map<String, Object> doctor = new LinkedHashMap<>();
+              doctor.put("id", rs.getLong("doctor_id"));
+              doctor.put("version", rs.getLong("doctor_version"));
+              doctor.put("doctorIdentifier", rs.getString("doctor_identifier"));
+              doctor.put("firstName", rs.getString("doctor_first"));
+              doctor.put("lastName", rs.getString("doctor_last"));
+              doctor.put("specialty", rs.getString("specialty"));
+              doctor.put("active", rs.getBoolean("doctor_active"));
+              Map<String, Object> procedure = new LinkedHashMap<>();
+              procedure.put("id", rs.getLong("proc_id"));
+              procedure.put("version", rs.getLong("proc_version"));
+              procedure.put("procedureCode", rs.getString("procedure_code"));
+              procedure.put("procedureName", rs.getString("procedure_name"));
+              procedure.put("currentCost", rs.getBigDecimal("current_cost"));
+              procedure.put("active", rs.getBoolean("proc_active"));
+              Map<String, Object> row = new LinkedHashMap<>();
+              row.put("record", record);
+              row.put("patient", patient);
+              row.put("doctor", doctor);
+              row.put("procedure", procedure);
+              return row;
+            },
+            args.toArray());
+    Map<Long, BigDecimal> grouped = new LinkedHashMap<>();
+    BigDecimal total = BigDecimal.ZERO;
+    for (var row : rows) {
+      @SuppressWarnings("unchecked")
+      var record = (Map<String, Object>) row.get("record");
+      var price = (BigDecimal) record.get("priceAtExecution");
+      var performedBy = (Long) record.get("performedByDoctorId");
+      grouped.merge(performedBy, price, BigDecimal::add);
+      total = total.add(price);
+    }
+    Map<String, Object> report = new LinkedHashMap<>();
+    report.put("rows", rows);
+    report.put("totalCost", total);
+    report.put("byDoctor", grouped);
+    report.put("from", from);
+    report.put("to", to);
+    return report;
   }
 
   public List<Map<String, Object>> capacity() {
     return hospital.rooms(0);
-  }
-
-  public Map<String, Object> procedures(
-      LocalDate from, LocalDate to, Long patientId, Long doctorId) {
-    if (from.isAfter(to))
-      throw new ApiException(400, "INVALID_PERIOD", "Start date must be before end date.");
-    if (patientId != null) hospital.accessible(patientId);
-    var start = from.atStartOfDay().toInstant(ZoneOffset.UTC);
-    var end = to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
-    var allowed =
-        hospital.admissions().stream()
-            .filter(a -> patientId == null || a.getPatientId().equals(patientId))
-            .map(a -> a.getId())
-            .collect(Collectors.toSet());
-    var ps =
-        performed.findAll().stream()
-            .filter(
-                p ->
-                    allowed.contains(p.getAdmissionId())
-                        && !p.getPerformedAt().isBefore(start)
-                        && p.getPerformedAt().isBefore(end)
-                        && (doctorId == null || p.getPerformedByDoctorId().equals(doctorId)))
-            .toList();
-    var rows =
-        ps.stream()
-            .map(
-                p -> {
-                  Admission a = admissions.findById(p.getAdmissionId()).orElseThrow();
-                  return Map.of(
-                      "record",
-                      Views.performed(p),
-                      "patient",
-                      Views.patient(hospital.patient(a.getPatientId())),
-                      "doctor",
-                      Views.doctor(hospital.doctor(p.getPerformedByDoctorId())),
-                      "procedure",
-                      Views.procedure(hospital.procedure(p.getMedicalProcedureId())));
-                })
-            .toList();
-    Map<Long, BigDecimal> grouped = new LinkedHashMap<>();
-    ps.forEach(p -> grouped.merge(p.getPerformedByDoctorId(), p.getPriceAtExecution(), BigDecimal::add));
-    return Map.of(
-        "rows",
-        rows,
-        "totalCost",
-        ps.stream().map(p -> p.getPriceAtExecution()).reduce(BigDecimal.ZERO, BigDecimal::add),
-        "byDoctor",
-        grouped,
-        "from",
-        from,
-        "to",
-        to);
   }
 }

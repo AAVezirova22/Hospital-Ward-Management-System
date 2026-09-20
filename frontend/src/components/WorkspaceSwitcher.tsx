@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BedDouble, ChevronDown } from "lucide-react";
+import {
+  BedDouble,
+  ChevronDown,
+} from "../icons";
 import { api, activeDepartment, setActiveDepartment } from "../api";
 import type { WorkspaceHospital, WorkspaceList } from "../api/contracts";
 import { ErrorBox, Modal } from "./workspace";
@@ -145,7 +148,7 @@ export function WorkspaceSwitcher() {
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
-        <BedDouble size={19} />
+        <BedDouble size={19} strokeWidth={1.5} />
         <div>
           {current.hospital?.name || "Hospital"}
           <small>{current.department?.name || "Choose a department"}</small>
@@ -171,11 +174,7 @@ export function WorkspaceSwitcher() {
                   setBusy(true);
                   setFormError(null);
                   try {
-                    await api(
-                      `/workspaces/departments/${id}/leave`,
-                      "POST",
-                      {},
-                    );
+                    await api(`/workspaces/departments/${id}/leave`, "POST", {});
                     if (Number(activeDepartment()) === id)
                       setActiveDepartment(null);
                     await client.invalidateQueries();
