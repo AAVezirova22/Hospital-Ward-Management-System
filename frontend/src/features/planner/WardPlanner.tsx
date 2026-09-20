@@ -1,5 +1,5 @@
 "use client";
-import { RefreshCw, CheckCircle2 } from "lucide-react";
+import { RefreshCw, CheckCircle2 } from "../../icons";
 import { api, type User } from "../../api";
 import { WardMap } from "./WardMap";
 import { PlanReview } from "./PlanReview";
