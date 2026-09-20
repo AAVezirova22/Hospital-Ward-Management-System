@@ -232,6 +232,40 @@ export function WorkspaceSwitcher() {
             </div>
           </div>
         )}
+        {panel === "join" && (
+          <form
+            className="workspace-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submit(() =>
+                api("/workspaces/join", "POST", { code: joinCode }),
+              );
+            }}
+          >
+            <p>
+              A hospital code adds hospital membership. A department code opens
+              that department as medical staff, never as an administrator.
+            </p>
+            <label>
+              Join code
+              <input
+                autoFocus
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                placeholder="H- or D- code"
+                autoComplete="off"
+              />
+            </label>
+            <div className="actions">
+              <button type="button" className="secondary" onClick={() => setPanel("list")}>
+                Back
+              </button>
+              <button className="primary" disabled={busy || !joinCode.trim()}>
+                {busy ? "Joining…" : "Join"}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     )}
     </>
