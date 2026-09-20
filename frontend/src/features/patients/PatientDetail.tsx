@@ -13,7 +13,7 @@ import {
   Modal,
   Title,
 } from "../../components/workspace";
-import { Plus, MoveRight, ArrowRight } from "lucide-react";
+import { Plus, MoveRight, ArrowRight } from "../../icons";
 import { EntityForm } from "../administration/EntityForm";
 import { Workflow } from "../admissions/Workflow";
 import { CareTimeline } from "./CareTimeline";
