@@ -1,6 +1,7 @@
 "use client";
 import { ArrowRight, RefreshCw, CheckCircle2 } from "lucide-react";
 import { api, fullName, type User } from "../../api";
+import type { ArrivalPlan } from "../../api/contracts";
 import { WardMap } from "./WardMap";
 import { executableOrder } from "./model";
 import { LoadingState } from "../../components/LoadingState";

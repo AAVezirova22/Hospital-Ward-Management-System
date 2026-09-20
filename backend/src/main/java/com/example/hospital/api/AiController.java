@@ -4,17 +4,28 @@ import com.example.hospital.ai.*;
 import com.example.hospital.api.MessageInput;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1")
 public class AiController {
   private final AiAssistantService assistant;
   private final AiActionService actions;
+  private final AiSourceService sources;
 
-  public AiController(AiAssistantService a, AiActionService b) {
+  public AiController(AiAssistantService a, AiActionService b, AiSourceService sources) {
     assistant = a;
     actions = b;
+    this.sources = sources;
   }
+
+  @PostMapping(value = "/assistant/sources", consumes = "multipart/form-data")
+  public Object upload(@RequestParam("file") MultipartFile file) {
+    return sources.upload(file);
+  }
+
+  @DeleteMapping("/assistant/sources/{id}")
+  public void removeSource(@PathVariable String id) { sources.remove(id); }
 
   @PostMapping("/assistant/messages")
   public Object message(@Valid @RequestBody MessageInput in) {

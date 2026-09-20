@@ -21,6 +21,7 @@ export type Row = Record<string, unknown> & {
   availableBeds?: number;
   status?: string;
 };
+export type Row = Record<string, any>;
 export type User = {
   id: number;
   username: string;
@@ -36,7 +37,10 @@ export function patientHref(p: {
   patientIdentifier?: string | null;
   id?: number | string | null;
 }) {
-  return "/app/patients/" + encodeURIComponent(String(p.patientIdentifier || p.id || ""));
+  return (
+    "/app/patients/" +
+    encodeURIComponent(String(p.patientIdentifier || p.id || ""))
+  );
 }
 let csrf: { token: string; headerName: string } | null = null;
 let departmentId: string | null = null;
@@ -64,7 +68,8 @@ export function activeDepartment() {
 export function setActiveDepartment(id: string | number | null) {
   departmentId = id == null ? null : String(id);
   try {
-    if (departmentId) localStorage.setItem(departmentStorageKey(), departmentId);
+    if (departmentId)
+      localStorage.setItem(departmentStorageKey(), departmentId);
     else localStorage.removeItem(departmentStorageKey());
   } catch {}
   if (typeof window !== "undefined") {
@@ -118,18 +123,24 @@ export async function api<T = unknown>(
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = {};
+  const multipart = typeof FormData !== "undefined" && body instanceof FormData;
   const department = activeDepartment();
   if (department) headers["X-Department-Id"] = department;
   if (method !== "GET") {
     const t = csrf || (await token());
     headers[t.headerName] = t.token;
-    headers["Content-Type"] = "application/json";
+    if (!multipart) headers["Content-Type"] = "application/json";
   }
   const r = await fetch("/api/v1" + path, {
     method,
     headers,
     credentials: "include",
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body:
+      body === undefined
+        ? undefined
+        : multipart
+          ? (body as FormData)
+          : JSON.stringify(body),
   });
   if (!r.ok) {
     const e = await r.json().catch(() => ({}));
@@ -140,7 +151,9 @@ export async function api<T = unknown>(
     if (
       r.status === 403 &&
       e.code === "DEPARTMENT_ACCESS_DENIED" &&
-      department
+      department &&
+      !path.startsWith("/assistant/") &&
+      !path.startsWith("/ai-actions/")
     ) {
       setActiveDepartment(null);
       return api(path, method, body);
