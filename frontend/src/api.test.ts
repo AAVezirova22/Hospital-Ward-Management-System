@@ -41,3 +41,21 @@ describe("secure-session failures", () => {
     );
   });
 });
+
+describe("department scope", () => {
+  afterEach(() => setActiveDepartment(null));
+  it("sends the selected department on clinical requests", async () => {
+    setActiveDepartment(12);
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json([{ id: 1 }], { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await api("/patients");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/patients",
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Department-Id": "12" }),
+      }),
+    );
+  });
+});
