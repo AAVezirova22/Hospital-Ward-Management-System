@@ -124,6 +124,11 @@ export function WorkspaceSwitcher() {
                   <strong>{hospital.name}</strong>
                   {hospital.owner && <span>Owner</span>}
                 </header>
+                {hospital.departments.length === 0 && (
+                  <p className="muted">
+                    Join a department with a code to open its records.
+                  </p>
+                )}
                 <ul>
                   {hospital.departments.map((department) => (
                     <li key={department.id}>
