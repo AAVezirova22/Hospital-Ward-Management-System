@@ -1,9 +1,9 @@
-FROM node:22-alpine AS dependencies
+FROM node:25-alpine AS dependencies
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG API_INTERNAL_URL=http://backend:8080
@@ -12,7 +12,7 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine AS runtime
+FROM node:25-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
