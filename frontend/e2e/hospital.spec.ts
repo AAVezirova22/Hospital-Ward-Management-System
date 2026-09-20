@@ -7,7 +7,7 @@ async function signIn(page: Page, name = "admin") {
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "A clear picture of today." }),
+    page.getByRole("heading", { name: "Your ward. In the moment." }),
   ).toBeVisible();
 }
 async function selectFirst(page: Page, label: string) {
@@ -232,7 +232,7 @@ test("desktop and mobile visuals, reduced motion, no overflow", async ({
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(
-    page.getByRole("heading", { name: "A clear picture of today." }),
+    page.getByRole("heading", { name: "Your ward. In the moment." }),
   ).toBeVisible();
   expect(
     await page.evaluate(
