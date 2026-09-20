@@ -33,6 +33,10 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/workspaces/departments/{id}/code` | Reveal the department join code; department administrator only. Audited as `JOIN_CODE_VIEWED`. |
 | POST | `/workspaces/hospitals/{id}/code` | Replace the hospital join code; owner only. Optional `{expiresInHours, singleUse}` |
 | POST | `/workspaces/departments/{id}/code` | Replace the department join code; department administrator only. Optional `{expiresInHours, singleUse}` |
+| POST | `/workspaces/hospitals/{id}/leave` | Leave a hospital; last owner is rejected |
+| POST | `/workspaces/departments/{id}/leave` | Leave a department |
+| POST | `/workspaces/hospitals/{id}/owners` | `{userId}`; hospital owner only |
+| POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted. |
 
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 

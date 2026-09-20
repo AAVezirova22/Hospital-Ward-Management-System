@@ -290,6 +290,61 @@ public class WorkspaceService {
     audit.log("HOSPITAL_OWNER_GRANTED", "Hospital", hospitalId, "UI");
   }
 
+  @Transactional
+  public Map<String, Object> grantRole(long departmentId, long userId, String role, Long doctorId) {
+    departmentAdmin(departmentId);
+    String assigned = role == null ? "" : role.strip().toUpperCase(Locale.ROOT);
+    if (!Set.of("ADMIN", "MEDICAL_STAFF", "DOCTOR").contains(assigned))
+      throw new ApiException(400, "INVALID_ROLE", "Role must be administrator, medical staff, or doctor.");
+    Long hospitalId = jdbc.queryForObject("select hospital_id from departments where id=?", Long.class, departmentId);
+    if (hospitalId == null) throw ApiException.missing();
+    if (!Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?",
+        Boolean.class, hospitalId, userId)))
+      throw new ApiException(400, "NOT_A_MEMBER", "That account must join the hospital first.");
+    Long linked = "DOCTOR".equals(assigned) ? doctorInDepartment(departmentId, userId, doctorId) : null;
+    jdbc.update(
+        "insert into department_memberships(department_id,user_id,role,doctor_id) values (?,?,?,?) on conflict (department_id,user_id) do update set role=excluded.role, doctor_id=excluded.doctor_id",
+        departmentId, userId, assigned, linked);
+    audit.log("DEPARTMENT_ROLE_GRANTED", "Department", departmentId, "UI");
+    var result = new LinkedHashMap<String, Object>();
+    result.put("departmentId", departmentId);
+    result.put("userId", userId);
+    result.put("role", assigned);
+    result.put("doctorId", linked);
+    return result;
+  }
+
+  private long doctorInDepartment(long departmentId, long userId, Long doctorId) {
+    if (doctorId != null) {
+      if (!Boolean.TRUE.equals(jdbc.queryForObject(
+          "select count(*) > 0 from doctors where id=? and department_id=? and active=true",
+          Boolean.class, doctorId, departmentId)))
+        throw new ApiException(400, "DOCTOR_REQUIRED", "Link an active doctor in this department.");
+      return doctorId;
+    }
+    var source = jdbc.queryForList(
+        "select d.first_name, d.last_name, d.specialty, d.doctor_identifier from doctors d join app_users u on u.doctor_id=d.id where u.id=?",
+        userId);
+    String first = "Clinician";
+    String last = "User";
+    String specialty = "General medicine";
+    String identifier = "DOC-" + userId + "-" + departmentId;
+    if (!source.isEmpty()) {
+      var row = source.getFirst();
+      first = String.valueOf(row.get("first_name"));
+      last = String.valueOf(row.get("last_name"));
+      specialty = String.valueOf(row.get("specialty"));
+      identifier = String.valueOf(row.get("doctor_identifier")) + "-" + departmentId;
+    } else {
+      String username = jdbc.queryForObject("select username from app_users where id=?", String.class, userId);
+      if (username != null && !username.isBlank()) last = username;
+    }
+    return jdbc.queryForObject(
+        "insert into doctors(doctor_identifier, first_name, last_name, specialty, active, department_id, version, created_at, updated_at) values (?,?,?,?,true,?,0,now(),now()) returning id",
+        Long.class, identifier, first, last, specialty, departmentId);
+  }
+
   public void enroll(long userId, String role, Long doctorId) {
     long departmentId = DepartmentContext.id();
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) select hospital_id,? from departments where id=? on conflict do nothing", userId, departmentId);

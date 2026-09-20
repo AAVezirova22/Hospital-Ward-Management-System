@@ -19,6 +19,7 @@ public class WorkspaceController {
   public record JoinInput(@NotBlank @Size(max=40) String code) {}
   public record OwnerInput(@NotNull Long userId) {}
   public record RotateInput(Integer expiresInHours, Boolean singleUse) {}
+  public record RoleInput(@NotNull Long userId, @NotBlank @Size(max=30) String role, Long doctorId) {}
 
   @GetMapping
   public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "hospitals", workspaces.list()); }
@@ -62,6 +63,10 @@ public class WorkspaceController {
   @PostMapping("/hospitals/{id}/owners")
   public void grantOwner(@PathVariable long id, @Valid @RequestBody OwnerInput input) {
     workspaces.grantOwner(id, input.userId());
+  }
+  @PostMapping("/departments/{id}/roles")
+  public Object grantRole(@PathVariable long id, @Valid @RequestBody RoleInput input) {
+    return workspaces.grantRole(id, input.userId(), input.role(), input.doctorId());
   }
 
   private static Integer hours(RotateInput input) {

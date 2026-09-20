@@ -545,4 +545,60 @@ class WorkspaceIsolationTest {
     assertThat(hospitalCode.get("code").asText()).isEqualTo(created.get("hospitalCode").asText());
     assertThat(departmentCode.get("code").asText()).isEqualTo(created.get("departmentCode").asText());
   }
+
+  @Test
+  void ownerCanGrantDoctorAccessInADepartment() throws Exception {
+    String name = "doc" + unique();
+    var createdUser =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/users",
+                Map.of(
+                    "username",
+                    name,
+                    "password",
+                    "UserPassword123!",
+                    "role",
+                    "MEDICAL_STAFF",
+                    "enabled",
+                    true),
+                1L),
+            201);
+    long userId = createdUser.get("id").asLong();
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Doctor Clinic " + unique(), "departmentName", "Wards"),
+                1L),
+            201);
+    long departmentId = created.get("departmentId").asLong();
+    body(
+        call(
+            name,
+            "POST",
+            "/api/v1/workspaces/join",
+            Map.of("code", created.get("departmentCode").asText()),
+            1L),
+        200);
+    var granted =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/departments/" + departmentId + "/roles",
+                Map.of("userId", userId, "role", "DOCTOR"),
+                1L),
+            200);
+    assertThat(granted.get("role").asText()).isEqualTo("DOCTOR");
+    assertThat(granted.get("doctorId").isNull()).isFalse();
+    call(name, "GET", "/api/v1/auth/me", null, departmentId)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.role").value("DOCTOR"))
+        .andExpect(jsonPath("$.doctorId").value(granted.get("doctorId").asLong()));
+  }
 }
