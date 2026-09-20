@@ -13,7 +13,7 @@ import {
   Modal,
   Title,
 } from "../../components/workspace";
-import { Plus, BedDouble } from "lucide-react";
+import { Plus, BedDouble } from "../../icons";
 import { motion } from "motion/react";
 import { RoomCard } from "./RoomCard";
 import { EntityForm } from "../administration/EntityForm";
