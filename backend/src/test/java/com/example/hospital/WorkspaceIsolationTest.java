@@ -166,4 +166,50 @@ class WorkspaceIsolationTest {
     assertThat(home.toString()).contains(name);
     assertThat(away.toString()).doesNotContain(name);
   }
+
+  @Test
+  void joiningWithACodeNeverGrantsAdministratorRights() throws Exception {
+    String name = "join" + unique();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                name,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Join Clinic " + unique(), "departmentName", "Neurology"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var workspaces = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
+    String code = null;
+    for (JsonNode hospital : workspaces.get("hospitals")) {
+      for (JsonNode department : hospital.get("departments")) {
+        if (department.get("id").asLong() == other) {
+          code = department.get("joinCode").asText();
+        }
+      }
+    }
+    assertThat(code).isNotBlank();
+    body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
+    call(name, "GET", "/api/v1/users", null, other).andExpect(status().isForbidden());
+    call(name, "GET", "/api/v1/auth/me", null, other)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.role").value("MEDICAL_STAFF"));
+  }
 }
