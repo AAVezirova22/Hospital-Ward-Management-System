@@ -155,8 +155,11 @@ export function WakeScreen({ onReady }: { onReady: () => void }) {
   }, [onReady, retry]);
   return (
     <div className="boot">
+      <a className="skip-link" href="#wake-status">
+        Skip to status
+      </a>
       <div className="wake-pulse" />
-      <h1>Waking the hospital workspace…</h1>
+      <h1 id="wake-status">Waking the hospital workspace…</h1>
       <p>
         {attempt < 12
           ? "Waiting for the department service to become available."
