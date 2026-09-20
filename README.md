@@ -47,7 +47,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. The Next.js server rewrites requests to the API at port 8080. Set `API_INTERNAL_URL` when the backend is at another origin.
+Open http://localhost:3000. The Next.js server rewrites requests to the API at port 8080. Set `API_INTERNAL_URL` when the backend is at another origin. Production builds require it: the rewrite destination is written into the build, so a deployed frontend must be rebuilt after the address changes.
 
 The backend builds as `backend/target/hospital-1.0.0.war`. It runs directly with its embedded Tomcat (`java -jar ...war`) and can also be deployed as a WAR to a compatible external Tomcat 10.1 installation.
 

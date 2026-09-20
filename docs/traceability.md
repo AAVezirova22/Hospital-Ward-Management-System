@@ -5,7 +5,7 @@ The original 76-section plan is retained in `plan.md`. This table maps every sec
 | Plan sections | Implementation / evidence |
 | --- | --- |
 | 1–5 Objective, principles, architecture, stack, repository | Full-stack source, README, Compose; Java 21, Next.js/TypeScript/Motion, Spring Boot/Tomcat/JPA/Security, PostgreSQL/Flyway; backend authoritative |
-| 6–17 Domain records | Twelve JPA records plus workflow lock; V1 migration, explicit FKs, optimistic versions, partial indexes, audit/AI metadata/proposals |
+| 6–17 Domain records | Twelve JPA entities plus workflow lock, each with private state and accessors; V1 migration, explicit FKs, optimistic versions, partial indexes, audit/AI metadata/proposals |
 | 18–23 AI orchestration and write boundary | AiModelClient, AiToolRegistry, AiAssistantService, AiActionService; read/prepare allow-list; no confirm tool |
 | 24–26 APIs and structured output | AiController, typed Response, frontend Zod envelope and result components |
 | 27–30 Context, authorization, injection, validation | Role/route/selected ID context; dynamic tool definitions, service checks, strict tool argument validation; notes displayed as data |

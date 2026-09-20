@@ -1,4 +1,13 @@
 # Dedicated synthetic demo. Import this Blueprint; no secrets are stored here.
+#
+# The service names below must match the services that actually serve the deployment
+# (https://hospital-ward-frontend.onrender.com), otherwise a Blueprint sync creates a second set
+# of services and leaves the live ones wired by hand. Rename here to match, or rename in Render.
+#
+# The web service reaches the API over Render's private network, so both services must stay in the
+# same region. API_INTERNAL_HOSTPORT is read while the web service is BUILT, not when it starts:
+# Next writes the proxy destination into the build output. Changing the address therefore requires
+# a rebuild ("Clear build cache & deploy"), not a restart.
 databases:
   - name: medcore-demo-db
     plan: basic-256mb
@@ -42,7 +51,7 @@ services:
       - key: PUBLIC_APP_URL
         sync: false
   - type: web
-    name: medcore-demo-web
+    name: hospital-ward-frontend
     runtime: node
     plan: starter
     rootDir: frontend
@@ -52,6 +61,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      # Private host:port of the API service. The build fails with an explicit message when this
+      # is missing, rather than proxying /api to a loopback address that holds no backend.
       - key: API_INTERNAL_HOSTPORT
         fromService: { name: medcore-demo-api, type: web, property: hostport }
       - key: PUBLIC_APP_URL
