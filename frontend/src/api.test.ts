@@ -60,14 +60,27 @@ describe("department scope", () => {
   });
   it("does not retry assistant writes in another department after access is denied", async () => {
     setActiveDepartment(12);
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ code: "DEPARTMENT_ACCESS_DENIED", message: "Denied" }, { status: 403 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(
+          { code: "DEPARTMENT_ACCESS_DENIED", message: "Denied" },
+          { status: 403 },
+        ),
+      );
     vi.stubGlobal("fetch", fetchMock);
-    await expect(api("/assistant/messages", "POST", { message: "Import files" })).rejects.toMatchObject({ code: "DEPARTMENT_ACCESS_DENIED" });
+    await expect(
+      api("/assistant/messages", "POST", { message: "Import files" }),
+    ).rejects.toMatchObject({ code: "DEPARTMENT_ACCESS_DENIED" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBe("12");
   });
   it("preserves multipart bodies while including session and CSRF headers", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({ token: "upload-csrf", headerName: "X-CSRF-TOKEN" }))
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ token: "upload-csrf", headerName: "X-CSRF-TOKEN" }),
+      )
       .mockResolvedValueOnce(Response.json({ id: "source-id" }));
     vi.stubGlobal("fetch", fetchMock);
     await token();
@@ -75,7 +88,9 @@ describe("department scope", () => {
     form.append("file", new Blob(["example"]), "notes.txt");
     await api("/assistant/sources", "POST", form);
     expect(fetchMock.mock.calls[1][1].body).toBe(form);
-    expect(fetchMock.mock.calls[1][1].headers).toEqual({ "X-CSRF-TOKEN": "upload-csrf" });
+    expect(fetchMock.mock.calls[1][1].headers).toEqual({
+      "X-CSRF-TOKEN": "upload-csrf",
+    });
     expect(fetchMock.mock.calls[1][1].credentials).toBe("include");
   });
 });
