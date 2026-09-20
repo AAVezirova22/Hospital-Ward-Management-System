@@ -2,7 +2,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, activeDepartment, setActiveDepartment, type Row, type User } from "../../api";
+import {
+  api,
+  fullName,
+  money,
+  date,
+  activeDepartment,
+  setActiveDepartment,
+  type Row,
+  type User,
+} from "../../api";
 import {
   Link,
   useUser,
@@ -56,9 +65,13 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     if (busy) return;
     setBusy(true);
     setError(null);
-    try { await action(); }
-    catch (e) { if ((e as Error).name !== "AbortError") setError(e as Error); }
-    finally { setBusy(false); }
+    try {
+      await action();
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") setError(e as Error);
+    } finally {
+      setBusy(false);
+    }
   }
   async function send(text: string) {
     if (!text.trim() || busy) return;
@@ -68,27 +81,30 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     try {
       let nextSession = session;
       for (let round = 0; round < 4; round++) {
-      const raw = await api("/assistant/messages", "POST", {
-        message: text,
-        sessionId: nextSession,
-        sourceIds: sources.sourceIds(),
-        connectedFiles: sources.manifest(),
-        route: pathname,
-        selectedPatientId: /\/patients\/\d+$/.test(pathname)
-          ? Number(pathname.split("/").pop())
-          : null,
-      });
-      const result = aiResponse.parse(raw);
-      if (!mounted.current) return;
-      nextSession = result.sessionId;
-      setSession(result.sessionId);
-      if (result.responseType === "FILE_REQUEST") {
-        if (round === 3) throw new Error("The request needs too many file reads. Try a smaller folder or a more specific request.");
-        await sources.read(result.data.ids);
-        continue;
-      }
-      setResults((r) => [...r, { query: text, ...result }]);
-      break;
+        const raw = await api("/assistant/messages", "POST", {
+          message: text,
+          sessionId: nextSession,
+          sourceIds: sources.sourceIds(),
+          connectedFiles: sources.manifest(),
+          route: pathname,
+          selectedPatientId: /\/patients\/\d+$/.test(pathname)
+            ? Number(pathname.split("/").pop())
+            : null,
+        });
+        const result = aiResponse.parse(raw);
+        if (!mounted.current) return;
+        nextSession = result.sessionId;
+        setSession(result.sessionId);
+        if (result.responseType === "FILE_REQUEST") {
+          if (round === 3)
+            throw new Error(
+              "The request needs too many file reads. Try a smaller folder or a more specific request.",
+            );
+          await sources.read(result.data.ids);
+          continue;
+        }
+        setResults((r) => [...r, { query: text, ...result }]);
+        break;
       }
     } catch (e) {
       setError(e as Error);
@@ -109,7 +125,8 @@ export function Assistant({ onClose }: { onClose: () => void }) {
         ),
       );
       await client.invalidateQueries();
-      if (op === "confirm" && completed?.departmentId) setActiveDepartment(completed.departmentId);
+      if (op === "confirm" && completed?.departmentId)
+        setActiveDepartment(completed.departmentId);
     } catch (e) {
       setError(e as Error);
       await client.invalidateQueries();
@@ -153,7 +170,11 @@ export function Assistant({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         {results.map((r, i) => (
-          <div className="ai-result" key={i} ref={i === results.length - 1 ? lastResult : undefined}>
+          <div
+            className="ai-result"
+            key={i}
+            ref={i === results.length - 1 ? lastResult : undefined}
+          >
             <div className="ai-query">› {r.query}</div>
             <p>{r.message}</p>
             <small className="ai-mode">
@@ -212,8 +233,12 @@ export function Assistant({ onClose }: { onClose: () => void }) {
             )}
             {r.responseType === "REPORT_RESULT" && <AiReport data={r.data} />}
             {r.responseType === "WORKFLOW_PROPOSAL" && (
-              <WorkflowProposal data={r.data} done={r.done} busy={busy}
-                onAction={op => action(r.data.action.id, op, i)} />
+              <WorkflowProposal
+                data={r.data}
+                done={r.done}
+                busy={busy}
+                onAction={(op) => action(r.data.action.id, op, i)}
+              />
             )}
             {r.responseType === "NAVIGATION_COMMAND" && (
               <button
@@ -326,13 +351,15 @@ export function Assistant({ onClose }: { onClose: () => void }) {
         <button
           className="text-button"
           disabled={busy}
-          onClick={() => fileAction(async () => {
-            if (session)
-              await api(`/assistant/sessions/${session}/clear`, "POST");
-            await sources.clear();
-            setSession(null);
-            setResults([]);
-          })}
+          onClick={() =>
+            fileAction(async () => {
+              if (session)
+                await api(`/assistant/sessions/${session}/clear`, "POST");
+              await sources.clear();
+              setSession(null);
+              setResults([]);
+            })
+          }
         >
           Clear
         </button>
