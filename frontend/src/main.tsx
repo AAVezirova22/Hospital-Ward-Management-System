@@ -333,12 +333,7 @@ function Shell({
           </span>
           medcore<span className="brand-dot">®</span>
         </Link>
-        <div className="department">
-          <BedDouble size={19} strokeWidth={1.5} />
-          <div>
-            Hospital department<small>Operations workspace</small>
-          </div>
-        </div>
+        <WorkspaceSwitcher />
         <span className="nav-label">WORKSPACE</span>
         <LayoutGroup id="workspace-navigation">
         <nav>
