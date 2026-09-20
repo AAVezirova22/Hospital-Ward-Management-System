@@ -23,7 +23,7 @@ import {
 import { Activity, ArrowUpRight, Moon, Sun, Pause, Play } from "lucide-react";
 
 const ease = [0.22, 1, 0.36, 1] as const;
-const Clouds = dynamic(() => import("./components/canvasui/Clouds"), {
+const Clouds = dynamic(() => import("./vendor/canvasui/Clouds"), {
   ssr: false,
 });
 const CinemaContext = createContext({
