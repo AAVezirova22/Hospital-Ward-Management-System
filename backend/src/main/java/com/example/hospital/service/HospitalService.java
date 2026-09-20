@@ -46,16 +46,16 @@ public class HospitalService {
   }
 
   public void accessible(Long patientId) {
-    if (actor.user().role.equals("PATIENT") && !Objects.equals(actor.user().patientId, patientId))
+    if (actor.user().getRole().equals("PATIENT") && !Objects.equals(actor.user().getPatientId(), patientId))
       throw new AccessDeniedException("This patient record is not yours");
     if (actor.doctor()
-        && !admissions.existsByPatientIdAndAttendingDoctorId(patientId, actor.user().doctorId))
+        && !admissions.existsByPatientIdAndAttendingDoctorId(patientId, actor.user().getDoctorId()))
       throw new AccessDeniedException("Patient not assigned to this doctor");
   }
 
   public boolean visible(Admission a) {
-    if (actor.user().role.equals("PATIENT")) return Objects.equals(a.patientId, actor.user().patientId);
-    return !actor.doctor() || Objects.equals(a.attendingDoctorId, actor.user().doctorId);
+    if (actor.user().getRole().equals("PATIENT")) return Objects.equals(a.getPatientId(), actor.user().getPatientId());
+    return !actor.doctor() || Objects.equals(a.getAttendingDoctorId(), actor.user().getDoctorId());
   }
 
   public Patient patient(Long id) {
@@ -68,15 +68,15 @@ public class HospitalService {
     return patients.findAll().stream()
         .filter(
             p ->
-                (p.firstName + " " + p.lastName + " " + p.patientIdentifier)
+                (p.getFirstName() + " " + p.getLastName() + " " + p.getPatientIdentifier())
                     .toLowerCase(Locale.ROOT)
                     .contains(q))
         .filter(
             p ->
                 !actor.doctor()
                     || admissions.existsByPatientIdAndAttendingDoctorId(
-                        p.id, actor.user().doctorId))
-        .sorted(Comparator.comparing(p -> p.lastName))
+                        p.getId(), actor.user().getDoctorId()))
+        .sorted(Comparator.comparing(p -> p.getLastName()))
         .toList();
   }
 
@@ -85,15 +85,15 @@ public class HospitalService {
     if (ref.chars().allMatch(Character::isDigit)) return patient(Long.parseLong(ref));
     var found =
         patients.findAll().stream()
-            .filter(p -> p.patientIdentifier.equals(ref))
+            .filter(p -> p.getPatientIdentifier().equals(ref))
             .findFirst()
             .orElseThrow(ApiException::missing);
-    accessible(found.id);
+    accessible(found.getId());
     return found;
   }
 
   public Map<String, Object> summary(String ref) {
-    return summary(patientByRef(ref).id);
+    return summary(patientByRef(ref).getId());
   }
 
   public List<Doctor> doctors() {
@@ -113,7 +113,7 @@ public class HospitalService {
   public List<Admission> admissions() {
     return admissions.findAll().stream()
         .filter(this::visible)
-        .sorted(Comparator.comparing((Admission a) -> a.admissionDateTime).reversed())
+        .sorted(Comparator.comparing((Admission a) -> a.getAdmissionDateTime()).reversed())
         .toList();
   }
 
@@ -143,9 +143,9 @@ public class HospitalService {
         .map(
             r -> {
               Map<String, Object> m = new LinkedHashMap<>(Views.room(r));
-              long used = occupied(r.id);
+              long used = occupied(r.getId());
               m.put("occupiedBeds", used);
-              m.put("availableBeds", r.active ? r.bedCount - used : 0);
+              m.put("availableBeds", r.isActive() ? r.getBedCount() - used : 0);
               return m;
             })
         .filter(m -> ((Number) m.get("availableBeds")).intValue() >= minFree)
@@ -155,15 +155,15 @@ public class HospitalService {
   public Map<String, Object> admissionView(Admission a) {
     Map<String, Object> v = new LinkedHashMap<>();
     v.put("admission", Views.admission(a));
-    v.put("patient", Views.patient(patient(a.patientId)));
-    v.put("doctor", Views.doctor(doctors.findById(a.attendingDoctorId).orElseThrow()));
-    v.put("assignment", Views.assignment(assignments.findByAdmissionIdAndReleasedAtIsNull(a.id).orElse(null)));
+    v.put("patient", Views.patient(patient(a.getPatientId())));
+    v.put("doctor", Views.doctor(doctors.findById(a.getAttendingDoctorId()).orElseThrow()));
+    v.put("assignment", Views.assignment(assignments.findByAdmissionIdAndReleasedAtIsNull(a.getId()).orElse(null)));
     v.put(
         "rooms",
-        assignments.findByAdmissionIdOrderByAssignedAt(a.id).stream()
-            .map(ra -> Map.of("assignment", Views.assignment(ra), "room", Views.room(room(ra.roomId))))
+        assignments.findByAdmissionIdOrderByAssignedAt(a.getId()).stream()
+            .map(ra -> Map.of("assignment", Views.assignment(ra), "room", Views.room(room(ra.getRoomId()))))
             .toList());
-    var ps = performed.findByAdmissionIdOrderByPerformedAtDesc(a.id);
+    var ps = performed.findByAdmissionIdOrderByPerformedAtDesc(a.getId());
     v.put(
         "procedures",
         ps.stream()
@@ -173,13 +173,13 @@ public class HospitalService {
                         "record",
                         Views.performed(pp),
                         "procedure",
-                        Views.procedure(catalogue.findById(pp.medicalProcedureId).orElseThrow()),
+                        Views.procedure(catalogue.findById(pp.getMedicalProcedureId()).orElseThrow()),
                         "doctor",
-                        Views.doctor(doctors.findById(pp.performedByDoctorId).orElseThrow())))
+                        Views.doctor(doctors.findById(pp.getPerformedByDoctorId()).orElseThrow())))
             .toList());
     v.put(
         "totalCost",
-        ps.stream().map(pp -> pp.priceAtExecution).reduce(BigDecimal.ZERO, BigDecimal::add));
+        ps.stream().map(pp -> pp.getPriceAtExecution()).reduce(BigDecimal.ZERO, BigDecimal::add));
     return v;
   }
 
@@ -196,7 +196,7 @@ public class HospitalService {
   }
 
   public static void version(BaseEntity e, Long v) {
-    if (v == null || e.version != v)
+    if (v == null || e.getVersion() != v)
       throw ApiException.conflict("STALE_STATE", "This record changed. Refresh before continuing.");
   }
 }
