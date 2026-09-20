@@ -28,7 +28,7 @@ export function Patients() {
   return (
     <>
       <Title
-        eyebrow="PATIENT DIRECTORY"
+        eyebrow="Patient directory"
         title="People at the center."
         description="Search patient records, manage details and open an operational history."
       >
