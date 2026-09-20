@@ -9,7 +9,7 @@ import {
   type Row,
 } from "../../api";
 import { ErrorBox, Modal } from "../../components/workspace";
-import { Sparkles, X, ArrowUpRight, ArrowRight, Activity } from "lucide-react";
+import { Sparkles, X, ArrowUpRight, ArrowRight, Activity } from "../../icons";
 import { aiResponse } from "../../ai-contract";
 import { AssistantSources, useAssistantSources } from "./AssistantSources";
 import { WorkflowProposal } from "./WorkflowProposal";
