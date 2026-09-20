@@ -4,9 +4,19 @@ import {
   useContext,
   useEffect,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { MotionConfig, motion, useReducedMotion } from "motion/react";
+import { MotionConfig, motion } from "motion/react";
+
+const motionQuery = "(prefers-reduced-motion: reduce)";
+function subscribeMotion(onChange: () => void) {
+  const media = window.matchMedia(motionQuery);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+const readMotion = () => window.matchMedia(motionQuery).matches;
+const serverMotion = () => false;
 
 const MotionPreferences = createContext({
   paused: false,
@@ -17,7 +27,11 @@ const MotionPreferences = createContext({
 export const useSiteMotion = () => useContext(MotionPreferences);
 
 export function LandingExperience({ children }: { children: ReactNode }) {
-  const reduced = useReducedMotion();
+  const reduced = useSyncExternalStore(
+    subscribeMotion,
+    readMotion,
+    serverMotion,
+  );
   const [paused, setPaused] = useState(false);
   const [ready, setReady] = useState(false);
   useEffect(() => {
