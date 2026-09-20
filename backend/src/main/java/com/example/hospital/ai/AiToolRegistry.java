@@ -121,8 +121,8 @@ public class AiToolRegistry {
         h.doctors().stream()
             .filter(
                 d ->
-                    d.active
-                        && (d.firstName + " " + d.lastName + " " + d.doctorIdentifier)
+                    d.isActive()
+                        && (d.getFirstName() + " " + d.getLastName() + " " + d.getDoctorIdentifier())
                             .toLowerCase()
                             .contains(q.toLowerCase()))
             .toList();
@@ -162,7 +162,7 @@ public class AiToolRegistry {
           response(
               "PATIENT_SUMMARY",
               "Recorded operational history.",
-              h.summary(resolve(a.get("patientQuery"), selected).id));
+              h.summary(resolve(a.get("patientQuery"), selected).getId()));
       case "getAvailableRooms", "getRoomOccupancy" -> {
         int n = intArg(a.getOrDefault("minimumFreeBeds", "0"));
         if (n < 0 || n > 100) throw new IllegalArgumentException();
@@ -175,7 +175,7 @@ public class AiToolRegistry {
           response(
               "REPORT_RESULT",
               "Current assigned patients.",
-              Map.of("admissions", reports.census(null, doctor(a.getOrDefault("doctorQuery", "")).id)));
+              Map.of("admissions", reports.census(null, doctor(a.getOrDefault("doctorQuery", "")).getId())));
       case "getAdmission" ->
           response(
               "REPORT_RESULT",
@@ -193,9 +193,9 @@ public class AiToolRegistry {
                 h.admissions().stream()
                     .filter(
                         ad ->
-                            !ad.admissionDateTime.isBefore(
+                            !ad.getAdmissionDateTime().isBefore(
                                     from.atStartOfDay().toInstant(ZoneOffset.UTC))
-                                && ad.admissionDateTime.isBefore(
+                                && ad.getAdmissionDateTime().isBefore(
                                     to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)))
                     .map(h::admissionView)
                     .toList()));
@@ -256,7 +256,7 @@ public class AiToolRegistry {
                     "/app/presentation")
                 .contains(route)
             && !route.matches("^/app/patients/.+")
-            || !actor.user().role.equals("ADMIN") && (route.equals("/app/users") || route.equals("/app/audit")))
+            || !actor.user().getRole().equals("ADMIN") && (route.equals("/app/users") || route.equals("/app/audit")))
           throw new AccessDeniedException("Route not available");
         yield response("NAVIGATION_COMMAND", "Open requested view.", Map.of("route", route));
       }
@@ -270,7 +270,7 @@ public class AiToolRegistry {
             yield response(
                 "NAVIGATION_COMMAND",
                 "Select the room and doctor in the standard admission or transfer form.",
-                Map.of("route", "/app/patients/" + p.patientIdentifier));
+                Map.of("route", "/app/patients/" + p.getPatientIdentifier()));
           var rm =
               h.rooms(1).stream()
                   .filter(
@@ -288,22 +288,22 @@ public class AiToolRegistry {
             yield response(
                 "NAVIGATION_COMMAND",
                 "Select an attending doctor in the admission form.",
-                Map.of("route", "/app/patients/" + p.patientIdentifier));
-          doctorId = doctor(a.get("doctorQuery")).id;
+                Map.of("route", "/app/patients/" + p.getPatientIdentifier()));
+          doctorId = doctor(a.get("doctorQuery")).getId();
           if (h.admissions().stream()
-              .anyMatch(ad -> ad.patientId.equals(p.id) && ad.status.equals("ACTIVE")))
+              .anyMatch(ad -> ad.getPatientId().equals(p.getId()) && ad.getStatus().equals("ACTIVE")))
             throw ApiException.conflict("ALREADY_ADMITTED", "Patient already admitted.");
         } else {
           var active =
               h.admissions().stream()
-                  .filter(ad -> ad.patientId.equals(p.id) && ad.status.equals("ACTIVE"))
+                  .filter(ad -> ad.getPatientId().equals(p.getId()) && ad.getStatus().equals("ACTIVE"))
                   .findFirst()
                   .orElseThrow(
                       () ->
                           new ApiException(
                               400, "NO_ACTIVE_ADMISSION", "No active admission for this patient."));
-          admissionId = active.id;
-          version = active.version;
+          admissionId = active.getId();
+          version = active.getVersion();
         }
         yield response(
             "CONFIRMATION_CARD",
@@ -311,7 +311,7 @@ public class AiToolRegistry {
             actions.prepare(
                 type,
                 new AiActionService.Payload(
-                    p.id, admissionId, roomId, doctorId, version, "User-requested AI transfer")));
+                    p.getId(), admissionId, roomId, doctorId, version, "User-requested AI transfer")));
       }
       default -> throw new IllegalArgumentException();
       };
