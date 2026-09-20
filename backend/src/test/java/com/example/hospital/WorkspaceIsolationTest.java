@@ -22,6 +22,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.testcontainers.containers.PostgreSQLContainer;
 
 @SpringBootTest(
     properties = {
@@ -31,9 +32,28 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
     })
 @AutoConfigureMockMvc
 class WorkspaceIsolationTest {
+  static PostgreSQLContainer<?> container;
+
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry registry) {
-    HospitalIntegrationTest.database(registry);
+    String url = System.getenv("TEST_DATABASE_URL");
+    if (url == null) {
+      container = new PostgreSQLContainer<>("postgres:17-alpine");
+      container.start();
+      registry.add("spring.datasource.url", container::getJdbcUrl);
+      registry.add("spring.datasource.username", container::getUsername);
+      registry.add("spring.datasource.password", container::getPassword);
+    } else {
+      HospitalIntegrationTest.database(registry);
+      registry.add("spring.flyway.schemas", () -> "workspace_isolation");
+      registry.add("spring.flyway.default-schema", () -> "workspace_isolation");
+      registry.add("spring.flyway.create-schemas", () -> true);
+      registry.add("spring.jpa.properties.hibernate.default_schema", () -> "workspace_isolation");
+    }
+    if ("true".equals(System.getenv("TEST_PGLITE"))) {
+      registry.add("spring.flyway.postgresql.transactional-lock", () -> false);
+      registry.add("spring.datasource.hikari.maximum-pool-size", () -> 1);
+    }
   }
 
   @Autowired MockMvc mvc;
