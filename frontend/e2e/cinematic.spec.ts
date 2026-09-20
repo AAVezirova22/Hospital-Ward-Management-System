@@ -86,4 +86,73 @@ test("reduced motion and small screens keep static artwork without a GPU layer",
     path: "test-results/cinematic-mobile.png",
     fullPage: true,
   });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(page.locator(".cinema-clouds")).toHaveCount(1);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.locator(".cinema-clouds")).toHaveCount(0);
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
+});
+
+test("animated workspace navigation stays usable when the AI provider is unavailable", async ({
+  page,
+}) => {
+  await page.emulateMedia({
+    colorScheme: "dark",
+    reducedMotion: "no-preference",
+  });
+  await page.goto("/");
+  await page.getByLabel("Username", { exact: true }).fill("admin");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.E2E_PASSWORD || "MedcoreDemo2026!");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "A clear picture of today." }),
+  ).toBeVisible();
+  await expect(page.locator(".app")).toHaveCSS("transform", "none");
+  await expect(page.locator(".cinema-clouds")).toHaveCount(1);
+  await page.screenshot({
+    path: "test-results/cinematic-workspace.png",
+    fullPage: true,
+  });
+  const sidebar = page.locator(".sidebar");
+  const originalTop = (await sidebar.boundingBox())!.y;
+  await page.evaluate(() => window.scrollTo(0, 600));
+  expect((await sidebar.boundingBox())!.y).toBeCloseTo(originalTop, 0);
+  await page.getByRole("link", { name: "Patients", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Patients", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Overview", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "A clear picture of today." }),
+  ).toBeVisible();
+  // Deterministic contract test; live provider billing is tested separately.
+  await page.route("**/api/v1/assistant/messages", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      json: {
+        responseType: "ERROR",
+        message:
+          "The assistant is unavailable. All standard hospital screens remain available.",
+        data: {},
+        sessionId: null,
+        model: "gemini-3.5-flash-lite",
+      },
+    }),
+  );
+  await page.keyboard.press("Control+k");
+  await page.getByLabel("Assistant message").fill("Show department status");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "All standard hospital screens remain available.",
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Open navigation" }),
+  ).toHaveAttribute("aria-expanded", "false");
 });
