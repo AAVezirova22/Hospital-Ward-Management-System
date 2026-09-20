@@ -89,7 +89,12 @@ export async function api<T = any>(
     method,
     headers,
     credentials: "include",
-    body: body === undefined ? undefined : multipart ? body as FormData : JSON.stringify(body),
+    body:
+      body === undefined
+        ? undefined
+        : multipart
+          ? (body as FormData)
+          : JSON.stringify(body),
   });
   if (!r.ok) {
     const e = await r.json().catch(() => ({}));
