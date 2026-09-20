@@ -133,8 +133,9 @@ export async function logout() {
   await api("/auth/logout", "POST");
   csrf = null;
 }
-export const fullName = (p: {firstName?: string; lastName?: string} | null | undefined) =>
-  p ? `${p.firstName} ${p.lastName}` : "Not recorded";
+export const fullName = (
+  p: { firstName?: string; lastName?: string } | null | undefined,
+) => (p ? `${p.firstName} ${p.lastName}` : "Not recorded");
 export const money = (n: number) =>
   new Intl.NumberFormat("en", { style: "currency", currency: "EUR" }).format(
     n || 0,
