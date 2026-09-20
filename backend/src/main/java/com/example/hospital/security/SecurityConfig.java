@@ -48,7 +48,8 @@ public class SecurityConfig {
       throws Exception {
     http.authorizeHttpRequests(
             a ->
-                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health")
+                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health",
+                    "/api/v1/demo/status", "/api/v1/demo/login")
                     .permitAll()
                     .anyRequest()
                     .authenticated())

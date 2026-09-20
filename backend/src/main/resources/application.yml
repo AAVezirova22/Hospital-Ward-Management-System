@@ -25,6 +25,7 @@ server:
   error:
     include-message: never
 app:
+  demo: ${DEMO_MODE:false}
   seed: ${DEMO_SEED:true}
   bootstrap-password: ${BOOTSTRAP_PASSWORD:}
   ai:
