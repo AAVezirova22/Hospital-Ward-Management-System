@@ -17,6 +17,7 @@ public class WorkspaceController {
   public record HospitalInput(@NotBlank @Size(max=120) String name, @NotBlank @Size(max=120) String departmentName) {}
   public record DepartmentInput(@NotBlank @Size(max=120) String name) {}
   public record JoinInput(@NotBlank @Size(max=40) String code) {}
+  public record OwnerInput(@NotNull Long userId) {}
 
   @GetMapping
   public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "hospitals", workspaces.list()); }
@@ -44,4 +45,8 @@ public class WorkspaceController {
   public void revokeHospital(@PathVariable long id, @PathVariable long userId) { workspaces.revokeHospital(id, userId); }
   @DeleteMapping("/departments/{id}/members/{userId}")
   public void revokeDepartment(@PathVariable long id, @PathVariable long userId) { workspaces.revokeDepartment(id, userId); }
+  @PostMapping("/hospitals/{id}/owners")
+  public void grantOwner(@PathVariable long id, @Valid @RequestBody OwnerInput input) {
+    workspaces.grantOwner(id, input.userId());
+  }
 }

@@ -230,6 +230,16 @@ public class WorkspaceService {
     audit.log("HOSPITAL_MEMBER_REVOKED", "Hospital", hospitalId, "UI");
   }
 
+  @Transactional
+  public void grantOwner(long hospitalId, long userId) {
+    owner(hospitalId);
+    if (!Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, hospitalId, userId)))
+      throw new ApiException(400, "NOT_A_MEMBER", "That account must join the hospital before becoming an owner.");
+    jdbc.update("update hospital_memberships set owner=true where hospital_id=? and user_id=?", hospitalId, userId);
+    audit.log("HOSPITAL_OWNER_GRANTED", "Hospital", hospitalId, "UI");
+  }
+
   public void enroll(long userId, String role, Long doctorId) {
     long departmentId = DepartmentContext.id();
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) select hospital_id,? from departments where id=? on conflict do nothing", userId, departmentId);
