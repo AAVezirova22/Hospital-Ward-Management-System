@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import {
   Activity,
   LayoutDashboard,
@@ -44,10 +44,12 @@ import {
   CinematicProvider,
   MotionToggle,
   SceneTransition,
+  useCinematicMotion,
 } from "./cinematic";
 
 function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   const pathname = usePathname();
+  const animated = useCinematicMotion();
   const active = pathname === to || pathname.startsWith(to + "/");
   return (
     <NextLink
@@ -55,7 +57,14 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
       className={active ? "active" : undefined}
       aria-current={active ? "page" : undefined}
     >
-      <span className="nav-selection" aria-hidden="true" />
+      {active && (
+        <motion.span
+          layoutId={animated ? "sidebar-selection" : undefined}
+          className="nav-selection"
+          aria-hidden="true"
+          transition={{ type: "spring", stiffness: 420, damping: 38 }}
+        />
+      )}
       {children}
     </NextLink>
   );
@@ -330,12 +339,12 @@ function Shell({
           </div>
         </div>
         <span className="nav-label">WORKSPACE</span>
+        <LayoutGroup id="workspace-navigation">
         <nav>
           {nav.map(([url, label, Icon]) => (
             <NavLink to={"/app/" + url} key={url}>
               <Icon size={18} />
               {label}
-              <span className="nav-active-dot" />
             </NavLink>
           ))}
           {user.role === "ADMIN" && (
@@ -352,6 +361,7 @@ function Shell({
             </>
           )}
         </nav>
+        </LayoutGroup>
         <div className="sidebar-note">
           <span>More clarity.</span>
           <br />
