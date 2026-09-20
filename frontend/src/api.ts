@@ -129,7 +129,16 @@ export async function api<T = any>(
             ? "Confirmed action completed"
             : path.endsWith("/cancel")
               ? "Proposal cancelled"
-              : "Changes saved";
+              : path === "/workspaces/join"
+                ? "Workspace joined"
+                : path === "/workspaces/hospitals"
+                  ? "Hospital created"
+                  : path.includes("/workspaces/hospitals/") &&
+                      path.endsWith("/departments")
+                    ? "Department created"
+                    : path.endsWith("/code")
+                      ? "Join code replaced"
+                      : "Changes saved";
     window.dispatchEvent(new CustomEvent("saved", { detail: message }));
   }
   return result;
