@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import localFont from "next/font/local";
 import { IBM_Plex_Mono, Newsreader, Outfit, Syne } from "next/font/google";
 
@@ -8,6 +9,7 @@ const geist = localFont({
   variable: "--font-geist",
   display: "swap",
   weight: "100 900",
+  adjustFontFallback: false,
 });
 
 const syne = Syne({
@@ -77,7 +79,8 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg" },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="en"

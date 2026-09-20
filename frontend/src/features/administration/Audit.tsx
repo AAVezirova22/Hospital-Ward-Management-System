@@ -25,7 +25,7 @@ export function Audit() {
   return (
     <>
       <Title
-        eyebrow="ACCOUNTABILITY"
+        eyebrow="Accountability"
         title="A trace of every change."
         description="Paged audit events for this department. Patient notes and passwords are excluded."
       />

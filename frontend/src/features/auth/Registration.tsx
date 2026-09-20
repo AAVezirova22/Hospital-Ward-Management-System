@@ -60,7 +60,7 @@ export function Registration({ onBack }: { onBack: () => void }) {
         }
       })}
     >
-      <span className="eyebrow">YOUR MEDCORE ACCOUNT</span>
+      <span className="eyebrow">Your Medcore account</span>
       <h2>Your care, connected.</h2>
       <p className="form-intro">
         Create your patient account. Confirm your email to sign in.
@@ -173,7 +173,7 @@ export function EmailVerification({
     [error, setError] = useState("");
   return (
     <div className="login-form">
-      <span className="eyebrow">EMAIL CONFIRMATION</span>
+      <span className="eyebrow">Email confirmation</span>
       <h2>One step to your workspace.</h2>
       <p>
         Confirm that this is your email address to activate your patient

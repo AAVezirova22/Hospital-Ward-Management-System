@@ -23,20 +23,20 @@ public class AccountController {
   @GetMapping("/users")
   @PreAuthorize("hasRole('ADMIN')")
   public Object users() {
-    return users.list();
+    return users.list().stream().map(Views::account).toList();
   }
 
   @PostMapping("/users")
   @ResponseStatus(HttpStatus.CREATED)
   @PreAuthorize("hasRole('ADMIN')")
   public Object user(@Valid @RequestBody UserInput in) {
-    return users.save(null, in);
+    return Views.account(users.save(null, in));
   }
 
   @PutMapping("/users/{id}")
   @PreAuthorize("hasRole('ADMIN')")
   public Object user(@PathVariable Long id, @Valid @RequestBody UserInput in) {
-    return users.save(id, in);
+    return Views.account(users.save(id, in));
   }
 
   @GetMapping("/audit")
@@ -57,6 +57,6 @@ public class AccountController {
         "page", safePage,
         "size", safeSize,
         "total", all.getTotalElements(),
-        "events", all.getContent());
+        "events", all.getContent().stream().map(Views::audit).toList());
   }
 }

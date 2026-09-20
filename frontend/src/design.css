@@ -349,6 +349,9 @@ button:hover .button-icon {
 
 /* Operational workspace. Typography is larger; data retains its compact rhythm. */
 .sidebar {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
   left: 16px;
   top: 16px;
   bottom: 16px;
@@ -365,6 +368,8 @@ button:hover .button-icon {
   margin-left: 9px;
 }
 .department {
+  display: flex;
+  align-items: center;
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--line);
@@ -453,6 +458,7 @@ button.workspace-switcher[aria-expanded="true"] {
   gap: 14px;
 }
 .nav-label {
+  display: block;
   color: var(--muted);
   font-size: 8px;
   letter-spacing: 0.16em;
@@ -461,6 +467,9 @@ button.workspace-switcher[aria-expanded="true"] {
 .sidebar nav > a {
   position: relative;
   isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   color: var(--muted);
   border-radius: 12px;
   padding: 12px 14px;
@@ -522,12 +531,16 @@ button.workspace-switcher[aria-expanded="true"] {
   color: var(--text);
 }
 .assistant-launch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   margin-top: 12px;
   border: 1px solid var(--line);
   background: var(--surface);
   border-radius: 15px;
   color: var(--mint);
   padding: 15px 10px;
+  text-align: left;
 }
 .assistant-launch small {
   color: var(--muted);
@@ -537,36 +550,67 @@ button.workspace-switcher[aria-expanded="true"] {
   display: none;
 }
 .profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   border-color: var(--line);
   padding: 18px 6px 0;
+  margin-top: 20px;
+  font-size: 12px;
+}
+.profile small {
+  text-transform: capitalize;
+}
+.profile .icon {
+  margin-left: auto;
 }
 .avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--surface);
   border-color: var(--line);
   color: var(--mint);
   border-radius: 12px;
   width: 37px;
   height: 37px;
+  flex-shrink: 0;
 }
 .workspace {
   margin-left: 274px;
   padding-right: 18px;
   overflow-x: clip;
+  flex: 1;
+  min-width: 0;
 }
 .topbar {
   height: 94px;
   border: 0;
   padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.topbar > div {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 .topbar strong {
   color: var(--text);
   font-size: 12px;
+}
+.slash {
+  color: var(--muted);
 }
 .topbar > div > span:first-of-type,
 .top-date {
   color: var(--muted);
 }
 .command {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background: var(--panel);
   border-color: var(--line);
   color: var(--muted);
@@ -585,7 +629,16 @@ kbd {
   outline: none;
   overflow-x: clip;
 }
+@media (max-width: 760px) {
+  .workspace main {
+    padding-bottom: 160px;
+  }
+}
 .page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 25px;
   padding-top: 20px;
   margin-bottom: 34px;
 }
@@ -668,6 +721,8 @@ kbd {
   line-height: 1.6;
 }
 .metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 0;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -687,6 +742,9 @@ kbd {
   border: 0;
 }
 .metric > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   color: var(--muted);
   font-size: 11px;
 }
@@ -706,6 +764,8 @@ kbd {
   margin-top: 9px;
 }
 .brief {
+  display: flex;
+  align-items: center;
   padding: 25px;
   gap: 20px;
   border-radius: 22px;
@@ -740,6 +800,7 @@ kbd {
   padding: 8px 9px 8px 16px;
 }
 .overview-grid {
+  display: grid;
   align-items: start;
   grid-template-columns: 1.2fr 1fr;
   gap: 24px;

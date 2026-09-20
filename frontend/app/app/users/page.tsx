@@ -1,9 +1,9 @@
 "use client";
 import { useUser } from "../../../src/components/workspace";
-import { Catalogue } from "../../../src/features/administration/Catalogue";
+import { UserAdmin } from "../../../src/features/administration/UserAdmin";
 export default function Page() {
   return useUser().role === "ADMIN" ? (
-    <Catalogue kind="users" />
+    <UserAdmin />
   ) : (
     <section>
       <h1>Access restricted</h1>

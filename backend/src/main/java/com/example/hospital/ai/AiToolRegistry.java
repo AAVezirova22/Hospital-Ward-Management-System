@@ -13,12 +13,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiToolRegistry {
   private final HospitalService h;
+  private final ReportService reports;
   private final AiActionService actions;
   private final Actor actor;
   private final WorkspaceService workspaces;
 
-  public AiToolRegistry(HospitalService h, AiActionService a, Actor actor, WorkspaceService workspaces) {
+  public AiToolRegistry(
+      HospitalService h, ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces) {
     this.h = h;
+    this.reports = reports;
     actions = a;
     this.actor = actor;
     this.workspaces = workspaces;
@@ -118,8 +121,8 @@ public class AiToolRegistry {
         h.doctors().stream()
             .filter(
                 d ->
-                    d.active
-                        && (d.firstName + " " + d.lastName + " " + d.doctorIdentifier)
+                    d.isActive()
+                        && (d.getFirstName() + " " + d.getLastName() + " " + d.getDoctorIdentifier())
                             .toLowerCase()
                             .contains(q.toLowerCase()))
             .toList();
@@ -159,9 +162,9 @@ public class AiToolRegistry {
           response(
               "PATIENT_SUMMARY",
               "Recorded operational history.",
-              h.summary(resolve(a.get("patientQuery"), selected).id));
+              h.summary(resolve(a.get("patientQuery"), selected).getId()));
       case "getAvailableRooms", "getRoomOccupancy" -> {
-        int n = Integer.parseInt(a.getOrDefault("minimumFreeBeds", "0"));
+        int n = intArg(a.getOrDefault("minimumFreeBeds", "0"));
         if (n < 0 || n > 100) throw new IllegalArgumentException();
         yield response(
             "ROOM_LIST",
@@ -172,15 +175,15 @@ public class AiToolRegistry {
           response(
               "REPORT_RESULT",
               "Current assigned patients.",
-              Map.of("admissions", h.census(null, doctor(a.getOrDefault("doctorQuery", "")).id)));
+              Map.of("admissions", reports.census(null, doctor(a.getOrDefault("doctorQuery", "")).getId())));
       case "getAdmission" ->
           response(
               "REPORT_RESULT",
               "Admission record.",
-              h.admissionView(h.admission(Long.valueOf(a.get("admissionId")))));
+              h.admissionView(h.admission(longArg(a.get("admissionId")))));
       case "getAdmissions" -> {
-        var from = LocalDate.parse(a.get("from"));
-        var to = LocalDate.parse(a.get("to"));
+        var from = dateArg(a.get("from"));
+        var to = dateArg(a.get("to"));
         if (from.isAfter(to)) throw new IllegalArgumentException();
         yield response(
             "REPORT_RESULT",
@@ -190,9 +193,9 @@ public class AiToolRegistry {
                 h.admissions().stream()
                     .filter(
                         ad ->
-                            !ad.admissionDateTime.isBefore(
+                            !ad.getAdmissionDateTime().isBefore(
                                     from.atStartOfDay().toInstant(ZoneOffset.UTC))
-                                && ad.admissionDateTime.isBefore(
+                                && ad.getAdmissionDateTime().isBefore(
                                     to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)))
                     .map(h::admissionView)
                     .toList()));
@@ -201,13 +204,13 @@ public class AiToolRegistry {
           response(
               "REPORT_RESULT",
               "Procedure totals calculated from saved records.",
-              h.procedureReport(
-                  LocalDate.parse(a.getOrDefault("from", LocalDate.now(ZoneOffset.UTC).toString())),
-                  LocalDate.parse(a.getOrDefault("to", LocalDate.now(ZoneOffset.UTC).toString())),
+              reports.procedures(
+                  dateArg(a.getOrDefault("from", LocalDate.now(ZoneOffset.UTC).toString())),
+                  dateArg(a.getOrDefault("to", LocalDate.now(ZoneOffset.UTC).toString())),
                   null,
                   null));
       case "getDashboardSummary" ->
-          response("REPORT_RESULT", "Current department operations.", h.dashboard());
+          response("REPORT_RESULT", "Current department operations.", reports.dashboard());
       case "listWorkspaces" ->
           response(
               "REPORT_RESULT",
@@ -253,7 +256,7 @@ public class AiToolRegistry {
                     "/app/presentation")
                 .contains(route)
             && !route.matches("^/app/patients/.+")
-            || !actor.user().role.equals("ADMIN") && (route.equals("/app/users") || route.equals("/app/audit")))
+            || !actor.user().getRole().equals("ADMIN") && (route.equals("/app/users") || route.equals("/app/audit")))
           throw new AccessDeniedException("Route not available");
         yield response("NAVIGATION_COMMAND", "Open requested view.", Map.of("route", route));
       }
@@ -267,7 +270,7 @@ public class AiToolRegistry {
             yield response(
                 "NAVIGATION_COMMAND",
                 "Select the room and doctor in the standard admission or transfer form.",
-                Map.of("route", "/app/patients/" + p.patientIdentifier));
+                Map.of("route", "/app/patients/" + p.getPatientIdentifier()));
           var rm =
               h.rooms(1).stream()
                   .filter(
@@ -285,22 +288,22 @@ public class AiToolRegistry {
             yield response(
                 "NAVIGATION_COMMAND",
                 "Select an attending doctor in the admission form.",
-                Map.of("route", "/app/patients/" + p.patientIdentifier));
-          doctorId = doctor(a.get("doctorQuery")).id;
+                Map.of("route", "/app/patients/" + p.getPatientIdentifier()));
+          doctorId = doctor(a.get("doctorQuery")).getId();
           if (h.admissions().stream()
-              .anyMatch(ad -> ad.patientId.equals(p.id) && ad.status.equals("ACTIVE")))
+              .anyMatch(ad -> ad.getPatientId().equals(p.getId()) && ad.getStatus().equals("ACTIVE")))
             throw ApiException.conflict("ALREADY_ADMITTED", "Patient already admitted.");
         } else {
           var active =
               h.admissions().stream()
-                  .filter(ad -> ad.patientId.equals(p.id) && ad.status.equals("ACTIVE"))
+                  .filter(ad -> ad.getPatientId().equals(p.getId()) && ad.getStatus().equals("ACTIVE"))
                   .findFirst()
                   .orElseThrow(
                       () ->
                           new ApiException(
                               400, "NO_ACTIVE_ADMISSION", "No active admission for this patient."));
-          admissionId = active.id;
-          version = active.version;
+          admissionId = active.getId();
+          version = active.getVersion();
         }
         yield response(
             "CONFIRMATION_CARD",
@@ -308,13 +311,44 @@ public class AiToolRegistry {
             actions.prepare(
                 type,
                 new AiActionService.Payload(
-                    p.id, admissionId, roomId, doctorId, version, "User-requested AI transfer")));
+                    p.getId(), admissionId, roomId, doctorId, version, "User-requested AI transfer")));
       }
       default -> throw new IllegalArgumentException();
       };
-    } catch (NumberFormatException | DateTimeParseException | IllegalArgumentException e) {
-      throw new ApiException(
-          400, "INVALID_TOOL_CALL", "The assistant returned an invalid tool request.");
+    } catch (NumberFormatException | DateTimeParseException | IllegalArgumentException | NullPointerException e) {
+      throw invalidToolCall();
+    }
+  }
+
+  private static ApiException invalidToolCall() {
+    return new ApiException(
+        400, "INVALID_TOOL_CALL", "The assistant returned an invalid tool request.");
+  }
+
+  private static int intArg(String raw) {
+    if (raw == null || raw.isBlank()) throw invalidToolCall();
+    try {
+      return Integer.parseInt(raw.trim());
+    } catch (NumberFormatException e) {
+      throw invalidToolCall();
+    }
+  }
+
+  private static long longArg(String raw) {
+    if (raw == null || raw.isBlank()) throw invalidToolCall();
+    try {
+      return Long.parseLong(raw.trim());
+    } catch (NumberFormatException e) {
+      throw invalidToolCall();
+    }
+  }
+
+  private static LocalDate dateArg(String raw) {
+    if (raw == null || raw.isBlank()) throw invalidToolCall();
+    try {
+      return LocalDate.parse(raw.trim());
+    } catch (DateTimeParseException e) {
+      throw invalidToolCall();
     }
   }
 }

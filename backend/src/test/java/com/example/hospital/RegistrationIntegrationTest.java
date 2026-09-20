@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties={"app.seed=true","app.bootstrap-password=IntegrationPassword123!","app.registration.enabled=true","server.servlet.session.cookie.secure=false"})
 @AutoConfigureMockMvc
 class RegistrationIntegrationTest {
- @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalIntegrationTest.database(r);}
+ @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalSupport.database(r);}
  @Autowired MockMvc mvc; @Autowired ObjectMapper json; @Autowired AppUserRepository users; @Autowired JdbcTemplate jdbc;
  @MockitoBean ConfirmationEmailService email;
  @BeforeEach void setup(){when(email.configured()).thenReturn(true);}
@@ -37,8 +37,8 @@ class RegistrationIntegrationTest {
  }
  String capturedToken(){var token=ArgumentCaptor.forClass(String.class);verify(email).send(anyString(),anyString(),token.capture(),anyBoolean(),anyInt());return token.getValue();}
  @Test void patientMustVerifyAndCannotAccessStaffEndpoints() throws Exception {
-   String name=signup("PATIENT"),token=capturedToken();var before=users.findByUsername(name).orElseThrow();assertThat(before.enabled).isFalse();assertThat(before.role).isEqualTo("PATIENT");
-   assertThat(jdbc.queryForObject("select token_hash from email_verifications where user_id=?",String.class,before.id)).doesNotContain(token).hasSize(64);
+   String name=signup("PATIENT"),token=capturedToken();var before=users.findByUsername(name).orElseThrow();assertThat(before.isEnabled()).isFalse();assertThat(before.getRole()).isEqualTo("PATIENT");
+   assertThat(jdbc.queryForObject("select token_hash from email_verifications where user_id=?",String.class,before.getId())).doesNotContain(token).hasSize(64);
    mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token",token)))).andExpect(status().isOk());
    mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token",token)))).andExpect(status().isBadRequest());
    mvc.perform(get("/api/v1/portal/me").with(user(name))).andExpect(status().isOk()).andExpect(jsonPath("$.patient.firstName").value("Maya"));
@@ -48,14 +48,14 @@ class RegistrationIntegrationTest {
  @Test void doctorEmailVerificationNeverGrantsDoctorRole() throws Exception {
    String name=signup("DOCTOR"),token=capturedToken();
    mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token",token)))).andExpect(status().isOk());
-   var u=users.findByUsername(name).orElseThrow();assertThat(u.emailVerified).isTrue();assertThat(u.role).isEqualTo("PATIENT");assertThat(u.requestedRole).isEqualTo("DOCTOR");assertThat(u.doctorId).isNull();
+   var u=users.findByUsername(name).orElseThrow();assertThat(u.isEmailVerified()).isTrue();assertThat(u.getRole()).isEqualTo("PATIENT");assertThat(u.getRequestedRole()).isEqualTo("DOCTOR");assertThat(u.getDoctorId()).isNull();
  }
  @Test void expiredAndMissingCsrfLinksCannotActivateAccount() throws Exception {
-   String name=signup("PATIENT"),token=capturedToken();jdbc.update("update email_verifications set expires_at=now()-interval '1 minute' where user_id=?",users.findByUsername(name).orElseThrow().id);
+   String name=signup("PATIENT"),token=capturedToken();jdbc.update("update email_verifications set expires_at=now()-interval '1 minute' where user_id=?",users.findByUsername(name).orElseThrow().getId());
    String body=json.writeValueAsString(Map.of("token",token));
    mvc.perform(post("/api/v1/registration/verify").contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
    mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
-   assertThat(users.findByUsername(name).orElseThrow().enabled).isFalse();
+   assertThat(users.findByUsername(name).orElseThrow().isEnabled()).isFalse();
  }
  @Test void deliveryFailureRollsBackNewAccount() throws Exception {
    doThrow(new com.example.hospital.api.ApiException(503,"EMAIL_UNAVAILABLE","Delivery unavailable")).when(email).send(anyString(),anyString(),anyString(),anyBoolean(),anyInt());
@@ -73,7 +73,7 @@ class RegistrationIntegrationTest {
    body.put("firstName","Maya"); body.put("lastName","Koleva"); body.put("dateOfBirth","1994-03-12");
    body.put("requestedRole","PATIENT"); body.put("hospitalId",hospitalId);
    mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isOk());
-   Long patientId=users.findByUsername(name).orElseThrow().patientId;
+   Long patientId=users.findByUsername(name).orElseThrow().getPatientId();
    assertThat(jdbc.queryForObject("select department_id from patients where id=?", Long.class, patientId)).isEqualTo(departmentId);
  }
 }

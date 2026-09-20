@@ -3,16 +3,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BedDouble,
-  Building2,
   ChevronDown,
-  Copy,
-  KeyRound,
-  Plus,
-} from "lucide-react";
+} from "../icons";
 import { api, activeDepartment, setActiveDepartment } from "../api";
 import type { WorkspaceHospital, WorkspaceList } from "../api/contracts";
 import { ErrorBox, Modal } from "./workspace";
 import { currentNames } from "./workspace-names";
+import {
+  JoinForm,
+  CreateHospitalForm,
+  CreateDepartmentForm,
+} from "./workspace-forms";
+import { WorkspaceList as HospitalList } from "./workspace-list";
 
 async function copyCode(value: string) {
   try {
@@ -158,347 +160,111 @@ export function WorkspaceSwitcher() {
           <ErrorBox error={error || formError} />
           {isLoading && <p>Loading workspaces…</p>}
           {panel === "list" && (
-            <div className="workspace-list">
-              {(data?.hospitals ?? []).map((hospital) => (
-                <section key={hospital.id}>
-                  <header>
-                    <Building2 size={16} />
-                    <strong>{hospital.name}</strong>
-                    {hospital.owner && <span>Owner</span>}
-                  </header>
-                  {hospital.departments.length === 0 && (
-                    <p className="muted">
-                      Join a department with a code to open its records.
-                    </p>
-                  )}
-                  <ul>
-                    {hospital.departments.map((department) => (
-                      <li key={department.id}>
-                        <button
-                          type="button"
-                          className={
-                            department.id === current.department?.id
-                              ? "selected"
-                              : "secondary"
-                          }
-                          onClick={() => openDepartment(department.id)}
-                        >
-                          {department.name}
-                          <small>
-                            {department.role.replaceAll("_", " ").toLowerCase()}
-                          </small>
-                        </button>
-                        {department.hasJoinCode && (
-                          <p className="workspace-code">
-                            Department join code
-                            <button
-                              type="button"
-                              className="icon"
-                              aria-label="Copy department join code"
-                              onClick={() =>
-                                void revealAndCopy(false, department.id)
-                              }
-                            >
-                              <Copy size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              className="text-button"
-                              disabled={busy}
-                              onClick={() => rotate(false, department.id)}
-                            >
-                              Replace
-                            </button>
-                            <button
-                              type="button"
-                              className="text-button"
-                              disabled={busy}
-                              onClick={() =>
-                                rotate(false, department.id, {
-                                  expiresInHours: 24,
-                                  singleUse: true,
-                                })
-                              }
-                            >
-                              One-time 24h
-                            </button>
-                          </p>
-                        )}
-                        <button
-                          type="button"
-                          className="text-button"
-                          disabled={busy}
-                          onClick={() =>
-                            void (async () => {
-                              setBusy(true);
-                              setFormError(null);
-                              try {
-                                await api(
-                                  `/workspaces/departments/${department.id}/leave`,
-                                  "POST",
-                                  {},
-                                );
-                                if (
-                                  Number(activeDepartment()) === department.id
-                                )
-                                  setActiveDepartment(null);
-                                await client.invalidateQueries();
-                              } catch (e) {
-                                setFormError(e as Error);
-                              } finally {
-                                setBusy(false);
-                              }
-                            })()
-                          }
-                        >
-                          Leave department
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  {hospital.owner && hospital.hasJoinCode && (
-                    <p className="workspace-code">
-                      Hospital join code
-                      <button
-                        type="button"
-                        className="icon"
-                        aria-label="Copy hospital join code"
-                        onClick={() => void revealAndCopy(true, hospital.id)}
-                      >
-                        <Copy size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className="text-button"
-                        disabled={busy}
-                        onClick={() => rotate(true, hospital.id)}
-                      >
-                        Replace
-                      </button>
-                      <button
-                        type="button"
-                        className="text-button"
-                        disabled={busy}
-                        onClick={() =>
-                          rotate(true, hospital.id, {
-                            expiresInHours: 24,
-                            singleUse: true,
-                          })
-                        }
-                      >
-                        One-time 24h
-                      </button>
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() =>
-                      void (async () => {
-                        setBusy(true);
-                        setFormError(null);
-                        try {
-                          await api(
-                            `/workspaces/hospitals/${hospital.id}/leave`,
-                            "POST",
-                            {},
-                          );
-                          setActiveDepartment(null);
-                          await client.invalidateQueries();
-                        } catch (e) {
-                          setFormError(e as Error);
-                        } finally {
-                          setBusy(false);
-                        }
-                      })()
-                    }
-                  >
-                    Leave hospital
-                  </button>
-                  {hospital.owner && (
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => {
-                        setHostHospital(hospital);
-                        setDepartmentName("");
-                        setPanel("department");
-                      }}
-                    >
-                      <Plus size={14} />
-                      New department
-                    </button>
-                  )}
-                </section>
-              ))}
-              <div className="workspace-actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => {
-                    setJoinCode("");
-                    setPanel("join");
-                  }}
-                >
-                  <KeyRound size={16} />
-                  Join with a code
-                </button>
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => {
-                    setHospitalName("");
-                    setDepartmentName("");
-                    setPanel("hospital");
-                  }}
-                >
-                  <Plus size={16} />
-                  Create a hospital
-                </button>
-              </div>
-            </div>
+            <HospitalList
+              hospitals={data?.hospitals ?? []}
+              currentDepartmentId={current.department?.id}
+              busy={busy}
+              onOpenDepartment={(id) => void openDepartment(id)}
+              onReveal={(hospital, id) => void revealAndCopy(hospital, id)}
+              onRotate={(hospital, id, options) =>
+                void rotate(hospital, id, options)
+              }
+              onLeaveDepartment={(id) =>
+                void (async () => {
+                  setBusy(true);
+                  setFormError(null);
+                  try {
+                    await api(`/workspaces/departments/${id}/leave`, "POST", {});
+                    if (Number(activeDepartment()) === id)
+                      setActiveDepartment(null);
+                    await client.invalidateQueries();
+                  } catch (e) {
+                    setFormError(e as Error);
+                  } finally {
+                    setBusy(false);
+                  }
+                })()
+              }
+              onLeaveHospital={(id) =>
+                void (async () => {
+                  setBusy(true);
+                  setFormError(null);
+                  try {
+                    await api(`/workspaces/hospitals/${id}/leave`, "POST", {});
+                    setActiveDepartment(null);
+                    await client.invalidateQueries();
+                  } catch (e) {
+                    setFormError(e as Error);
+                  } finally {
+                    setBusy(false);
+                  }
+                })()
+              }
+              onNewDepartment={(hospital) => {
+                setHostHospital(hospital);
+                setDepartmentName("");
+                setPanel("department");
+              }}
+              onJoin={() => {
+                setJoinCode("");
+                setPanel("join");
+              }}
+              onCreateHospital={() => {
+                setHospitalName("");
+                setDepartmentName("");
+                setPanel("hospital");
+              }}
+            />
           )}
           {panel === "join" && (
-            <form
-              className="workspace-form"
-              onSubmit={(e) => {
-                e.preventDefault();
+            <JoinForm
+              joinCode={joinCode}
+              joinHint={joinHint}
+              busy={busy}
+              onCode={setJoinCode}
+              onBack={() => setPanel("list")}
+              onJoin={() =>
                 void submit(() =>
                   api("/workspaces/join", "POST", { code: joinCode }),
-                );
-              }}
-            >
-              <p>
-                A hospital code adds hospital membership. A department code
-                opens that department as medical staff, never as an
-                administrator.
-              </p>
-              {joinHint && (
-                <p className="muted" role="status">
-                  {joinHint}
-                </p>
-              )}
-              <label>
-                Join code
-                <input
-                  autoFocus
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                  placeholder="H- or D- code"
-                  autoComplete="off"
-                />
-              </label>
-              <div className="actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPanel("list")}
-                >
-                  Back
-                </button>
-                <button className="primary" disabled={busy || !joinCode.trim()}>
-                  {busy ? "Joining…" : "Join"}
-                </button>
-              </div>
-            </form>
+                )
+              }
+            />
           )}
           {panel === "hospital" && (
-            <form
-              className="workspace-form"
-              onSubmit={(e) => {
-                e.preventDefault();
+            <CreateHospitalForm
+              hospitalName={hospitalName}
+              departmentName={departmentName}
+              busy={busy}
+              onHospitalName={setHospitalName}
+              onDepartmentName={setDepartmentName}
+              onBack={() => setPanel("list")}
+              onCreate={() =>
                 void submit(() =>
                   api("/workspaces/hospitals", "POST", {
                     name: hospitalName,
                     departmentName,
                   }),
-                );
-              }}
-            >
-              <p>
-                You become the owner of the hospital and administrator of its
-                first department.
-              </p>
-              <label>
-                Hospital name
-                <input
-                  autoFocus
-                  value={hospitalName}
-                  onChange={(e) => setHospitalName(e.target.value)}
-                  maxLength={120}
-                />
-              </label>
-              <label>
-                First department
-                <input
-                  value={departmentName}
-                  onChange={(e) => setDepartmentName(e.target.value)}
-                  maxLength={120}
-                />
-              </label>
-              <div className="actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPanel("list")}
-                >
-                  Back
-                </button>
-                <button
-                  className="primary"
-                  disabled={
-                    busy || !hospitalName.trim() || !departmentName.trim()
-                  }
-                >
-                  {busy ? "Creating…" : "Create hospital"}
-                </button>
-              </div>
-            </form>
+                )
+              }
+            />
           )}
           {panel === "department" && hostHospital && (
-            <form
-              className="workspace-form"
-              onSubmit={(e) => {
-                e.preventDefault();
+            <CreateDepartmentForm
+              hostHospital={hostHospital}
+              departmentName={departmentName}
+              busy={busy}
+              onDepartmentName={setDepartmentName}
+              onBack={() => setPanel("list")}
+              onCreate={() =>
                 void submit(() =>
                   api(
                     `/workspaces/hospitals/${hostHospital.id}/departments`,
                     "POST",
                     { name: departmentName },
                   ),
-                );
-              }}
-            >
-              <p>
-                This department is added to {hostHospital.name}. You administer
-                it.
-              </p>
-              <label>
-                Department name
-                <input
-                  autoFocus
-                  value={departmentName}
-                  onChange={(e) => setDepartmentName(e.target.value)}
-                  maxLength={120}
-                />
-              </label>
-              <div className="actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPanel("list")}
-                >
-                  Back
-                </button>
-                <button
-                  className="primary"
-                  disabled={busy || !departmentName.trim()}
-                >
-                  {busy ? "Creating…" : "Create department"}
-                </button>
-              </div>
-            </form>
+                )
+              }
+            />
           )}
         </Modal>
       )}

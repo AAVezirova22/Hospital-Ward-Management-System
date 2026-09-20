@@ -1,5 +1,5 @@
 "use client";
-import { BedDouble, ArrowRight, Activity } from "lucide-react";
+import { BedDouble, ArrowRight, Activity } from "../../icons";
 import { Fragment } from "react";
 import type { AdmissionView, RoomCapacity } from "../../api/contracts";
 import { projectRooms, type PlannedTransfer } from "./model";

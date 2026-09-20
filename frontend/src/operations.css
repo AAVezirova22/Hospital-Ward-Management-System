@@ -116,9 +116,6 @@
     color: var(--accent-ink);
     box-shadow: 0 6px 25px #0c241840;
   }
-  .workspace main {
-    padding-bottom: 90px;
-  }
   .assistant-dialog {
     width: calc(100vw - 20px) !important;
     max-height: calc(100dvh - 24px) !important;

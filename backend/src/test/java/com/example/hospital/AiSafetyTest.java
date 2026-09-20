@@ -25,13 +25,13 @@ class AiSafetyTest {
     hospital = mock(HospitalService.class);
     actions = mock(AiActionService.class);
     var u = new AppUser();
-    u.id = 1L;
-    u.username = "test";
-    u.role = "DOCTOR";
-    u.doctorId = 1L;
+    u.setId(1L);
+    u.setUsername("test");
+    u.setRole("DOCTOR");
+    u.setDoctorId(1L);
     when(actor.user()).thenReturn(u);
     when(actor.doctor()).thenReturn(true);
-    registry = new AiToolRegistry(hospital, actions, actor, mock(WorkspaceService.class));
+    registry = new AiToolRegistry(hospital, mock(ReportService.class), actions, actor, mock(WorkspaceService.class));
   }
 
   @Test
@@ -73,6 +73,23 @@ class AiSafetyTest {
   }
 
   @Test
+  void malformedNumericToolArgumentsAreInvalidToolCalls() {
+    for (var call :
+        List.of(
+            new AiModelClient.ToolCall("getAvailableRooms", Map.of("minimumFreeBeds", "two")),
+            new AiModelClient.ToolCall("getAdmission", Map.of("admissionId", "not-a-number")),
+            new AiModelClient.ToolCall(
+                "getAdmissions", Map.of("from", "not-a-date", "to", "2026-01-01")),
+            new AiModelClient.ToolCall("getAdmissions", Map.of("to", "2026-01-01")))) {
+      assertThatThrownBy(() -> registry.execute(call, null))
+          .isInstanceOf(ApiException.class)
+          .extracting("code")
+          .isEqualTo("INVALID_TOOL_CALL");
+    }
+    verifyNoInteractions(hospital, actions);
+  }
+
+  @Test
   void modelFailureIsStructuredAndRateLimitOnlyAffectsAssistant() {
     var model =
         new AiModelClient() {
@@ -89,21 +106,26 @@ class AiSafetyTest {
         .thenAnswer(
             i -> {
               AiSession s = i.getArgument(0);
-              s.id = 1L;
+              s.setId(1L);
               return s;
             });
     var interactions = mock(AiInteractionRepository.class);
+    var rates = mock(RateLimitService.class);
+    doNothing()
+        .doThrow(new ApiException(429, "AI_RATE_LIMIT", "Wait"))
+        .when(rates)
+        .hit(any(), anyInt(), any(), any(), any());
     var service =
         new AiAssistantService(
-            model, registry, sessions, interactions, actor, hospital, mock(AuditService.class), 1);
+            model, registry, sessions, interactions, actor, hospital, mock(AuditService.class), rates, 1);
     var response = service.message(new MessageInput(null, "status", "/app/dashboard", null));
     assertThat(response.responseType()).isEqualTo("ERROR");
     assertThat(response.message()).contains("standard hospital screens remain available");
     verify(interactions)
         .save(
-            argThat(i -> i.status.equals("FAILED") && i.modelIdentifier.equals("failure-fixture")));
+            argThat(i -> i.getStatus().equals("FAILED") && i.getModelIdentifier().equals("failure-fixture")));
     assertThatThrownBy(() -> service.message(new MessageInput(null, "status", null, null)))
-        .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status).isEqualTo(429));
+        .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getStatus()).isEqualTo(429));
     verifyNoInteractions(hospital);
   }
 }

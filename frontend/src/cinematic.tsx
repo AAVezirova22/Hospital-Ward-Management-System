@@ -15,12 +15,8 @@ import {
   AnimatePresence,
   MotionConfig,
   useInView,
-  useMotionValue,
-  useSpring,
-  useScroll,
-  useTransform,
 } from "motion/react";
-import { Activity, ArrowUpRight, Moon, Sun, Pause, Play } from "lucide-react";
+import { Activity, ArrowUpRight, Moon, Sun, Pause, Play } from "./icons";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 const Clouds = dynamic(() => import("./vendor/canvasui/Clouds"), {
@@ -176,8 +172,7 @@ export function SceneTransition({
         <motion.div
           key={scene}
           className="scene-content"
-          style={{ originX: 0 }}
-          initial={enabled ? { opacity: 0, x: -16, scale: 0.992 } : false}
+          initial={false}
           animate={{ opacity: 1, x: 0, scale: 1 }}
           exit={enabled ? { opacity: 0, x: -8, scale: 0.996 } : undefined}
           transition={
@@ -264,136 +259,28 @@ export function MagneticButton({
   className?: string;
 }) {
   const reduced = !useContext(CinemaContext).enabled;
-  const x = useMotionValue(0),
-    y = useMotionValue(0);
-  const sx = useSpring(x, { stiffness: 250, damping: 22 });
-  const sy = useSpring(y, { stiffness: 250, damping: 22 });
+  const magnet = useRef<HTMLButtonElement>(null);
   return (
-    <motion.button
+    <button
+      ref={magnet}
       className={className}
       onClick={onClick}
-      style={{ x: reduced ? 0 : sx, y: reduced ? 0 : sy }}
-      whileTap={reduced ? undefined : { scale: 0.97 }}
       onPointerMove={(event) => {
-        if (reduced || event.pointerType !== "mouse") return;
+        if (reduced || event.pointerType !== "mouse" || !magnet.current) return;
         const bounds = event.currentTarget.getBoundingClientRect();
-        x.set((event.clientX - bounds.left - bounds.width / 2) * 0.07);
-        y.set((event.clientY - bounds.top - bounds.height / 2) * 0.12);
+        const x = (event.clientX - bounds.left - bounds.width / 2) * 0.07;
+        const y = (event.clientY - bounds.top - bounds.height / 2) * 0.12;
+        magnet.current.style.transform = `translate(${x}px, ${y}px)`;
       }}
       onPointerLeave={() => {
-        x.set(0);
-        y.set(0);
+        if (magnet.current) magnet.current.style.transform = "";
       }}
     >
       {children}
       <span className="button-icon">
         <ArrowUpRight size={17} />
       </span>
-    </motion.button>
+    </button>
   );
 }
 
-export function LoginScene({ children }: { children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const reduced = !useContext(CinemaContext).enabled;
-  const pointerX = useMotionValue(0),
-    pointerY = useMotionValue(0);
-  const cameraX = useSpring(pointerX, { stiffness: 45, damping: 25 });
-  const cameraY = useSpring(pointerY, { stiffness: 45, damping: 25 });
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start start", "end start"],
-  });
-  const y = useTransform(scrollYProgress, [0, 1], [0, 80]);
-  return (
-    <div className="login-scene" ref={ref}>
-      <a className="skip-link" href="#sign-in">
-        Skip to sign in
-      </a>
-      <header className="login-nav">
-        <a className="brand" href="/" aria-label="Medcore home">
-          <span className="brandmark">
-            <Activity size={23} strokeWidth={1.5} />
-          </span>
-          medcore<span className="brand-dot">®</span>
-        </a>
-        <div>
-          <span>Hospital operations</span>
-          <MotionToggle />
-          <ThemeToggle />
-        </div>
-      </header>
-      <main className="login-stage">
-        <section
-          className="login-visual"
-          aria-label="Your connected department"
-          onPointerMove={(event) => {
-            if (reduced || event.pointerType !== "mouse") return;
-            const bounds = event.currentTarget.getBoundingClientRect();
-            pointerX.set(
-              ((event.clientX - bounds.left) / bounds.width - 0.5) * -20,
-            );
-            pointerY.set(
-              ((event.clientY - bounds.top) / bounds.height - 0.5) * -14,
-            );
-          }}
-          onPointerLeave={() => {
-            pointerX.set(0);
-            pointerY.set(0);
-          }}
-        >
-          <motion.div
-            className="cinema-camera"
-            style={{ x: reduced ? 0 : cameraX, y: reduced ? 0 : cameraY }}
-          >
-            <motion.div
-              className="atrium-image"
-              style={{ y: reduced ? 0 : y }}
-            />
-          </motion.div>
-          <Atmosphere />
-          <div className="atrium-shade" />
-          <div className="cinema-grain" aria-hidden="true" />
-          <div className="scene-heading" aria-hidden="true">
-            <span>MEDCORE / A CONNECTED VIEW</span>
-            <span className="scene-rule" />
-          </div>
-          <div className="cinema-aperture aperture-top" aria-hidden="true" />
-          <div className="cinema-aperture aperture-bottom" aria-hidden="true" />
-          <div className="login-story">
-            <Reveal>
-              <span className="story-kicker">Clarity at every handover</span>
-            </Reveal>
-            <Reveal delay={0.12}>
-              <h1 aria-label="Space to focus. Room to care.">
-                <span className="title-mask" aria-hidden="true">
-                  <span className="title-line">Space to focus.</span>
-                </span>
-                <span className="title-mask title-accent" aria-hidden="true">
-                  <span className="title-line">Room to care.</span>
-                </span>
-              </h1>
-            </Reveal>
-            <Reveal delay={0.24}>
-              <p>
-                Your people, capacity and care operations.
-                <br />
-                Together in one considered workspace.
-              </p>
-            </Reveal>
-          </div>
-          <Reveal className="login-visual-caption" delay={0.4}>
-            <span>Built around your department.</span>
-            <Activity size={24} strokeWidth={1} />
-          </Reveal>
-        </section>
-        <section className="login-access" id="sign-in" aria-label="Sign in">
-          <Reveal className="login-form-wrap" delay={0.3}>
-            {children}
-          </Reveal>
-          <p className="access-caption">A connected view. A better day.</p>
-        </section>
-      </main>
-    </div>
-  );
-}

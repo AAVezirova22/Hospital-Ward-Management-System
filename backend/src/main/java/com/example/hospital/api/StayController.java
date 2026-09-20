@@ -1,6 +1,6 @@
 package com.example.hospital.api;
 
-import com.example.hospital.service.HospitalService;
+import com.example.hospital.service.StayService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -8,36 +8,36 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1")
 public class StayController {
-  private final HospitalService hospital;
+  private final StayService stays;
 
-  public StayController(HospitalService hospital) {
-    this.hospital = hospital;
+  public StayController(StayService stays) {
+    this.stays = stays;
   }
 
   @GetMapping("/admissions")
   public Object admissions() {
-    return hospital.admissions().stream().map(hospital::admissionView).toList();
+    return stays.list().stream().map(stays::view).toList();
   }
 
   @GetMapping("/admissions/{id}")
   public Object admission(@PathVariable Long id) {
-    return hospital.admissionView(hospital.admission(id));
+    return stays.view(id);
   }
 
   @PostMapping("/admissions")
   @ResponseStatus(HttpStatus.CREATED)
   public Object admit(@Valid @RequestBody AdmissionInput in) {
-    return hospital.admit(in, "UI");
+    return stays.admit(in);
   }
 
   @PostMapping("/admissions/{id}/transfer")
   public Object transfer(@PathVariable Long id, @Valid @RequestBody TransferInput in) {
-    return hospital.transfer(id, in, "UI");
+    return stays.transfer(id, in);
   }
 
   @PostMapping("/admissions/{id}/discharge")
   public Object discharge(@PathVariable Long id, @Valid @RequestBody DischargeInput in) {
-    return hospital.discharge(id, in.version(), "UI");
+    return stays.discharge(id, in);
   }
 
   public record DoctorChange(
@@ -46,12 +46,12 @@ public class StayController {
 
   @PostMapping("/admissions/{id}/doctor")
   public Object doctor(@PathVariable Long id, @Valid @RequestBody DoctorChange in) {
-    return hospital.changeDoctor(id, in.doctorId(), in.version());
+    return stays.changeDoctor(id, in.doctorId(), in.version());
   }
 
   @PostMapping("/admissions/{id}/procedures")
   @ResponseStatus(HttpStatus.CREATED)
   public Object record(@PathVariable Long id, @Valid @RequestBody RecordProcedureInput in) {
-    return hospital.recordProcedure(id, in);
+    return stays.recordProcedure(id, in);
   }
 }

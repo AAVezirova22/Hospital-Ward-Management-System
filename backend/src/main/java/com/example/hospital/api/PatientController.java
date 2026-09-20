@@ -28,11 +28,11 @@ public class PatientController {
   @PostMapping("/patients")
   @ResponseStatus(HttpStatus.CREATED)
   public Object addPatient(@Valid @RequestBody PatientInput in) {
-    return patients.save(null, in);
+    return Views.patient(patients.save(null, in));
   }
 
   @PutMapping("/patients/{id}")
   public Object editPatient(@PathVariable Long id, @Valid @RequestBody PatientInput in) {
-    return patients.save(id, in);
+    return Views.patient(patients.save(id, in));
   }
 }
