@@ -432,6 +432,11 @@ button.workspace-switcher[aria-expanded="true"] {
   margin: 8px 0 0;
   overflow-wrap: anywhere;
 }
+.workspace-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
 .nav-label {
   color: var(--muted);
   font-size: 8px;
