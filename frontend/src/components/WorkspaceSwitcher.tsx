@@ -88,6 +88,12 @@ export function WorkspaceSwitcher() {
   };
 
   const rotate = async (hospital: boolean, id: number) => {
+    if (
+      !window.confirm(
+        "Replace this join code? The previous code will stop working immediately.",
+      )
+    )
+      return;
     setBusy(true);
     setFormError(null);
     try {
