@@ -2,7 +2,7 @@ package com.example.hospital;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.getStatus();
 
 import java.time.Instant;
 import java.util.Map;
@@ -74,7 +74,7 @@ class HospitalProcedureTest extends HospitalSupport {
     assertThat(report.get("totalCost").decimalValue()).isEqualByComparingTo("42.50");
     var summary = ai("doctor", "summary", p.get("id").asLong());
     assertThat(summary.get("responseType").asText()).isEqualTo("PATIENT_SUMMARY");
-    assertThat(users.findByUsername("doctor").orElseThrow().role).isEqualTo("DOCTOR");
+    assertThat(users.findByUsername("doctor").orElseThrow().getRole()).isEqualTo("DOCTOR");
     request(
             "doctor",
             "GET",
