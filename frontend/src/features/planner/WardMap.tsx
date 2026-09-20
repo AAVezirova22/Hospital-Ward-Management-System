@@ -47,7 +47,8 @@ export function WardMap({
           const occupants = admissions.filter(
             (a) =>
               a.admission.status === "ACTIVE" &&
-              a.assignment?.roomId === room.id,
+              (plan.find((p) => p.admissionId === a.admission.id)?.toRoomId ??
+                a.assignment?.roomId) === room.id,
           );
           return (
             <Fragment key={room.id}>
@@ -119,7 +120,9 @@ export function WardMap({
                   </button>
                 ))}
                 {Array.from(
-                  { length: Math.max(0, room.occupiedBeds - occupants.length) },
+                  {
+                    length: Math.max(0, room.projectedBeds - occupants.length),
+                  },
                   (_, i) => (
                     <div
                       className="ward-patient restricted"
@@ -131,7 +134,7 @@ export function WardMap({
                   ),
                 )}
                 {Array.from(
-                  { length: Math.max(0, room.availableBeds) },
+                  { length: Math.max(0, room.bedCount - room.projectedBeds) },
                   (_, i) => (
                     <button
                       type="button"
