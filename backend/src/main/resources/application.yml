@@ -1,0 +1,41 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/hospital}
+    username: ${DATABASE_USER:hospital}
+    password: ${DATABASE_PASSWORD:hospital-local-only}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+      accept-float-as-int: false
+server:
+  port: ${PORT:8080}
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        http-only: true
+        same-site: strict
+        secure: ${COOKIE_SECURE:true}
+  error:
+    include-message: never
+app:
+  seed: ${DEMO_SEED:true}
+  bootstrap-password: ${BOOTSTRAP_PASSWORD:}
+  ai:
+    mode: ${AI_MODE:local}
+    url: ${AI_URL:}
+    key: ${AI_API_KEY:}
+    model: ${AI_MODEL:}
+    timeout-seconds: 15
+    rate-limit: 20
+    action-ttl-seconds: 300
+
+logging:
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF

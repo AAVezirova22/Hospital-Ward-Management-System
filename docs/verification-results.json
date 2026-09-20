@@ -1,0 +1,270 @@
+{
+  "date": "2026-09-19",
+  "record_scope": "Supplied pre-conversion baseline; see verification.md for checks executed after the Next.js and WAR conversion.",
+  "database_engine": "PGlite 0.5.8 / PostgreSQL 18.3; one JDBC connection",
+  "native_postgresql_run": false,
+  "live_external_provider_run": false,
+  "backend_suites": [
+    {
+      "name": "com.example.hospital.AiModelTest",
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[1]",
+          "seconds": 0.008,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[2]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[3]",
+          "seconds": 0.002,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[4]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[5]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[6]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[7]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[8]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[9]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[10]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[11]",
+          "seconds": 0.024,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[12]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[13]",
+          "seconds": 0.001,
+          "passed": true
+        },
+        {
+          "name": "evaluationPromptsChooseExpectedTool(String, String)[14]",
+          "seconds": 0.0,
+          "passed": true
+        },
+        {
+          "name": "externalProviderContractAndMalformedOutput",
+          "seconds": 0.221,
+          "passed": true
+        },
+        {
+          "name": "extractsTransferAndMinimumBeds",
+          "seconds": 0.005,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "com.example.hospital.AiSafetyTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "hiddenPrepareToolIsStillDeniedServerSide",
+          "seconds": 0.261,
+          "passed": true
+        },
+        {
+          "name": "invalidNavigationCannotExecuteScriptOrArbitraryUrl",
+          "seconds": 0.004,
+          "passed": true
+        },
+        {
+          "name": "forbiddenToolsAndUnknownArgumentsNeverReachBusinessServices",
+          "seconds": 0.002,
+          "passed": true
+        },
+        {
+          "name": "modelFailureIsStructuredAndRateLimitOnlyAffectsAssistant",
+          "seconds": 0.161,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "com.example.hospital.HospitalIntegrationTest",
+      "tests": 25,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "disablingUserRevokesExistingAuthentication",
+          "seconds": 11.633,
+          "passed": true
+        },
+        {
+          "name": "reportsRejectInvertedPeriodsAndCoverCapacityCensus",
+          "seconds": 0.268,
+          "passed": true
+        },
+        {
+          "name": "manualTransferMakesPreviousAiProposalStale",
+          "seconds": 0.452,
+          "passed": true
+        },
+        {
+          "name": "twoConcurrentAdmissionsCannotOverbookLastBed",
+          "seconds": 0.116,
+          "passed": true
+        },
+        {
+          "name": "staleTransferAndSameRoomAreRejectedWithoutLosingBed",
+          "seconds": 0.112,
+          "passed": true
+        },
+        {
+          "name": "fractionalBedCountsCannotBeSilentlyTruncated",
+          "seconds": 0.016,
+          "passed": true
+        },
+        {
+          "name": "aiAdmissionIsOnlyCreatedAfterConfirmation",
+          "seconds": 0.277,
+          "passed": true
+        },
+        {
+          "name": "staffAndDoctorsCannotAdministerUsersOrCatalogue",
+          "seconds": 0.067,
+          "passed": true
+        },
+        {
+          "name": "capacityCannotBeReducedBelowOccupancy",
+          "seconds": 0.17,
+          "passed": true
+        },
+        {
+          "name": "procedurePricesAreSnapshotsAndReportsAreDeterministic",
+          "seconds": 0.333,
+          "passed": true
+        },
+        {
+          "name": "aiSessionsArePrivateAndWriteToolsRespectRoles",
+          "seconds": 0.134,
+          "passed": true
+        },
+        {
+          "name": "procedureOutsideAdmissionOrDifferentDoctorIsRejected",
+          "seconds": 0.084,
+          "passed": true
+        },
+        {
+          "name": "validationAndUniqueIdentifiers",
+          "seconds": 0.052,
+          "passed": true
+        },
+        {
+          "name": "roleChangeBetweenProposalAndConfirmationIsRechecked",
+          "seconds": 0.537,
+          "passed": true
+        },
+        {
+          "name": "actualLoginLogoutAndPasswordHashing",
+          "seconds": 1.153,
+          "passed": true
+        },
+        {
+          "name": "staleCapacityAtAiConfirmationIsRejected",
+          "seconds": 0.246,
+          "passed": true
+        },
+        {
+          "name": "auditTrailContainsActionsWithoutNotesOrPasswords",
+          "seconds": 0.036,
+          "passed": true
+        },
+        {
+          "name": "admissionTransferAndDischargeReleaseCapacity",
+          "seconds": 0.142,
+          "passed": true
+        },
+        {
+          "name": "aiPreparationDoesNotMutateUntilOwnerConfirms",
+          "seconds": 0.248,
+          "passed": true
+        },
+        {
+          "name": "fullRoomsAndDuplicateActiveAdmissionsAreRejected",
+          "seconds": 0.117,
+          "passed": true
+        },
+        {
+          "name": "expiredAndCancelledActionsCannotExecute",
+          "seconds": 0.254,
+          "passed": true
+        },
+        {
+          "name": "doctorReassignmentUpdatesAccessAndInactiveRoomsRejectPlacement",
+          "seconds": 0.153,
+          "passed": true
+        },
+        {
+          "name": "authenticationAndCsrfAreRequired",
+          "seconds": 0.035,
+          "passed": true
+        },
+        {
+          "name": "doctorsSeeOnlyAssignedPatientsAndAdmissions",
+          "seconds": 0.131,
+          "passed": true
+        },
+        {
+          "name": "selfLockoutAndUnlinkedDoctorAreRejected",
+          "seconds": 0.025,
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "frontend_contract_tests": {
+    "passed": 6,
+    "failed": 0
+  },
+  "browser_tests": {
+    "passed": 6,
+    "failed": 0,
+    "target": "supplied pre-conversion production bundle + live Spring Boot API"
+  }
+}

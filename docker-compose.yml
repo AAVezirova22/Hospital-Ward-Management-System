@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: hospital
+      POSTGRES_USER: hospital
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in .env}
+    volumes:
+      - hospital-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hospital -d hospital"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  backend:
+    build: ./backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 6
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/hospital
+      DATABASE_USER: hospital
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD}
+      BOOTSTRAP_PASSWORD: ${BOOTSTRAP_PASSWORD:?Set BOOTSTRAP_PASSWORD}
+      DEMO_SEED: ${DEMO_SEED:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      AI_MODE: ${AI_MODE:-local}
+      AI_URL: ${AI_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    build: ./frontend
+    environment:
+      API_INTERNAL_URL: http://backend:8080
+    ports:
+      - "127.0.0.1:8088:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+volumes:
+  hospital-data:
