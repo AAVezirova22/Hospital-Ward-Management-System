@@ -46,6 +46,9 @@ public class RegistrationService {
     if (password.length() < 12 || password.getBytes(StandardCharsets.UTF_8).length > 72)
       throw new ApiException(400,"PASSWORD_LENGTH","Use at least 12 characters and at most 72 UTF-8 bytes.");
     lock.acquire();
+    com.example.hospital.security.DepartmentContext.set(
+        new com.example.hospital.security.DepartmentContext.Scope(1L, "PATIENT", null));
+    try {
     String normalized = address.trim().toLowerCase(Locale.ROOT);
     if (users.findByUsername(username).isPresent() || Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from app_users where email = ?",Boolean.class,normalized)))
       throw ApiException.conflict("ACCOUNT_EXISTS","An account with these details already exists. Sign in or request a new confirmation.");
@@ -54,6 +57,9 @@ public class RegistrationService {
     var u = new AppUser(); u.username=username; u.email=normalized; u.passwordHash=encoder.encode(password);
     u.role="PATIENT"; u.requestedRole=requestedRole; u.enabled=false; u.patientId=patient.id; users.saveAndFlush(u);
     issue(u,first);
+    } finally {
+      com.example.hospital.security.DepartmentContext.clear();
+    }
   }
   private void issue(AppUser user,String first) {
     byte[] bytes = new byte[32]; new SecureRandom().nextBytes(bytes);
