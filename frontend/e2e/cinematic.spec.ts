@@ -121,7 +121,7 @@ test("animated workspace navigation stays usable when the AI provider is unavail
   expect((await sidebar.boundingBox())!.y).toBeCloseTo(originalTop, 0);
   await page.getByRole("link", { name: "Patients", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Patients", exact: true }),
+    page.getByRole("heading", { name: "People at the center.", exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Overview", exact: true }).click();
   await expect(
