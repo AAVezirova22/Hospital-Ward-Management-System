@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { OverviewHero } from "../../cinematic";
+import { OverviewHero } from "../../cinematic-overview";
 import { Title, useUser } from "../../components/workspace";
 import { WorkspaceSwitcher } from "../../components/WorkspaceSwitcher";
 import { SystemHealth } from "../../components/SystemHealth";

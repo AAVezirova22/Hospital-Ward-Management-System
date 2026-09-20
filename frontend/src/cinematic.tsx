@@ -107,7 +107,7 @@ export function MotionToggle() {
 }
 
 /** Only the artwork gets GPU treatment; no clinical text is captured or distorted. */
-function Atmosphere() {
+export function Atmosphere() {
   const { enabled } = useContext(CinemaContext);
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref);
@@ -395,21 +395,5 @@ export function LoginScene({ children }: { children: ReactNode }) {
         </section>
       </main>
     </div>
-  );
-}
-
-export function OverviewHero({ children }: { children: ReactNode }) {
-  return (
-    <Reveal className="overview-hero">
-      <div className="overview-hero-image" aria-hidden="true" />
-      <Atmosphere />
-      <div className="cinema-grain" aria-hidden="true" />
-      <div className="overview-hero-copy">{children}</div>
-      <div className="overview-hero-caption">
-        Made for the people
-        <br />
-        who care for people.
-      </div>
-    </Reveal>
   );
 }
