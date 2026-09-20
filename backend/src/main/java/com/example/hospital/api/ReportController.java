@@ -1,6 +1,5 @@
 package com.example.hospital.api;
 
-import com.example.hospital.service.HospitalService;
 import com.example.hospital.service.ReportService;
 import java.time.LocalDate;
 import java.util.List;
@@ -12,11 +11,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/reports")
 public class ReportController {
   private final ReportService reports;
-  private final HospitalService hospital;
 
-  public ReportController(ReportService reports, HospitalService hospital) {
+  public ReportController(ReportService reports) {
     this.reports = reports;
-    this.hospital = hospital;
   }
 
   @GetMapping("/dashboard")
@@ -32,7 +29,7 @@ public class ReportController {
 
   @GetMapping("/capacity")
   public Object capacity() {
-    return hospital.rooms(0);
+    return reports.capacity();
   }
 
   @GetMapping("/procedures")
