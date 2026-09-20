@@ -332,15 +332,14 @@ function Shell({
     };
   }, []);
   useEffect(() => setMobile(false), [pathname]);
+  const presentation = pathname === "/app/presentation";
   return (
-    <div
-      className={
-        "app " + (pathname === "/app/presentation" ? "presentation-mode" : "")
-      }
-    >
-      <a className="skip-link" href="#workspace-content">
-        Skip to workspace
-      </a>
+    <div className={"app " + (presentation ? "presentation-mode" : "")}>
+      {!presentation && (
+        <a className="skip-link" href="#workspace-content">
+          Skip to workspace
+        </a>
+      )}
       {mobile && (
         <button
           className="mobile-scrim"
@@ -348,7 +347,12 @@ function Shell({
           onClick={() => setMobile(false)}
         />
       )}
-      <aside className={"sidebar " + (mobile ? "mobile-open" : "")}>
+      <aside
+        className={"sidebar " + (mobile ? "mobile-open" : "")}
+        inert={presentation ? true : undefined}
+        aria-hidden={presentation}
+        hidden={presentation}
+      >
         <Link to="/app/dashboard" className="brand">
           <span className="brandmark">
             <Activity size={21} />
@@ -406,7 +410,12 @@ function Shell({
         </div>
       </aside>
       <div className="workspace">
-        <header className="topbar">
+        <header
+          className="topbar"
+          inert={presentation ? true : undefined}
+          aria-hidden={presentation}
+          hidden={presentation}
+        >
           <div>
             <button
               className="icon mobile-menu"
