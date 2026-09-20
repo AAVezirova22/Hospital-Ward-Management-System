@@ -32,7 +32,7 @@ export function BedDrawer({
         onCancel={onClose}
       >
         <div className="modal-title">
-          <span className="eyebrow">CURRENT PLACEMENT</span>
+          <span className="eyebrow">Current placement</span>
           <button
             className="icon"
             aria-label="Close patient details"
