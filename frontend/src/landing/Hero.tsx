@@ -1,21 +1,46 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { ArrowRight, CaretDown } from "@phosphor-icons/react";
 import { FilmMedia } from "./FilmMedia";
-import { clip, still } from "./media";
-import { Mist } from "./Mist";
+import { still } from "./media";
+import { useGpuScene } from "./gpu";
+
+const Liquid = dynamic(() => import("../vendor/canvasui/Liquid"), {
+  ssr: false,
+});
 
 export function Hero() {
+  const gpu = useGpuScene();
+  const photo = (
+    <FilmMedia
+      still={still("hero")}
+      alt="A doctor walking a quiet hospital corridor at sunrise"
+      priority
+    />
+  );
   return (
     <section className="film-hero" id="care" aria-label="Medcore">
-      <FilmMedia
-        still={still("hero")}
-        video={clip("hero")}
-        alt="A doctor walking a quiet hospital corridor at sunrise"
-        priority
-      />
+      {gpu ? (
+        <Liquid
+          className="film-hero-gpu"
+          style={{ position: "absolute", inset: 0 }}
+          color={[0.36, 0.53, 0.63]}
+          rainbow={false}
+          force={0.55}
+          radius={0.42}
+          curl={1.1}
+          intensity={0.55}
+          distortion={0.18}
+          blend={1.4}
+          densityDissipation={0.98}
+        >
+          {photo}
+        </Liquid>
+      ) : (
+        photo
+      )}
       <div className="film-hero-shade" />
-      <Mist />
       <div className="film-hero-copy">
         <h1>
           <span className="film-title-line">Advanced care.</span>
