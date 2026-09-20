@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "../../icons";
 import { api, fullName } from "../../api";
 import type { AdmissionView, ArrivalPlan, RoomCapacity } from "../../api/contracts";
 
