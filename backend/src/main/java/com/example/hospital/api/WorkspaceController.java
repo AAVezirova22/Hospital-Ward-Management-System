@@ -27,7 +27,8 @@ public class WorkspaceController {
   }
   @PostMapping("/hospitals/{id}/departments") @ResponseStatus(HttpStatus.CREATED)
   public Object department(@PathVariable long id, @Valid @RequestBody DepartmentInput input) {
-    return Map.of("hospitalId", id, "departmentId", workspaces.createDepartment(id, input.name()));
+    var created = workspaces.createDepartment(id, input.name());
+    return Map.of("hospitalId", id, "departmentId", created.get("departmentId"), "joinCode", created.get("joinCode"));
   }
   @PostMapping("/join")
   public Object join(@Valid @RequestBody JoinInput input, HttpServletRequest request) {

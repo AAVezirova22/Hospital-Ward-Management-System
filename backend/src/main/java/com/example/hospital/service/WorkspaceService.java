@@ -63,19 +63,25 @@ public class WorkspaceService {
       throw ApiException.conflict("HOSPITAL_NAME_TAKEN", "A hospital with this name already exists.");
     long id = jdbc.queryForObject("insert into hospitals(name,join_code) values (?,?) returning id", Long.class, hospital, code("H-"));
     jdbc.update("insert into hospital_memberships(hospital_id,user_id,owner) values (?,?,true)", id, actor.user().id);
-    long departmentId = createDepartment(id, departmentName);
+    var department = createDepartment(id, departmentName);
     audit.log("HOSPITAL_CREATED", "Hospital", id, "UI");
-    return Map.of("hospitalId", id, "departmentId", departmentId);
+    String hospitalCode = jdbc.queryForObject("select join_code from hospitals where id=?", String.class, id);
+    return Map.of(
+        "hospitalId", id,
+        "departmentId", department.get("departmentId"),
+        "hospitalCode", hospitalCode,
+        "departmentCode", department.get("joinCode"));
   }
 
   @Transactional
-  public long createDepartment(long hospitalId, String departmentName) {
+  public Map<String, Object> createDepartment(long hospitalId, String departmentName) {
     owner(hospitalId);
     long id = jdbc.queryForObject("insert into departments(hospital_id,name,join_code) values (?,?,?) returning id", Long.class, hospitalId, name(departmentName), code("D-"));
     jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'ADMIN')", id, actor.user().id);
     jdbc.update("insert into workflow_lock(id) values (?) on conflict do nothing", id);
     audit.log("DEPARTMENT_CREATED", "Department", id, "UI");
-    return id;
+    String joinCode = jdbc.queryForObject("select join_code from departments where id=?", String.class, id);
+    return Map.of("departmentId", id, "joinCode", joinCode);
   }
 
   @Transactional
