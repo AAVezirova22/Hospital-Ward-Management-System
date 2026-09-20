@@ -12,6 +12,7 @@ import {
 import dynamic from "next/dynamic";
 import {
   motion,
+  AnimatePresence,
   MotionConfig,
   useInView,
   useMotionValue,
@@ -171,18 +172,23 @@ export function SceneTransition({
   const { enabled } = useContext(CinemaContext);
   return (
     <WorkspaceSceneContext.Provider value={true}>
-      <motion.div
-        key={scene}
-        className="scene-content"
-        initial={enabled ? { opacity: 0, x: 18 } : false}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{
-          duration: enabled ? 0.32 : 0,
-          ease,
-        }}
-      >
-        {children}
-      </motion.div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={scene}
+          className="scene-content"
+          style={{ originX: 0 }}
+          initial={enabled ? { opacity: 0, x: -28, scale: 0.985 } : false}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          exit={enabled ? { opacity: 0, x: -16, scale: 0.992 } : undefined}
+          transition={
+            enabled
+              ? { type: "spring", stiffness: 280, damping: 34, mass: 0.72 }
+              : { duration: 0 }
+          }
+        >
+          {children}
+        </motion.div>
+      </AnimatePresence>
     </WorkspaceSceneContext.Provider>
   );
 }

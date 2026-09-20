@@ -9,6 +9,27 @@ export type User = {
   emailVerified?: boolean;
 };
 let csrf: { token: string; headerName: string } | null = null;
+let departmentId: string | null = null;
+const DEPARTMENT_KEY = "medcore-department";
+
+export function activeDepartment() {
+  if (departmentId != null) return departmentId;
+  try {
+    departmentId = localStorage.getItem(DEPARTMENT_KEY);
+  } catch {}
+  return departmentId;
+}
+
+export function setActiveDepartment(id: string | number | null) {
+  departmentId = id == null ? null : String(id);
+  try {
+    if (departmentId) localStorage.setItem(DEPARTMENT_KEY, departmentId);
+    else localStorage.removeItem(DEPARTMENT_KEY);
+  } catch {}
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("workspace-changed"));
+  }
+}
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -56,6 +77,8 @@ export async function api<T = any>(
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = {};
+  const department = activeDepartment();
+  if (department) headers["X-Department-Id"] = department;
   if (method !== "GET") {
     const t = csrf || (await token());
     headers[t.headerName] = t.token;
@@ -72,6 +95,14 @@ export async function api<T = any>(
     if (r.status === 401) {
       csrf = null;
       window.dispatchEvent(new Event("session-expired"));
+    }
+    if (
+      r.status === 403 &&
+      e.code === "DEPARTMENT_ACCESS_DENIED" &&
+      department
+    ) {
+      setActiveDepartment(null);
+      return api(path, method, body);
     }
     throw new ApiError(
       r.status,
@@ -98,7 +129,16 @@ export async function api<T = any>(
             ? "Confirmed action completed"
             : path.endsWith("/cancel")
               ? "Proposal cancelled"
-              : "Changes saved";
+              : path === "/workspaces/join"
+                ? "Workspace joined"
+                : path === "/workspaces/hospitals"
+                  ? "Hospital created"
+                  : path.includes("/workspaces/hospitals/") &&
+                      path.endsWith("/departments")
+                    ? "Department created"
+                    : path.endsWith("/code")
+                      ? "Join code replaced"
+                      : "Changes saved";
     window.dispatchEvent(new CustomEvent("saved", { detail: message }));
   }
   return result;
@@ -127,7 +167,11 @@ export async function login(username: string, password: string): Promise<User> {
   const user = await r.json();
   csrf = null;
   await token();
-  return user;
+  try {
+    return await api<User>("/auth/me");
+  } catch {
+    return user;
+  }
 }
 export async function logout() {
   await api("/auth/logout", "POST");

@@ -38,6 +38,8 @@ erDiagram
 
 JPA models use scalar foreign-key identifiers to avoid accidental recursive entity serialization; PostgreSQL foreign keys enforce the relationships. All domain records have identity, creation/update timestamps and an optimistic `version`. Historical records cannot silently lose referenced catalogue entries. Catalogue entities and accounts are deactivated through validated updates rather than hard-deleted.
 
+Hospitals own departments. Staff join a hospital or a department with a rotating code. Hospital membership alone does not open clinical records; a department code grants medical staff access without administrator rights. Clinical tables carry `department_id` and Hibernate filters every load, including lookups by primary key.
+
 Partial unique indexes enforce one active admission per patient and one unreleased room assignment per admission. Bed availability derives from unreleased assignments; it is not a separate stored counter. Procedure prices are copied into `priceAtExecution` at recording time.
 
 ## Transactions and concurrency
@@ -46,7 +48,7 @@ Partial unique indexes enforce one active admission per patient and one unreleas
 
 A transfer releases the previous assignment, flushes it, inserts the next assignment, increments the admission version and writes an audit event in one transaction. Failure rolls the entire operation back. Discharge updates status, closes the assignment and releases the bed in one transaction. Existing-record edits require the version last displayed to the user.
 
-For a large multi-department deployment, the global row should become a department-scoped lock or a consistently ordered per-room locking strategy, accompanied by native PostgreSQL load tests. The present application is scoped to one hospital department.
+For a large multi-department deployment, the global row should become a department-scoped lock or a consistently ordered per-room locking strategy, accompanied by native PostgreSQL load tests. Clinical records are already isolated per department; the write lock is still process-wide.
 
 ## Access policy
 

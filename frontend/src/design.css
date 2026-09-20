@@ -381,6 +381,77 @@ button:hover .button-icon {
 .department small {
   color: var(--muted);
 }
+button.workspace-switcher {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+}
+button.workspace-switcher > div {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+button.workspace-switcher > svg:last-child {
+  margin-left: auto;
+  color: var(--muted);
+}
+button.workspace-switcher:hover,
+button.workspace-switcher[aria-expanded="true"] {
+  color: var(--text);
+}
+.workspace-list {
+  display: grid;
+  gap: 18px;
+}
+.workspace-list header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.workspace-list header span {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.workspace-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.workspace-list li > button {
+  width: 100%;
+  justify-content: space-between;
+}
+.workspace-list li > button.selected {
+  color: var(--mint);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.workspace-code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+.workspace-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+.workspace-form {
+  display: grid;
+  gap: 14px;
+}
 .nav-label {
   color: var(--muted);
   font-size: 8px;
@@ -418,11 +489,12 @@ button:hover .button-icon {
   content: "";
   position: absolute;
   left: 0;
-  top: calc(50% - 9px);
+  top: 50%;
   width: 3px;
-  height: 18px;
+  height: 22px;
   border-radius: 4px;
   background: var(--mint);
+  transform: translateY(-50%);
 }
 .nav-active-dot {
   width: 4px;
@@ -479,6 +551,7 @@ button:hover .button-icon {
 .workspace {
   margin-left: 274px;
   padding-right: 18px;
+  overflow-x: clip;
 }
 .topbar {
   height: 94px;
@@ -510,6 +583,7 @@ kbd {
   max-width: 1600px;
   min-height: calc(100dvh - 149px);
   outline: none;
+  overflow-x: clip;
 }
 .page-heading {
   padding-top: 20px;

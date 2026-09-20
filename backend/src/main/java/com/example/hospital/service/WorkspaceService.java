@@ -42,14 +42,15 @@ public class WorkspaceService {
   }
   private void owner(long hospitalId) {
     if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=? and owner=true", Boolean.class, hospitalId, actor.user().id)))
-      throw new ApiException(403, "HOSPITAL_OWNER_REQUIRED", "Only a hospital owner can create departments.");
+      throw new ApiException(403, "HOSPITAL_OWNER_REQUIRED", "Only a hospital owner can manage this hospital.");
   }
 
   @Transactional
-  public long createHospital(String hospitalName, String departmentName) {
+  public Map<String, Object> createHospital(String hospitalName, String departmentName) {
     long id = jdbc.queryForObject("insert into hospitals(name,join_code) values (?,?) returning id", Long.class, name(hospitalName), code("H-"));
     jdbc.update("insert into hospital_memberships(hospital_id,user_id,owner) values (?,?,true)", id, actor.user().id);
-    return createDepartment(id, departmentName);
+    long departmentId = createDepartment(id, departmentName);
+    return Map.of("hospitalId", id, "departmentId", departmentId);
   }
 
   @Transactional

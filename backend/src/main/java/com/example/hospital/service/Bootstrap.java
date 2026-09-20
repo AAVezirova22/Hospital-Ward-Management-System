@@ -58,6 +58,16 @@ public class Bootstrap implements CommandLineRunner {
   @Override
   @Transactional
   public void run(String... args) {
+    com.example.hospital.security.DepartmentContext.set(
+        new com.example.hospital.security.DepartmentContext.Scope(1L, "ADMIN", null));
+    try {
+      seed();
+    } finally {
+      com.example.hospital.security.DepartmentContext.clear();
+    }
+  }
+
+  private void seed() {
     if (users.count() > 0) return;
     if (password.length() < 12
         || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72)

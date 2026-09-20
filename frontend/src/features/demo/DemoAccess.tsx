@@ -33,9 +33,9 @@ export function DemoAccess({ onLogin }: { onLogin: (u: User) => void }) {
             setBusy(true);
             setError("");
             try {
-              const user = await api<User>("/demo/login", "POST", { role });
+              await api<User>("/demo/login", "POST", { role });
               await token();
-              onLogin(user);
+              onLogin(await api<User>("/auth/me"));
             } catch (e) {
               setError((e as Error).message);
             } finally {

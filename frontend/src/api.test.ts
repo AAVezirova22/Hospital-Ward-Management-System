@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { login, token } from "./api";
+import { api, login, setActiveDepartment, token } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("secure-session failures", () => {
@@ -38,6 +38,24 @@ describe("secure-session failures", () => {
     );
     await expect(login("admin", "incorrect")).rejects.toThrow(
       "Invalid username or password.",
+    );
+  });
+});
+
+describe("department scope", () => {
+  afterEach(() => setActiveDepartment(null));
+  it("sends the selected department on clinical requests", async () => {
+    setActiveDepartment(12);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json([{ id: 1 }], { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api("/patients");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/patients",
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Department-Id": "12" }),
+      }),
     );
   });
 });

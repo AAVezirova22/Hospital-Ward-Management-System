@@ -9,6 +9,6 @@ public final class DepartmentContext implements Supplier<Long> {
   public static Scope current() { return CURRENT.get(); }
   public static void set(Scope scope) { CURRENT.set(scope); }
   public static void clear() { CURRENT.remove(); }
-  public static long id() { return CURRENT.get() == null ? 1L : CURRENT.get().id(); }
+  public static long id() { return CURRENT.get() == null ? -1L : CURRENT.get().id(); }
   @Override public Long get() { return id(); }
 }

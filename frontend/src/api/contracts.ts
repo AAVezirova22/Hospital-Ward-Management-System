@@ -118,3 +118,20 @@ export interface ProcedureReport {
   from: string;
   to: string;
 }
+export interface WorkspaceDepartment {
+  id: number;
+  name: string;
+  role: string;
+  joinCode: string | null;
+}
+export interface WorkspaceHospital {
+  id: number;
+  name: string;
+  owner: boolean;
+  joinCode: string | null;
+  departments: WorkspaceDepartment[];
+}
+export interface WorkspaceList {
+  activeDepartmentId: number;
+  hospitals: WorkspaceHospital[];
+}

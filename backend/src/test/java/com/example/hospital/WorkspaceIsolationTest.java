@@ -1,0 +1,323 @@
+package com.example.hospital;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
+@SpringBootTest(
+    properties = {
+      "app.seed=true",
+      "app.bootstrap-password=IntegrationPassword123!",
+      "server.servlet.session.cookie.secure=false"
+    })
+@AutoConfigureMockMvc
+class WorkspaceIsolationTest {
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    HospitalIntegrationTest.database(registry);
+  }
+
+  @Autowired MockMvc mvc;
+  @Autowired ObjectMapper json;
+
+  ResultActions call(String who, String method, String path, Object body, Long department)
+      throws Exception {
+    MockHttpServletRequestBuilder request =
+        "POST".equals(method) ? post(path) : get(path);
+    request.with(user(who)).with(csrf());
+    if (department != null) request.header("X-Department-Id", department);
+    if (body != null)
+      request.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body));
+    return mvc.perform(request);
+  }
+
+  JsonNode body(ResultActions actions, int status) throws Exception {
+    return json.readTree(
+        actions.andExpect(status().is(status)).andReturn().getResponse().getContentAsString());
+  }
+
+  String unique() {
+    return UUID.randomUUID().toString().substring(0, 8);
+  }
+
+  @Test
+  void recordsStayInsideTheSelectedDepartment() throws Exception {
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "North Clinic " + unique(), "departmentName", "Cardiology"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var homePatient =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/patients",
+                Map.of(
+                    "patientIdentifier",
+                    "HOME-" + unique(),
+                    "firstName",
+                    "Home",
+                    "lastName",
+                    "Patient",
+                    "dateOfBirth",
+                    "1980-01-01"),
+                1L),
+            201);
+    var otherPatient =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/patients",
+                Map.of(
+                    "patientIdentifier",
+                    "AWAY-" + unique(),
+                    "firstName",
+                    "Away",
+                    "lastName",
+                    "Patient",
+                    "dateOfBirth",
+                    "1981-02-02"),
+                other),
+            201);
+    var home = body(call("admin", "GET", "/api/v1/patients", null, 1L), 200);
+    var away = body(call("admin", "GET", "/api/v1/patients", null, other), 200);
+    assertThat(home.toString()).contains(homePatient.get("patientIdentifier").asText());
+    assertThat(home.toString()).doesNotContain(otherPatient.get("patientIdentifier").asText());
+    assertThat(away.toString()).contains(otherPatient.get("patientIdentifier").asText());
+    assertThat(away.toString()).doesNotContain(homePatient.get("patientIdentifier").asText());
+  }
+
+  @Test
+  void reportsStayInsideTheSelectedDepartment() throws Exception {
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Report Clinic " + unique(), "departmentName", "Imaging"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var home = body(call("admin", "GET", "/api/v1/reports/dashboard", null, 1L), 200);
+    var away = body(call("admin", "GET", "/api/v1/reports/dashboard", null, other), 200);
+    assertThat(away.get("activeAdmissions").asInt()).isZero();
+    assertThat(away.get("totalBeds").asInt()).isZero();
+    assertThat(home.get("totalBeds").asInt()).isGreaterThan(away.get("totalBeds").asInt());
+  }
+
+  @Test
+  void teamAccessListsOnlyLocalDepartmentMembers() throws Exception {
+    String name = "staff" + unique();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                name,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Staff Clinic " + unique(), "departmentName", "Surgery"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var home = body(call("admin", "GET", "/api/v1/users", null, 1L), 200);
+    var away = body(call("admin", "GET", "/api/v1/users", null, other), 200);
+    assertThat(home.toString()).contains(name);
+    assertThat(away.toString()).doesNotContain(name);
+  }
+
+  @Test
+  void joiningWithACodeNeverGrantsAdministratorRights() throws Exception {
+    String name = "join" + unique();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                name,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Join Clinic " + unique(), "departmentName", "Neurology"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var workspaces = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
+    String code = null;
+    for (JsonNode hospital : workspaces.get("hospitals")) {
+      for (JsonNode department : hospital.get("departments")) {
+        if (department.get("id").asLong() == other) {
+          code = department.get("joinCode").asText();
+        }
+      }
+    }
+    assertThat(code).isNotBlank();
+    body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
+    call(name, "GET", "/api/v1/users", null, other).andExpect(status().isForbidden());
+    call(name, "GET", "/api/v1/auth/me", null, other)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.role").value("MEDICAL_STAFF"));
+    var team = body(call("admin", "GET", "/api/v1/users", null, other), 200);
+    assertThat(team.toString()).contains(name);
+    assertThat(team.toString()).contains("MEDICAL_STAFF");
+  }
+
+  @Test
+  void unknownDepartmentHeadersAreRejected() throws Exception {
+    call("admin", "GET", "/api/v1/patients", null, 999999L)
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("DEPARTMENT_ACCESS_DENIED"));
+  }
+
+  @Test
+  void invalidJoinCodesAreRejected() throws Exception {
+    call("admin", "POST", "/api/v1/workspaces/join", Map.of("code", "not-a-code"), 1L)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_CODE"));
+  }
+
+  @Test
+  void hospitalJoinDoesNotOpenDepartmentRecords() throws Exception {
+    String name = "hosp" + unique();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                name,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true),
+            1L),
+        201);
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Code Clinic " + unique(), "departmentName", "Oncology"),
+                1L),
+            201);
+    long hospitalId = created.get("hospitalId").asLong();
+    long departmentId = created.get("departmentId").asLong();
+    body(
+        call(
+            "admin",
+            "POST",
+            "/api/v1/patients",
+            Map.of(
+                "patientIdentifier",
+                "CODE-" + unique(),
+                "firstName",
+                "Hidden",
+                "lastName",
+                "Record",
+                "dateOfBirth",
+                "1977-07-07"),
+            departmentId),
+        201);
+    var workspaces = body(call("admin", "GET", "/api/v1/workspaces", null, 1L), 200);
+    String code = null;
+    for (JsonNode hospital : workspaces.get("hospitals")) {
+      if (hospital.get("id").asLong() == hospitalId) code = hospital.get("joinCode").asText();
+    }
+    body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
+    call(name, "GET", "/api/v1/patients", null, departmentId)
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void auditHistoryStaysInsideTheSelectedDepartment() throws Exception {
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Audit Clinic " + unique(), "departmentName", "Records"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var patient =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/patients",
+                Map.of(
+                    "patientIdentifier",
+                    "AUD-" + unique(),
+                    "firstName",
+                    "Audit",
+                    "lastName",
+                    "Only",
+                    "dateOfBirth",
+                    "1975-05-05"),
+                other),
+            201);
+    var home = body(call("admin", "GET", "/api/v1/audit", null, 1L), 200);
+    var away = body(call("admin", "GET", "/api/v1/audit", null, other), 200);
+    assertThat(away.toString()).contains(patient.get("id").asText());
+    assertThat(home.toString()).doesNotContain("\"entityId\":" + patient.get("id").asLong());
+  }
+}

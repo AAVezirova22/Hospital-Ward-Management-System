@@ -160,6 +160,8 @@
 }
 .scene-content {
   min-width: 0;
+  transform-origin: left center;
+  will-change: transform, opacity;
 }
 
 @keyframes aperture-open {
@@ -219,6 +221,9 @@
   animation-delay: 0s !important;
   transition-duration: 0s !important;
   scroll-behavior: auto !important;
+}
+:root[data-motion="off"] .scene-content {
+  will-change: auto;
 }
 @media (max-width: 1100px) {
   .login-stage {

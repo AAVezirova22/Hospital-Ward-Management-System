@@ -41,7 +41,32 @@ public class UserService {
 
   public List<AppUser> list() {
     actor.admin();
-    return users.findAll().stream().filter(this::visible).toList();
+    return users.findAll().stream().filter(this::visible).map(this::scoped).toList();
+  }
+
+  private AppUser scoped(AppUser user) {
+    var rows =
+        jdbc.queryForList(
+            "select role, doctor_id from department_memberships where department_id=? and user_id=?",
+            com.example.hospital.security.DepartmentContext.id(),
+            user.id);
+    if (rows.isEmpty()) return user;
+    var row = rows.getFirst();
+    var view = new AppUser();
+    view.id = user.id;
+    view.version = user.version;
+    view.username = user.username;
+    view.role = String.valueOf(row.get("role"));
+    view.doctorId = row.get("doctor_id") == null ? null : ((Number) row.get("doctor_id")).longValue();
+    view.patientId = user.patientId;
+    view.email = user.email;
+    view.emailVerified = user.emailVerified;
+    view.requestedRole = user.requestedRole;
+    view.enabled = user.enabled;
+    view.lastLoginAt = user.lastLoginAt;
+    view.createdAt = user.createdAt;
+    view.updatedAt = user.updatedAt;
+    return view;
   }
 
   private boolean visible(AppUser user) {

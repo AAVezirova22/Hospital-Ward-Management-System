@@ -27,6 +27,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api, login, logout, type User } from "./api";
 import { Auth, Link, useUser, ErrorBox } from "./components/workspace";
+import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { DemoAccess, DemoReset, WakeScreen } from "./features/demo/DemoAccess";
 import {
   Registration,
@@ -62,7 +63,12 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
           layoutId={animated ? "sidebar-selection" : undefined}
           className="nav-selection"
           aria-hidden="true"
-          transition={{ type: "spring", stiffness: 420, damping: 38 }}
+          transition={{
+            type: "spring",
+            stiffness: 260,
+            damping: 32,
+            mass: 0.7,
+          }}
         />
       )}
       {children}
@@ -88,7 +94,19 @@ function App({ children }: { children: React.ReactNode }) {
       qc.clear();
     };
     window.addEventListener("session-expired", expired);
-    return () => window.removeEventListener("session-expired", expired);
+    const switched = () => {
+      api<User>("/auth/me")
+        .then((next) => {
+          setUser(next);
+          void qc.invalidateQueries();
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("workspace-changed", switched);
+    return () => {
+      window.removeEventListener("session-expired", expired);
+      window.removeEventListener("workspace-changed", switched);
+    };
   }, [awake]);
   const signOut = async () => {
     try {
@@ -332,35 +350,30 @@ function Shell({
           </span>
           medcore<span className="brand-dot">®</span>
         </Link>
-        <div className="department">
-          <BedDouble size={19} strokeWidth={1.5} />
-          <div>
-            Hospital department<small>Operations workspace</small>
-          </div>
-        </div>
+        <WorkspaceSwitcher />
         <span className="nav-label">WORKSPACE</span>
         <LayoutGroup id="workspace-navigation">
-        <nav>
-          {nav.map(([url, label, Icon]) => (
-            <NavLink to={"/app/" + url} key={url}>
-              <Icon size={18} />
-              {label}
-            </NavLink>
-          ))}
-          {user.role === "ADMIN" && (
-            <>
-              <span className="nav-label admin-label">ADMINISTRATION</span>
-              <NavLink to="/app/users">
-                <ShieldCheck size={18} />
-                Team access
+          <nav>
+            {nav.map(([url, label, Icon]) => (
+              <NavLink to={"/app/" + url} key={url}>
+                <Icon size={18} />
+                {label}
               </NavLink>
-              <NavLink to="/app/audit">
-                <History size={18} />
-                Audit history
-              </NavLink>
-            </>
-          )}
-        </nav>
+            ))}
+            {user.role === "ADMIN" && (
+              <>
+                <span className="nav-label admin-label">ADMINISTRATION</span>
+                <NavLink to="/app/users">
+                  <ShieldCheck size={18} />
+                  Team access
+                </NavLink>
+                <NavLink to="/app/audit">
+                  <History size={18} />
+                  Audit history
+                </NavLink>
+              </>
+            )}
+          </nav>
         </LayoutGroup>
         <div className="sidebar-note">
           <span>More clarity.</span>
