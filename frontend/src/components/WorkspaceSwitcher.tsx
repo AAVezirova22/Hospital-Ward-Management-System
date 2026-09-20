@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BedDouble, Building2, ChevronDown, Copy, KeyRound, Plus } from "lucide-react";
 import {
