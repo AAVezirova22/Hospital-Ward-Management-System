@@ -34,6 +34,22 @@ public class RegistrationService {
     this.jdbc=jdbc; this.lock=lock; this.enabled=enabled; this.expiryMinutes=expiryMinutes;
   }
   public boolean available() { return enabled && email.configured(); }
+
+  public List<Map<String, Object>> hospitals() {
+    return jdbc.query(
+        "select id, name from hospitals order by name, id",
+        (rs, n) -> Map.<String, Object>of("id", rs.getLong(1), "name", rs.getString(2)));
+  }
+
+  private long departmentForHospital(Long hospitalId) {
+    if (hospitalId == null)
+      throw new ApiException(400, "HOSPITAL_REQUIRED", "Choose the hospital this account belongs to.");
+    var ids = jdbc.queryForList("select id from departments where hospital_id=? order by id", Long.class, hospitalId);
+    if (ids.isEmpty())
+      throw new ApiException(400, "HOSPITAL_REQUIRED", "Choose the hospital this account belongs to.");
+    return ids.getFirst();
+  }
+
   public synchronized void limit(String address) {
     Instant now = Instant.now(); attempts.entrySet().removeIf(e -> e.getValue().isBefore(now.minusSeconds(60)));
     if (attempts.containsKey(address) || attempts.size() >= 10000)
@@ -41,12 +57,13 @@ public class RegistrationService {
     attempts.put(address,now);
   }
   @Transactional
-  public void signup(String username, String address, String password, String first, String last, LocalDate dob, String requestedRole) {
+  public void signup(String username, String address, String password, String first, String last, LocalDate dob, String requestedRole, Long hospitalId) {
     if (!available()) throw new ApiException(503,"REGISTRATION_UNAVAILABLE","Account registration is not configured yet.");
     if (password.length() < 12 || password.getBytes(StandardCharsets.UTF_8).length > 72)
       throw new ApiException(400,"PASSWORD_LENGTH","Use at least 12 characters and at most 72 UTF-8 bytes.");
+    long departmentId = departmentForHospital(hospitalId);
     com.example.hospital.security.DepartmentContext.set(
-        new com.example.hospital.security.DepartmentContext.Scope(1L, "PATIENT", null));
+        new com.example.hospital.security.DepartmentContext.Scope(departmentId, "PATIENT", null));
     try {
     lock.acquire();
     String normalized = address.trim().toLowerCase(Locale.ROOT);
