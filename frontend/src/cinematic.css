@@ -47,6 +47,29 @@
 .atrium-image {
   background-position: 59% center;
 }
+@media (max-width: 800px) {
+  .atrium-image {
+    background-image: url("/medcore-atrium-640.webp");
+  }
+  .overview-hero-image {
+    background-image:
+      linear-gradient(90deg, #13271a 0%, #13271ac0 70%, #11251960),
+      url("/medcore-atrium-640.webp");
+  }
+}
+@media (min-width: 801px) {
+  .overview-hero-image {
+    background-image:
+      linear-gradient(
+        90deg,
+        #13271a 0%,
+        #13271af2 28%,
+        #14281b83 59%,
+        #11251922 100%
+      ),
+      url("/medcore-atrium-960.avif");
+  }
+}
 .atrium-shade {
   background: linear-gradient(
     180deg,

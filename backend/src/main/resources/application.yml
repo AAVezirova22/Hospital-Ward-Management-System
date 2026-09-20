@@ -47,3 +47,13 @@ app:
 logging:
   level:
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF
+management:
+  endpoints:
+    web:
+      base-path: /api/v1/management
+      exposure:
+        include: health,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+      roles: ADMIN

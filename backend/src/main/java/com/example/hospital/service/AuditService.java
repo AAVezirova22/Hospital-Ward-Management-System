@@ -10,10 +10,12 @@ import org.springframework.stereotype.Service;
 public class AuditService {
   private final AuditEventRepository events;
   private final Actor actor;
+  private final org.springframework.context.ApplicationEventPublisher publisher;
 
-  public AuditService(AuditEventRepository events, Actor actor) {
+  public AuditService(AuditEventRepository events, Actor actor, org.springframework.context.ApplicationEventPublisher publisher) {
     this.events = events;
     this.actor = actor;
+    this.publisher = publisher;
   }
 
   public void log(String event, String entity, Long id, String source) {
@@ -26,5 +28,6 @@ public class AuditService {
     e.timestamp = Instant.now();
     e.metadata = "";
     events.save(e);
+    publisher.publishEvent(new OperationsStream.Changed());
   }
 }

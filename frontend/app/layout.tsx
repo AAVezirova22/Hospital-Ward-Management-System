@@ -5,6 +5,7 @@ import "../src/style.css";
 import "../src/design.css";
 import "../src/cinematic.css";
 import "../src/operations.css";
+import "../src/command-center.css";
 
 const geist = localFont({
   src: "../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
@@ -57,6 +58,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="preload"
           as="image"
           href="/medcore-atrium.webp"
+          media="(min-width: 801px)"
+          fetchPriority="high"
+        />
+        <link
+          rel="preload"
+          as="image"
+          href="/medcore-atrium-640.webp"
+          media="(max-width: 800px)"
           fetchPriority="high"
         />
       </head>

@@ -1,15 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import type { RoomCapacity } from "../api/contracts";
+import type { RoomCapacity, OperationsReport } from "../api/contracts";
 export function NotificationCenter() {
   const [open, setOpen] = useState(false),
     [notices, setNotices] = useState<string[]>([]);
   const rooms = useQuery({
     queryKey: ["/rooms"],
     queryFn: () => api<RoomCapacity[]>("/rooms"),
+    refetchInterval: 30000,
+  });
+  const operations = useQuery({
+    queryKey: ["/reports/operations"],
+    queryFn: () => api<OperationsReport>("/reports/operations"),
     refetchInterval: 30000,
   });
   useEffect(() => {
@@ -30,13 +36,50 @@ export function NotificationCenter() {
         onClick={() => setOpen(!open)}
       >
         <Bell size={18} />
+        {full.length > 0 && (
+          <span className="notification-count">{full.length}</span>
+        )}
       </button>
       {open && (
         <section className="panel notification-panel">
-          <h3>Notifications</h3>
+          <h3>Operations alerts</h3>
+          {(rooms.error || operations.error) && (
+            <p role="alert">
+              Alerts could not be refreshed. Displayed information may be
+              outdated.
+            </p>
+          )}
           {full.map((r) => (
-            <p key={r.id}>Room {r.roomNumber} is at capacity.</p>
+            <p className="capacity-alert" key={r.id}>
+              <Link href="/app/planner" onClick={() => setOpen(false)}>
+                Room {r.roomNumber} is at full capacity →
+              </Link>
+              <small>
+                {r.occupiedBeds}/{r.bedCount} occupied · observed{" "}
+                {new Date(rooms.dataUpdatedAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </small>
+            </p>
           ))}
+          {operations.data && (
+            <p>
+              <Link href="/app/planner" onClick={() => setOpen(false)}>
+                {operations.data.expectedDischargesToday} expected discharges
+                today
+              </Link>
+              <small>Scheduled dates in your scope · UTC</small>
+            </p>
+          )}
+          {rooms.data && (
+            <p>
+              {rooms.data
+                .filter((r) => r.active)
+                .reduce((sum, r) => sum + r.availableBeds, 0)}{" "}
+              beds available<small>Current department capacity</small>
+            </p>
+          )}
           {notices.map((n, i) => (
             <p key={i}>{n}</p>
           ))}

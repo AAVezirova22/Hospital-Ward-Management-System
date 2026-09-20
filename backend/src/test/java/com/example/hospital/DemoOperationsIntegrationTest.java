@@ -17,6 +17,16 @@ import org.springframework.test.web.servlet.MockMvc;
 class DemoOperationsIntegrationTest {
  @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalIntegrationTest.database(r);}
  @Autowired MockMvc mvc; @Autowired ObjectMapper json;
+ @Test void telemetryIsAdministratorOnlyAndStreamRequiresStaffSession() throws Exception {
+  mvc.perform(get("/api/v1/management/health")).andExpect(status().isUnauthorized());
+  mvc.perform(get("/api/v1/management/health").with(user("doctor"))).andExpect(status().isForbidden());
+  mvc.perform(get("/api/v1/management/health").with(user("staff"))).andExpect(status().isForbidden());
+  mvc.perform(get("/api/v1/management/health").with(user("admin"))).andExpect(status().isOk()).andExpect(jsonPath("$.components.db.status").value("UP"));
+  mvc.perform(get("/api/v1/operations/stream")).andExpect(status().isUnauthorized());
+  var result=mvc.perform(get("/api/v1/operations/stream").with(user("doctor"))).andExpect(status().isOk()).andExpect(request().asyncStarted()).andReturn();
+  assertThat(result.getResponse().getContentAsString()).contains("event:ready", "data:refresh").doesNotContain("patient", "admissionId");
+  result.getRequest().getAsyncContext().complete();
+ }
  @Test void demoLoginIsCsrfProtectedAndPreservesRequestedRole() throws Exception {
   mvc.perform(post("/api/v1/demo/login").contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ADMIN\"}")).andExpect(status().isForbidden());
   var result=mvc.perform(post("/api/v1/demo/login").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"DOCTOR\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.role").value("DOCTOR")).andReturn();

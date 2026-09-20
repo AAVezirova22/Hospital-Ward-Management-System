@@ -1,5 +1,6 @@
 "use client";
-import { BedDouble, ArrowRight } from "lucide-react";
+import { BedDouble, ArrowRight, Activity } from "lucide-react";
+import { Fragment } from "react";
 import type { AdmissionView, RoomCapacity } from "../../api/contracts";
 import { projectRooms, type PlannedTransfer } from "./model";
 
@@ -13,6 +14,7 @@ export function WardMap({
   changedRoom,
   warning = 75,
   critical = 90,
+  onVacant,
 }: {
   rooms: RoomCapacity[];
   admissions?: AdmissionView[];
@@ -23,6 +25,7 @@ export function WardMap({
   changedRoom?: number;
   warning?: number;
   critical?: number;
+  onVacant?: (roomId: number) => void;
 }) {
   return (
     <div className="ward-map" aria-label="Live ward capacity map">
@@ -32,7 +35,7 @@ export function WardMap({
             numeric: true,
           }),
         )
-        .map((room) => {
+        .map((room, index) => {
           const percent = (room.projectedBeds / room.bedCount) * 100;
           const state = !room.active
             ? "inactive"
@@ -44,81 +47,110 @@ export function WardMap({
           const occupants = admissions.filter(
             (a) =>
               a.admission.status === "ACTIVE" &&
-              a.assignment?.roomId === room.id,
+              (plan.find((p) => p.admissionId === a.admission.id)?.toRoomId ??
+                a.assignment?.roomId) === room.id,
           );
           return (
-            <section
-              key={room.id}
-              className={`ward-room ${state} ${changedRoom === room.id ? "room-changed" : ""}`}
-              onDragOver={
-                onDrop && room.active
-                  ? (e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    }
-                  : undefined
-              }
-              onDrop={
-                onDrop
-                  ? (e) => {
-                      e.preventDefault();
-                      const id = Number(
-                        e.dataTransfer.getData("application/medcore-admission"),
-                      );
-                      if (id) onDrop(id, room.id);
-                    }
-                  : undefined
-              }
-            >
-              <div className="ward-room-heading">
-                <h3>Room {room.roomNumber}</h3>
-                <span>
-                  {room.active ? `${Math.round(percent)}%` : "Inactive"}
-                </span>
-              </div>
-              <div
-                className="bed-slots"
-                aria-label={`${room.projectedBeds} of ${room.bedCount} capacity slots occupied`}
+            <Fragment key={room.id}>
+              {index === Math.ceil(rooms.length / 2) && (
+                <div className="ward-corridor">
+                  <Activity size={18} />
+                  <strong>Nurses’ station</strong>
+                  <span>Central corridor · schematic layout</span>
+                </div>
+              )}
+              <section
+                className={`ward-room ${state} ${changedRoom === room.id ? "room-changed" : ""}`}
+                onDragOver={
+                  onDrop && room.active
+                    ? (e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                      }
+                    : undefined
+                }
+                onDrop={
+                  onDrop
+                    ? (e) => {
+                        e.preventDefault();
+                        const id = Number(
+                          e.dataTransfer.getData(
+                            "application/medcore-admission",
+                          ),
+                        );
+                        if (id) onDrop(id, room.id);
+                      }
+                    : undefined
+                }
               >
-                {Array.from({ length: room.bedCount }, (_, i) => (
-                  <BedDouble
-                    key={i}
-                    aria-hidden="true"
-                    className={i < room.projectedBeds ? "occupied" : "vacant"}
-                    size={23}
-                  />
-                ))}
-              </div>
-              <p>
-                {room.projectedBeds} / {room.bedCount} occupied{" "}
-                {room.projectedBeds !== room.occupiedBeds && (
-                  <span className="projection">· projected</span>
-                )}
-              </p>
-              {occupants.map((v) => (
-                <button
-                  type="button"
-                  className={`ward-patient ${selected === v.admission.id ? "selected" : ""}`}
-                  key={v.admission.id}
-                  disabled={!onSelect}
-                  draggable={Boolean(onDrop)}
-                  onClick={() => onSelect?.(v.admission.id)}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(
-                      "application/medcore-admission",
-                      String(v.admission.id),
-                    );
-                    e.dataTransfer.effectAllowed = "move";
-                    onSelect?.(v.admission.id);
-                  }}
-                >
-                  {v.patient.firstName} {v.patient.lastName}
-                  {plan.some((p) => p.admissionId === v.admission.id) && (
-                    <ArrowRight size={14} />
+                <div className="ward-room-heading">
+                  <h3>Room {room.roomNumber}</h3>
+                  <span>
+                    {room.active ? `${Math.round(percent)}%` : "Inactive"}
+                  </span>
+                </div>
+                <p>
+                  {room.projectedBeds} / {room.bedCount} occupied{" "}
+                  {room.projectedBeds !== room.occupiedBeds && (
+                    <span className="projection">· projected</span>
                   )}
-                </button>
-              ))}
-            </section>
+                </p>
+                {occupants.map((v) => (
+                  <button
+                    type="button"
+                    className={`ward-patient ${selected === v.admission.id ? "selected" : ""}`}
+                    key={v.admission.id}
+                    disabled={!onSelect}
+                    draggable={Boolean(onDrop)}
+                    onClick={() => onSelect?.(v.admission.id)}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(
+                        "application/medcore-admission",
+                        String(v.admission.id),
+                      );
+                      e.dataTransfer.effectAllowed = "move";
+                      onSelect?.(v.admission.id);
+                    }}
+                  >
+                    <BedDouble size={18} aria-hidden="true" />
+                    {v.patient.firstName} {v.patient.lastName}
+                    {plan.some((p) => p.admissionId === v.admission.id) && (
+                      <ArrowRight size={14} />
+                    )}
+                  </button>
+                ))}
+                {Array.from(
+                  {
+                    length: Math.max(0, room.projectedBeds - occupants.length),
+                  },
+                  (_, i) => (
+                    <div
+                      className="ward-patient restricted"
+                      key={`occupied-${i}`}
+                    >
+                      <BedDouble size={18} />
+                      Occupied · outside your scope
+                    </div>
+                  ),
+                )}
+                {Array.from(
+                  { length: Math.max(0, room.bedCount - room.projectedBeds) },
+                  (_, i) => (
+                    <button
+                      type="button"
+                      className="ward-patient vacant"
+                      key={`free-${i}`}
+                      disabled={!room.active || !onVacant}
+                      onClick={() => onVacant?.(room.id)}
+                    >
+                      <BedDouble size={18} aria-hidden="true" />
+                      {room.active ? "Available" : "Inactive"}
+                      <small>Capacity slot</small>
+                    </button>
+                  ),
+                )}
+              </section>
+            </Fragment>
           );
         })}
       {!rooms.length && <p className="empty">No rooms have been configured.</p>}

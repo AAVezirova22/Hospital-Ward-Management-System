@@ -9,6 +9,7 @@ import type {
   AdmissionView,
 } from "../../api/contracts";
 import { WardMap } from "../planner/WardMap";
+import { BedDrawer } from "../planner/BedDrawer";
 import { LoadingState } from "../../components/LoadingState";
 
 export function Sparkline({
@@ -50,6 +51,7 @@ export function OperationsOverview({
   presentation?: boolean;
 }) {
   const [selectedDay, setSelectedDay] = useState("");
+  const [selectedAdmission, setSelectedAdmission] = useState<number>();
   const ops = useQuery({
     queryKey: ["/reports/operations"],
     queryFn: () => api<OperationsReport>("/reports/operations"),
@@ -97,6 +99,12 @@ export function OperationsOverview({
       : percent >= d.thresholds.warningPercent
         ? "warning"
         : "safe";
+  const today = d.trends.at(-1),
+    yesterday = d.trends.at(-2);
+  const admissionChange =
+    today && yesterday ? today.admissions - yesterday.admissions : null;
+  const censusChange =
+    today && yesterday ? today.occupied - yesterday.occupied : null;
   return (
     <div className="operations-overview">
       <div className="operations-metrics">
@@ -110,9 +118,28 @@ export function OperationsOverview({
             {occupied} occupied · {beds - occupied} available
           </p>
           <small>
-            Warning ≥ {d.thresholds.warningPercent}% · Critical ≥{" "}
-            {d.thresholds.criticalPercent}%
+            {d.scope === "Department" && censusChange !== null
+              ? `${censusChange > 0 ? "+" : ""}${censusChange} patients vs yesterday’s closing census`
+              : "Department-wide capacity"}
           </small>
+          <Sparkline
+            values={d.trends.slice(-7).map((t) => t.occupied)}
+            label={`Seven-day census (${d.scope})`}
+          />
+        </article>
+        <article className="operation-stat">
+          <span>Admissions today</span>
+          <strong>{today?.admissions ?? 0}</strong>
+          <p>
+            {admissionChange === null
+              ? "Comparison unavailable"
+              : `${admissionChange > 0 ? "+" : ""}${admissionChange} vs yesterday`}
+          </p>
+          <small>{d.scope} · UTC</small>
+          <Sparkline
+            values={d.trends.slice(-7).map((t) => t.admissions)}
+            label="Seven-day admissions"
+          />
         </article>
         <article className="operation-stat">
           <span>Average active stay</span>
@@ -121,25 +148,21 @@ export function OperationsOverview({
             <small> days</small>
           </strong>
           <p>{d.scope}</p>
-          <Sparkline
-            values={d.trends.slice(-7).map((t) => t.occupied)}
-            label="Seven-day occupied census"
-          />
+          <small>
+            {d.longStayPatients} stays over {d.thresholds.longStayDays} days
+          </small>
         </article>
         <article className="operation-stat">
           <span>Expected discharges today</span>
           <strong>{d.expectedDischargesToday}</strong>
           <p>Staff-scheduled dates · UTC</p>
-          <Sparkline
-            values={d.trends.slice(-7).map((t) => t.admissions)}
-            label="Seven-day admissions"
-          />
+          <small>Scheduled dates, not a discharge forecast</small>
         </article>
       </div>
       <div className="section-heading">
         <div>
           <h2>The ward, at a glance.</h2>
-          <p>Live room capacity · refreshed every 15 seconds</p>
+          <p>Room capacity · live updates with a 15-second refresh fallback</p>
         </div>
         {!presentation && (
           <Link className="secondary" href="/app/planner">
@@ -147,11 +170,37 @@ export function OperationsOverview({
           </Link>
         )}
       </div>
-      <WardMap
-        rooms={rooms}
-        warning={d.thresholds.warningPercent}
-        critical={d.thresholds.criticalPercent}
-      />
+      <div className="compact-capacity">
+        <strong>
+          {occupied} / {beds} beds occupied
+        </strong>
+        <meter
+          min={0}
+          max={Math.max(1, beds)}
+          value={occupied}
+          aria-label="Department occupied beds"
+        />
+        <Link href="/app/planner">Open interactive ward map →</Link>
+      </div>
+      <div className="overview-floor-plan">
+        <WardMap
+          rooms={rooms}
+          admissions={admissions}
+          selected={selectedAdmission}
+          onSelect={presentation ? undefined : setSelectedAdmission}
+          warning={d.thresholds.warningPercent}
+          critical={d.thresholds.criticalPercent}
+        />
+      </div>
+      {selectedAdmission &&
+        admissions.find((v) => v.admission.id === selectedAdmission) && (
+          <BedDrawer
+            admission={
+              admissions.find((v) => v.admission.id === selectedAdmission)!
+            }
+            onClose={() => setSelectedAdmission(undefined)}
+          />
+        )}
       <div className="operations-bottom">
         <section className="panel">
           <h2>Needs attention</h2>
@@ -188,27 +237,38 @@ export function OperationsOverview({
             </div>
           </div>
         </section>
-        <section className="panel">
-          <h2>Recent operational activity</h2>
-          <ol className="operational-feed">
-            {d.activity.slice(0, presentation ? 5 : 8).map((e) => {
-              const v = admissions.find(
-                (v) => v.admission.id === e.admissionId,
-              );
-              return (
-                <li key={e.id}>
-                  <span>{e.eventType.toLowerCase().replaceAll("_", " ")}</span>
-                  <strong>
-                    {v
-                      ? `${v.patient.firstName} ${v.patient.lastName}`
-                      : "Admission"}
-                  </strong>
-                  <small>{date(e.timestamp)}</small>
-                </li>
-              );
-            })}
-          </ol>
-          {!d.activity.length && <p>No activity in your scope yet.</p>}
+        <section className="panel activity-panel">
+          <details open>
+            <summary>Live activity</summary>
+            <ol className="operational-feed">
+              {d.activity.slice(0, presentation ? 5 : 8).map((e) => {
+                const v = admissions.find(
+                  (v) => v.admission.id === e.admissionId,
+                );
+                return (
+                  <li key={e.id}>
+                    <span>
+                      {e.eventType.toLowerCase().replaceAll("_", " ")}
+                    </span>
+                    <strong>
+                      {v ? (
+                        <Link href={`/app/patients/${v.patient.id}`}>
+                          {v.patient.firstName} {v.patient.lastName} →
+                        </Link>
+                      ) : (
+                        "Admission unavailable"
+                      )}
+                    </strong>
+                    <span className="muted">
+                      {v ? v.admission.admissionNumber : ""}
+                    </span>
+                    <small>{date(e.timestamp)}</small>
+                  </li>
+                );
+              })}
+            </ol>
+            {!d.activity.length && <p>No activity in your scope yet.</p>}
+          </details>
         </section>
       </div>
       {!presentation && (
