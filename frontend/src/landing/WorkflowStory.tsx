@@ -17,8 +17,8 @@ const chapters = [
   {
     title: "Start with the person.",
     copy: "A patient record brings the essentials together. Admissions, attending doctors, procedures, and care history stay connected.",
-    image: "patient.jpg",
-    alt: "Patient in a calm, naturally lit care environment",
+    image: "clinical-conversation.webp",
+    alt: "A doctor consulting with a patient at her bedside",
     icon: UsersThree,
     label: "Patient records",
     link: "/app/patients",
@@ -26,8 +26,8 @@ const chapters = [
   {
     title: "Make the next move clearer.",
     copy: "See where there is room. Stage a transfer on the ward map and review available capacity before making it happen.",
-    image: "atrium.jpg",
-    alt: "Open and light-filled hospital architecture",
+    image: "hospital-lobby.webp",
+    alt: "Glass doors and trees reflected at a hospital entrance",
     icon: Bed,
     label: "Ward planning",
     link: "/app/planner",
@@ -35,7 +35,7 @@ const chapters = [
   {
     title: "Carry the context forward.",
     copy: "From admission to discharge, the history stays with the patient. Your next shift starts with a shared understanding.",
-    image: "care.jpg",
+    image: "clinical-conversation.webp",
     alt: "A clinician connecting with a patient",
     icon: ClipboardText,
     label: "Care continuity",
@@ -45,10 +45,10 @@ const chapters = [
 
 export function WorkflowStory() {
   const root = useRef<HTMLElement>(null);
-  const { reduced } = useSiteMotion();
+  const { reduced, ready } = useSiteMotion();
   useGSAP(
     () => {
-      if (reduced) return;
+      if (!ready || reduced) return;
       const mm = gsap.matchMedia();
       mm.add("(min-width: 1024px)", () => {
         ScrollTrigger.create({
@@ -92,7 +92,7 @@ export function WorkflowStory() {
       );
       return () => mm.revert();
     },
-    { scope: root, dependencies: [reduced], revertOnUpdate: true },
+    { scope: root, dependencies: [reduced, ready], revertOnUpdate: true },
   );
   return (
     <section
@@ -124,7 +124,7 @@ export function WorkflowStory() {
                   src={`/landing/stills/${chapter.image}`}
                   alt={chapter.alt}
                   fill
-                  sizes="(max-width: 767px) 94vw, 48vw"
+                  sizes="(max-width: 767px) calc(100vw - 54px), (max-width: 1100px) 50vw, (max-width: 1392px) 49vw, 626px"
                 />
               </div>
               <div className="mc-story-card-copy">
