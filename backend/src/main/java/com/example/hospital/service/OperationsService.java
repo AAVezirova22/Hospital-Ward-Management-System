@@ -1,6 +1,7 @@
 package com.example.hospital.service;
 
 import com.example.hospital.api.ApiException;
+import com.example.hospital.api.Views;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
@@ -103,7 +104,7 @@ public class OperationsService {
   }
 
   @Transactional
-  public Admission schedule(Long id, LocalDate date, Long version) {
+  public Map<String, Object> schedule(Long id, LocalDate date, Long version) {
     lock.acquire(); actor.staff();
     var a = hospital.admission(id);
     HospitalService.version(a, version);
@@ -112,6 +113,6 @@ public class OperationsService {
     a.expectedDischargeDate = date;
     admissions.saveAndFlush(a);
     auditService.log("DISCHARGE_PLANNED", "Admission", id, "UI");
-    return a;
+    return Views.admission(a);
   }
 }
