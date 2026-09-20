@@ -1,6 +1,8 @@
 package com.example.hospital.service;
 
-import com.example.hospital.api.Inputs.*;
+import com.example.hospital.api.AdmissionInput;
+import com.example.hospital.api.DischargeInput;
+import com.example.hospital.api.TransferInput;
 import com.example.hospital.domain.Admission;
 import java.util.List;
 import java.util.Map;

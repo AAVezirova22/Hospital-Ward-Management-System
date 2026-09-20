@@ -1,6 +1,6 @@
 package com.example.hospital.api;
 
-import com.example.hospital.api.Inputs.UserInput;
+import com.example.hospital.api.UserInput;
 import com.example.hospital.repository.AuditEventRepository;
 import com.example.hospital.service.UserService;
 import jakarta.validation.Valid;

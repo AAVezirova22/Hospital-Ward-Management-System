@@ -1,6 +1,6 @@
 package com.example.hospital.api;
 
-import com.example.hospital.api.Inputs.PatientInput;
+import com.example.hospital.api.PatientInput;
 import com.example.hospital.service.PatientService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
