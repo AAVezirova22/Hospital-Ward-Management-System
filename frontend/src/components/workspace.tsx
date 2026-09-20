@@ -7,7 +7,10 @@ import { api, activeDepartment, type Row, type User } from "../api";
 export const Auth = createContext<User>(null!);
 export const useUser = () => useContext(Auth);
 export const useData = (key: string, path = key) =>
-  useQuery<Row>({ queryKey: [key], queryFn: () => api(path) });
+  useQuery<Row>({
+    queryKey: [key, activeDepartment()],
+    queryFn: () => api(path),
+  });
 export function Link({
   to,
   children,
