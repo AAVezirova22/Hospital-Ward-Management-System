@@ -1,27 +1,37 @@
 import { expect, test } from "@playwright/test";
 
-test("product landing opens the assistant and a walkthrough request", async ({
+test("product landing opens the assistant and guided walkthrough", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "The ward, in the moment." }),
+    page.getByRole("heading", { name: /More presence.*Less process/ }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "See the assistant" }).click();
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "Assistant", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", {
-      name: "Ask the ward. Confirm before anything writes.",
+      name: /Files in.*A plan out/,
     }),
   ).toBeVisible();
   await page.locator("[data-film-book]").click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Request a walkthrough" }),
+    page.getByRole("heading", { name: "Your ward, in one view." }),
   ).toBeVisible();
-  await page.getByLabel("Full name").fill("Kalina Ruseva");
-  await page.getByLabel("Phone").fill("+359 88 412 903");
-  await page.getByRole("link", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "From files to a plan." }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Stay connected with iMessage." }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
 });
 
 test("workspace link from the landing reaches sign-in", async ({ page }) => {
