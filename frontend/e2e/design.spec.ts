@@ -53,7 +53,9 @@ test("redesigned workspace has working navigation and both themes", async ({
   await expect(
     page.getByRole("heading", { name: "Your ward. In the moment." }),
   ).toBeVisible();
-  await expect(page.locator(".operations-metrics .operation-stat")).toHaveCount(4);
+  await expect(page.locator(".operations-metrics .operation-stat")).toHaveCount(
+    4,
+  );
   await page.setViewportSize({ width: 1440, height: 800 });
   await expect(
     page.getByRole("link", { name: "Overview", exact: true }),
