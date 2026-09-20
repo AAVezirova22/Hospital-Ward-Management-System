@@ -10,6 +10,8 @@ const apiOrigin = (
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // A bounded eight-step assistant turn can outlast the default 30-second proxy timeout.
+  experimental: { proxyTimeout: 150_000 },
   async rewrites() {
     return [
       {
