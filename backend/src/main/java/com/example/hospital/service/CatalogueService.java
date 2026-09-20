@@ -69,13 +69,13 @@ public class CatalogueService {
     if (!in.active() && id != null && admissions.existsByAttendingDoctorIdAndStatus(id, "ACTIVE"))
       throw ApiException.conflict(
           "DOCTOR_HAS_PATIENTS", "Reassign active admissions before deactivating this doctor.");
-    d.doctorIdentifier = in.doctorIdentifier().trim();
-    d.firstName = in.firstName().trim();
-    d.lastName = in.lastName().trim();
-    d.specialty = in.specialty().trim();
-    d.active = in.active();
+    d.setDoctorIdentifier(in.doctorIdentifier().trim());
+    d.setFirstName(in.firstName().trim());
+    d.setLastName(in.lastName().trim());
+    d.setSpecialty(in.specialty().trim());
+    d.setActive(in.active());
     doctors.saveAndFlush(d);
-    audit.log("DOCTOR_SAVED", "Doctor", d.id, "UI");
+    audit.log("DOCTOR_SAVED", "Doctor", d.getId(), "UI");
     return d;
   }
 
@@ -91,11 +91,11 @@ public class CatalogueService {
           "ROOM_OCCUPIED",
           "The room has occupied beds; transfer patients before reducing capacity or deactivating"
               + " it.");
-    r.roomNumber = in.roomNumber().trim();
-    r.bedCount = in.bedCount();
-    r.active = in.active();
+    r.setRoomNumber(in.roomNumber().trim());
+    r.setBedCount(in.bedCount());
+    r.setActive(in.active());
     rooms.saveAndFlush(r);
-    audit.log("ROOM_SAVED", "Room", r.id, "UI");
+    audit.log("ROOM_SAVED", "Room", r.getId(), "UI");
     return r;
   }
 
@@ -107,12 +107,12 @@ public class CatalogueService {
             ? new MedicalProcedure()
             : catalogue.findById(id).orElseThrow(ApiException::missing);
     if (id != null) HospitalService.version(p, in.version());
-    p.procedureCode = in.procedureCode().trim();
-    p.procedureName = in.procedureName().trim();
-    p.currentCost = in.currentCost();
-    p.active = in.active();
+    p.setProcedureCode(in.procedureCode().trim());
+    p.setProcedureName(in.procedureName().trim());
+    p.setCurrentCost(in.currentCost());
+    p.setActive(in.active());
     catalogue.saveAndFlush(p);
-    audit.log("PROCEDURE_SAVED", "MedicalProcedure", p.id, "UI");
+    audit.log("PROCEDURE_SAVED", "MedicalProcedure", p.getId(), "UI");
     return p;
   }
 }
