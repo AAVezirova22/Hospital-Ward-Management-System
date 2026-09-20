@@ -224,7 +224,7 @@ test("desktop and mobile visuals, reduced motion, no overflow", async ({
   page,
 }) => {
   await signIn(page);
-  await expect(page.locator("main > div")).toHaveCSS("opacity", "1");
+  await expect(page.locator("main > .scene-content")).toHaveCSS("opacity", "1");
   await page.screenshot({
     path: "test-results/overview-desktop.png",
     fullPage: true,
@@ -244,7 +244,7 @@ test("desktop and mobile visuals, reduced motion, no overflow", async ({
   await expect(
     page.getByRole("heading", { name: "People at the center." }),
   ).toBeVisible();
-  await expect(page.locator("main > div")).toHaveCSS("opacity", "1");
+  await expect(page.locator("main > .scene-content")).toHaveCSS("opacity", "1");
   await page.screenshot({
     path: "test-results/patients-mobile.png",
     fullPage: true,
