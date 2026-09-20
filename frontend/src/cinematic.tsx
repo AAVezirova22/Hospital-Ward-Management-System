@@ -179,10 +179,11 @@ export function SceneTransition({
         initial={enabled ? { opacity: 0, x: -28 } : false}
         animate={{ opacity: 1, x: 0 }}
         exit={enabled ? { opacity: 0, x: -16 } : undefined}
-        transition={{
-          duration: enabled ? 0.32 : 0,
-          ease,
-        }}
+        transition={
+          enabled
+            ? { type: "spring", stiffness: 280, damping: 34, mass: 0.72 }
+            : { duration: 0 }
+        }
       >
         {children}
       </motion.div>
