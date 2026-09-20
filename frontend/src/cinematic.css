@@ -161,6 +161,7 @@
 .scene-content {
   min-width: 0;
   transform-origin: left center;
+  will-change: transform, opacity;
 }
 
 @keyframes aperture-open {
