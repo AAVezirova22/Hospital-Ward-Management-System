@@ -22,6 +22,7 @@ public class AiActionService {
   private final AuditService audit;
   private final ObjectMapper json;
   private final int ttl;
+  private final AiWorkflowService workflows;
 
   public AiActionService(
       AiPendingActionRepository a,
@@ -30,7 +31,8 @@ public class AiActionService {
       HospitalService h,
       AuditService au,
       ObjectMapper j,
-      @Value("${app.ai.action-ttl-seconds}") int ttl) {
+      @Value("${app.ai.action-ttl-seconds}") int ttl,
+      AiWorkflowService workflows) {
     actions = a;
     lock = l;
     this.actor = actor;
@@ -38,6 +40,7 @@ public class AiActionService {
     audit = au;
     json = j;
     this.ttl = ttl;
+    this.workflows = workflows;
   }
 
   public static class ExpiredActionException extends ApiException {
@@ -86,6 +89,20 @@ public class AiActionService {
     return m;
   }
 
+  @Transactional
+  public Object prepareWorkflow(String text) {
+    var plan = workflows.parse(text);
+    var a = new AiPendingAction();
+    a.userId = actor.user().id;
+    a.actionType = "WORKFLOW";
+    a.expiresAt = Instant.now().plusSeconds(ttl);
+    try { a.payload = json.writeValueAsString(plan); }
+    catch (Exception e) { throw new IllegalArgumentException(); }
+    actions.saveAndFlush(a);
+    audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.id, "AI");
+    return Map.of("action", a, "workflow", plan);
+  }
+
   @Transactional(noRollbackFor = ExpiredActionException.class)
   public Object confirm(Long id) {
     lock.acquire();
@@ -97,6 +114,14 @@ public class AiActionService {
       a.status = "EXPIRED";
       actions.saveAndFlush(a);
       throw new ExpiredActionException();
+    }
+    if (a.actionType.equals("WORKFLOW")) {
+      var result = workflows.execute(workflows.parse(a.payload));
+      a.status = "EXECUTED";
+      a.confirmedAt = Instant.now();
+      actions.saveAndFlush(a);
+      audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.id, "AI");
+      return result;
     }
     Payload p;
     try {

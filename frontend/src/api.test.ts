@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, bindAccount, login, logout, setActiveDepartment, token } from "./api";
+import {
+  api,
+  bindAccount,
+  login,
+  logout,
+  setActiveDepartment,
+  token,
+} from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("secure-session failures", () => {
@@ -58,6 +65,41 @@ describe("department scope", () => {
       }),
     );
   });
+  it("does not retry assistant writes in another department after access is denied", async () => {
+    setActiveDepartment(12);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(
+          { code: "DEPARTMENT_ACCESS_DENIED", message: "Denied" },
+          { status: 403 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      api("/assistant/messages", "POST", { message: "Import files" }),
+    ).rejects.toMatchObject({ code: "DEPARTMENT_ACCESS_DENIED" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBe("12");
+  });
+  it("preserves multipart bodies while including session and CSRF headers", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ token: "upload-csrf", headerName: "X-CSRF-TOKEN" }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: "source-id" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await token();
+    const form = new FormData();
+    form.append("file", new Blob(["example"]), "notes.txt");
+    await api("/assistant/sources", "POST", form);
+    expect(fetchMock.mock.calls[1][1].body).toBe(form);
+    expect(fetchMock.mock.calls[1][1].headers).toEqual({
+      "X-CSRF-TOKEN": "upload-csrf",
+    });
+    expect(fetchMock.mock.calls[1][1].credentials).toBe("include");
+  });
   it("clears the remembered department on logout", async () => {
     setActiveDepartment(12);
     vi.stubGlobal(
@@ -75,9 +117,21 @@ describe("department scope", () => {
       .mockResolvedValue(Response.json([], { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await api("/patients");
-    expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBeUndefined();
+    expect(
+      fetchMock.mock.calls[0][1].headers["X-Department-Id"],
+    ).toBeUndefined();
   });
   it("stores the selected department per account", async () => {
+    const store: Record<string, string> = {};
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+    });
     bindAccount(1);
     setActiveDepartment(12);
     bindAccount(2);
