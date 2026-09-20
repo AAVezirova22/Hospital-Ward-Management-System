@@ -118,3 +118,9 @@ export interface ProcedureReport {
   from: string;
   to: string;
 }
+export interface WorkspaceDepartment {
+  id: number;
+  name: string;
+  role: string;
+  joinCode: string | null;
+}
