@@ -57,7 +57,7 @@ public class AiActionService {
 
   public AiPendingAction get(Long id) {
     var a = actions.findById(id).orElseThrow(ApiException::missing);
-    if (!a.userId.equals(actor.user().id))
+    if (!a.getUserId().equals(actor.user().getId()))
       throw new AccessDeniedException("Action belongs to another user");
     return a;
   }
@@ -66,29 +66,33 @@ public class AiActionService {
   public Object prepare(String type, Payload p) {
     actor.staff();
     var a = new AiPendingAction();
-    a.userId = actor.user().id;
-    a.actionType = type;
-    a.expiresAt = Instant.now().plusSeconds(ttl);
+    a.setUserId(actor.user().getId());
+    a.setActionType(type);
+    a.setExpiresAt(Instant.now().plusSeconds(ttl));
     try {
-      a.payload = json.writeValueAsString(p);
+      a.setPayload(json.writeValueAsString(p));
     } catch (Exception e) {
       throw new IllegalArgumentException();
     }
     actions.saveAndFlush(a);
-    audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.id, "AI");
+    audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.getId(), "AI");
     return card(a, p);
   }
 
   public Object card(AiPendingAction a, Payload p) {
     Map<String, Object> m = new LinkedHashMap<>();
-    m.put("action", a);
-    m.put("patient", h.patient(p.patientId()));
-    if (p.roomId() != null) m.put("destination", h.room(p.roomId()));
+    m.put("action", Views.pendingAction(a));
+    m.put("patient", Views.patient(h.patient(p.patientId())));
+    if (p.roomId() != null) m.put("destination", Views.room(h.room(p.roomId())));
     if (p.admissionId() != null) m.put("current", h.admissionView(h.admission(p.admissionId())));
     if (p.doctorId() != null)
       m.put(
           "doctor",
-          h.doctors().stream().filter(d -> d.id.equals(p.doctorId())).findFirst().orElseThrow());
+          Views.doctor(
+              h.doctors().stream()
+                  .filter(d -> d.getId().equals(p.doctorId()))
+                  .findFirst()
+                  .orElseThrow()));
     return m;
   }
 
@@ -96,14 +100,14 @@ public class AiActionService {
   public Object prepareWorkflow(String text) {
     var plan = workflows.parse(text);
     var a = new AiPendingAction();
-    a.userId = actor.user().id;
-    a.actionType = "WORKFLOW";
-    a.expiresAt = Instant.now().plusSeconds(ttl);
-    try { a.payload = json.writeValueAsString(plan); }
+    a.setUserId(actor.user().getId());
+    a.setActionType("WORKFLOW");
+    a.setExpiresAt(Instant.now().plusSeconds(ttl));
+    try { a.setPayload(json.writeValueAsString(plan)); }
     catch (Exception e) { throw new IllegalArgumentException(); }
     actions.saveAndFlush(a);
-    audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.id, "AI");
-    return Map.of("action", a, "workflow", plan);
+    audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.getId(), "AI");
+    return Map.of("action", Views.pendingAction(a), "workflow", plan);
   }
 
   @Transactional(noRollbackFor = ExpiredActionException.class)
@@ -111,29 +115,29 @@ public class AiActionService {
     lock.acquire();
     actor.staff();
     var a = get(id);
-    if (!a.status.equals("PENDING"))
+    if (!a.getStatus().equals("PENDING"))
       throw ApiException.conflict("ACTION_CONSUMED", "This action is no longer pending.");
-    if (Instant.now().isAfter(a.expiresAt)) {
-      a.status = "EXPIRED";
+    if (Instant.now().isAfter(a.getExpiresAt())) {
+      a.setStatus("EXPIRED");
       actions.saveAndFlush(a);
       throw new ExpiredActionException();
     }
-    if (a.actionType.equals("WORKFLOW")) {
-      var result = workflows.execute(workflows.parse(a.payload));
-      a.status = "EXECUTED";
-      a.confirmedAt = Instant.now();
+    if (a.getActionType().equals("WORKFLOW")) {
+      var result = workflows.execute(workflows.parse(a.getPayload()));
+      a.setStatus("EXECUTED");
+      a.setConfirmedAt(Instant.now());
       actions.saveAndFlush(a);
-      audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.id, "AI");
+      audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.getId(), "AI");
       return result;
     }
     Payload p;
     try {
-      p = json.readValue(a.payload, Payload.class);
+      p = json.readValue(a.getPayload(), Payload.class);
     } catch (Exception e) {
       throw new IllegalArgumentException();
     }
     Object result =
-        switch (a.actionType) {
+        switch (a.getActionType()) {
           case "ADMISSION" ->
               stays.create(new AdmissionInput(p.patientId(), p.doctorId(), p.roomId()), "AI");
           case "TRANSFER" ->
@@ -142,10 +146,10 @@ public class AiActionService {
           case "DISCHARGE" -> stays.close(p.admissionId(), p.version(), "AI");
           default -> throw new IllegalArgumentException();
         };
-    a.status = "EXECUTED";
-    a.confirmedAt = Instant.now();
+    a.setStatus("EXECUTED");
+    a.setConfirmedAt(Instant.now());
     actions.saveAndFlush(a);
-    audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.id, "AI");
+    audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.getId(), "AI");
     return result;
   }
 
@@ -153,11 +157,11 @@ public class AiActionService {
   public Object cancel(Long id) {
     lock.acquire();
     var a = get(id);
-    if (!a.status.equals("PENDING"))
+    if (!a.getStatus().equals("PENDING"))
       throw ApiException.conflict("ACTION_CONSUMED", "This action is no longer pending.");
-    a.status = "CANCELLED";
+    a.setStatus("CANCELLED");
     actions.saveAndFlush(a);
-    audit.log("AI_ACTION_CANCELLED", "AiPendingAction", a.id, "AI");
-    return a;
+    audit.log("AI_ACTION_CANCELLED", "AiPendingAction", a.getId(), "AI");
+    return Views.pendingAction(a);
   }
 }
