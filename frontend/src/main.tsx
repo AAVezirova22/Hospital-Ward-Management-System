@@ -89,7 +89,19 @@ function App({ children }: { children: React.ReactNode }) {
       qc.clear();
     };
     window.addEventListener("session-expired", expired);
-    return () => window.removeEventListener("session-expired", expired);
+    const switched = () => {
+      api<User>("/auth/me")
+        .then((next) => {
+          setUser(next);
+          void qc.invalidateQueries();
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("workspace-changed", switched);
+    return () => {
+      window.removeEventListener("session-expired", expired);
+      window.removeEventListener("workspace-changed", switched);
+    };
   }, [awake]);
   const signOut = async () => {
     try {
