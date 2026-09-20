@@ -4,7 +4,9 @@ import com.example.hospital.api.ApiException;
 import com.example.hospital.security.Actor;
 import com.example.hospital.security.DepartmentContext;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +17,7 @@ public class WorkspaceService {
   private final JdbcTemplate jdbc;
   private final Actor actor;
   private final SecureRandom random = new SecureRandom();
+  private final Map<String, List<Instant>> joinAttempts = new ConcurrentHashMap<>();
   public WorkspaceService(JdbcTemplate jdbc, Actor actor) { this.jdbc = jdbc; this.actor = actor; }
   public record Department(long id, String name, String role, String joinCode) {}
   public record Hospital(long id, String name, boolean owner, String joinCode, List<Department> departments) {}
@@ -64,12 +67,19 @@ public class WorkspaceService {
 
   @Transactional
   public Map<String, Object> join(String supplied) {
+    return join(supplied, null);
+  }
+
+  @Transactional
+  public Map<String, Object> join(String supplied, String remoteAddr) {
     String code = supplied == null ? "" : supplied.strip().toUpperCase(Locale.ROOT);
     if (!code.matches("(?:[HD]-)?[A-F0-9]{24,32}"))
       throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
     var user = actor.user();
+    guardJoinAttempts(user.id, remoteAddr);
     var departments = jdbc.queryForList("select id,hospital_id from departments where join_code=?", code);
     if (!departments.isEmpty()) {
+      clearJoinAttempts(user.id, remoteAddr);
       long id = ((Number) departments.getFirst().get("id")).longValue();
       long hospitalId = ((Number) departments.getFirst().get("hospital_id")).longValue();
       jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", hospitalId, user.id);
@@ -77,10 +87,39 @@ public class WorkspaceService {
       return Map.of("hospitalId", hospitalId, "departmentId", id);
     }
     var hospitals = jdbc.queryForList("select id from hospitals where join_code=?", Long.class, code);
-    if (hospitals.isEmpty()) throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
+    if (hospitals.isEmpty()) {
+      recordJoinFailure(user.id, remoteAddr);
+      throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
+    }
+    clearJoinAttempts(user.id, remoteAddr);
     long id = hospitals.getFirst();
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", id, user.id);
     return Map.of("hospitalId", id);
+  }
+
+  private String joinKey(Long userId, String remoteAddr) {
+    return userId + ":" + (remoteAddr == null || remoteAddr.isBlank() ? "unknown" : remoteAddr);
+  }
+
+  private void guardJoinAttempts(Long userId, String remoteAddr) {
+    Instant cutoff = Instant.now().minusSeconds(600);
+    var attempts = joinAttempts.computeIfAbsent(joinKey(userId, remoteAddr), k -> new ArrayList<>());
+    synchronized (attempts) {
+      attempts.removeIf(t -> t.isBefore(cutoff));
+      if (attempts.size() >= 5)
+        throw new ApiException(429, "RATE_LIMITED", "Too many invalid join codes. Wait a few minutes and try again.");
+    }
+  }
+
+  private void recordJoinFailure(Long userId, String remoteAddr) {
+    var attempts = joinAttempts.computeIfAbsent(joinKey(userId, remoteAddr), k -> new ArrayList<>());
+    synchronized (attempts) {
+      attempts.add(Instant.now());
+    }
+  }
+
+  private void clearJoinAttempts(Long userId, String remoteAddr) {
+    joinAttempts.remove(joinKey(userId, remoteAddr));
   }
 
   @Transactional

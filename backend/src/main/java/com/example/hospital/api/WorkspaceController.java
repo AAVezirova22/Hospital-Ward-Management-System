@@ -2,6 +2,7 @@ package com.example.hospital.api;
 
 import com.example.hospital.security.DepartmentContext;
 import com.example.hospital.service.WorkspaceService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.util.Map;
@@ -28,7 +29,9 @@ public class WorkspaceController {
     return Map.of("hospitalId", id, "departmentId", workspaces.createDepartment(id, input.name()));
   }
   @PostMapping("/join")
-  public Object join(@Valid @RequestBody JoinInput input) { return workspaces.join(input.code()); }
+  public Object join(@Valid @RequestBody JoinInput input, HttpServletRequest request) {
+    return workspaces.join(input.code(), request.getRemoteAddr());
+  }
   @PostMapping("/hospitals/{id}/code")
   public Object hospitalCode(@PathVariable long id) { return Map.of("code", workspaces.rotate(true, id)); }
   @PostMapping("/departments/{id}/code")

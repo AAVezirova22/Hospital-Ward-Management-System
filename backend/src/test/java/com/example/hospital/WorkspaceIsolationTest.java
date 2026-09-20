@@ -234,6 +234,19 @@ class WorkspaceIsolationTest {
   }
 
   @Test
+  void joinCodeGuessesAreRateLimited() throws Exception {
+    String guess = "AAAAAAAAAAAAAAAAAAAAAAAA";
+    for (int i = 0; i < 5; i++) {
+      call("admin", "POST", "/api/v1/workspaces/join", Map.of("code", guess), 1L)
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.code").value("INVALID_CODE"));
+    }
+    call("admin", "POST", "/api/v1/workspaces/join", Map.of("code", guess), 1L)
+        .andExpect(status().isTooManyRequests())
+        .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+  }
+
+  @Test
   void hospitalJoinDoesNotOpenDepartmentRecords() throws Exception {
     String name = "hosp" + unique();
     body(
