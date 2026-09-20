@@ -15,7 +15,7 @@ export function DemoAccess({ onLogin }: { onLogin: (u: User) => void }) {
   if (!status.data?.enabled) return null;
   return (
     <div className="demo-access">
-      <span className="eyebrow">DEMO ENVIRONMENT</span>
+      <span className="eyebrow">Demo environment</span>
       <p>Explore with synthetic records.</p>
       {(
         [
