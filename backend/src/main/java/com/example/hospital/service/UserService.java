@@ -111,7 +111,7 @@ public class UserService {
     if ("DOCTOR".equals(in.role()) && "DOCTOR".equals(u.getRequestedRole()) && !u.isEmailVerified())
       throw new ApiException(400, "EMAIL_UNVERIFIED", "The applicant must confirm their email first.");
     if ("PATIENT".equals(in.role()) && u.getPatientId() == null)
-      throw new ApiException(400, "PATIENT_REQUIRED", "Patient accounts are created through registration."));
+      throw new ApiException(400, "PATIENT_REQUIRED", "Patient accounts are created through registration.");
     if (u.getEmail() != null && !u.isEmailVerified() && in.enabled())
       throw new ApiException(400, "EMAIL_UNVERIFIED", "Confirm the account email before enabling access.");
     if (id != null && !u.getUsername().equals(in.username()))
