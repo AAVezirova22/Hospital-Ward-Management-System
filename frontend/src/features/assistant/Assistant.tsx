@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, setActiveDepartment, type Row, type User } from "../../api";
+import { api, fullName, money, date, activeDepartment, setActiveDepartment, type Row, type User } from "../../api";
 import {
   Link,
   useUser,
@@ -35,7 +35,12 @@ export function Assistant({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     mounted.current = true;
     ref.current?.showModal();
-    const close = () => onClose();
+    let department = activeDepartment();
+    const close = () => {
+      const next = activeDepartment();
+      if (department !== null && next !== department) onClose();
+      department = next;
+    };
     window.addEventListener("workspace-changed", close);
     return () => {
       mounted.current = false;
