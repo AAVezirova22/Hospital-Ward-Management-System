@@ -21,9 +21,7 @@ public class HospitalService {
   private final RoomAssignmentRepository assignments;
   private final MedicalProcedureRepository catalogue;
   private final PerformedProcedureRepository performed;
-  private final WorkflowLockRepository lock;
   private final Actor actor;
-  private final AuditService audit;
   private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
   public HospitalService(
@@ -34,9 +32,7 @@ public class HospitalService {
       RoomAssignmentRepository ra,
       MedicalProcedureRepository mp,
       PerformedProcedureRepository pp,
-      WorkflowLockRepository l,
       Actor actor,
-      AuditService audit,
       org.springframework.jdbc.core.JdbcTemplate jdbc) {
     patients = p;
     doctors = d;
@@ -45,9 +41,7 @@ public class HospitalService {
     assignments = ra;
     catalogue = mp;
     performed = pp;
-    lock = l;
     this.actor = actor;
-    this.audit = audit;
     this.jdbc = jdbc;
   }
 
@@ -181,7 +175,7 @@ public class HospitalService {
                         "procedure",
                         Views.procedure(catalogue.findById(pp.medicalProcedureId).orElseThrow()),
                         "doctor",
-                        Views.doctor(doctors.findById(pp.performedByDoctorId).orElseThrow()))
+                        Views.doctor(doctors.findById(pp.performedByDoctorId).orElseThrow())))
             .toList());
     v.put(
         "totalCost",
@@ -204,208 +198,5 @@ public class HospitalService {
   public static void version(BaseEntity e, Long v) {
     if (v == null || e.version != v)
       throw ApiException.conflict("STALE_STATE", "This record changed. Refresh before continuing.");
-  }
-
-  @Transactional
-  public Patient savePatient(Long id, PatientInput in) {
-    actor.staff();
-    var p = id == null ? new Patient() : patient(id);
-    if (id != null) version(p, in.version());
-    p.patientIdentifier = in.patientIdentifier().trim();
-    p.firstName = in.firstName().trim();
-    p.lastName = in.lastName().trim();
-    p.dateOfBirth = in.dateOfBirth();
-    p.address = in.address();
-    p.phoneNumber = in.phoneNumber() == null || in.phoneNumber().isBlank() ? null : in.phoneNumber().trim();
-    patients.saveAndFlush(p);
-    audit.log(id == null ? "PATIENT_CREATED" : "PATIENT_UPDATED", "Patient", p.id, "UI");
-    return p;
-  }
-
-  @Transactional
-  public Doctor saveDoctor(Long id, DoctorInput in) {
-    lock.acquire();
-    actor.admin();
-    var d = id == null ? new Doctor() : doctors.findById(id).orElseThrow(ApiException::missing);
-    if (id != null) version(d, in.version());
-    if (!in.active() && id != null && admissions.existsByAttendingDoctorIdAndStatus(id, "ACTIVE"))
-      throw ApiException.conflict(
-          "DOCTOR_HAS_PATIENTS", "Reassign active admissions before deactivating this doctor.");
-    d.doctorIdentifier = in.doctorIdentifier().trim();
-    d.firstName = in.firstName().trim();
-    d.lastName = in.lastName().trim();
-    d.specialty = in.specialty().trim();
-    d.active = in.active();
-    doctors.saveAndFlush(d);
-    audit.log("DOCTOR_SAVED", "Doctor", d.id, "UI");
-    return d;
-  }
-
-  @Transactional
-  public Room saveRoom(Long id, RoomInput in) {
-    lock.acquire();
-    actor.admin();
-    var r = id == null ? new Room() : room(id);
-    if (id != null) version(r, in.version());
-    long used = id == null ? 0 : occupied(id);
-    if (in.bedCount() < used || (!in.active() && used > 0))
-      throw ApiException.conflict(
-          "ROOM_OCCUPIED",
-          "The room has occupied beds; transfer patients before reducing capacity or deactivating"
-              + " it.");
-    r.roomNumber = in.roomNumber().trim();
-    r.bedCount = in.bedCount();
-    r.active = in.active();
-    rooms.saveAndFlush(r);
-    audit.log("ROOM_SAVED", "Room", r.id, "UI");
-    return r;
-  }
-
-  @Transactional
-  public MedicalProcedure saveProcedure(Long id, ProcedureInput in) {
-    actor.admin();
-    var p =
-        id == null
-            ? new MedicalProcedure()
-            : catalogue.findById(id).orElseThrow(ApiException::missing);
-    if (id != null) version(p, in.version());
-    p.procedureCode = in.procedureCode().trim();
-    p.procedureName = in.procedureName().trim();
-    p.currentCost = in.currentCost();
-    p.active = in.active();
-    catalogue.saveAndFlush(p);
-    audit.log("PROCEDURE_SAVED", "MedicalProcedure", p.id, "UI");
-    return p;
-  }
-
-  private Doctor activeDoctor(Long id) {
-    var d = doctors.findById(id).orElseThrow(ApiException::missing);
-    if (!d.active) throw ApiException.conflict("DOCTOR_INACTIVE", "Choose an active doctor.");
-    return d;
-  }
-
-  private Room freeRoom(Long id) {
-    var r = room(id);
-    if (!r.active || occupied(id) >= r.bedCount)
-      throw ApiException.conflict(
-          "ROOM_CAPACITY_EXCEEDED", "Room " + r.roomNumber + " no longer has available capacity.");
-    return r;
-  }
-
-  private void active(Admission a) {
-    if (!a.status.equals("ACTIVE"))
-      throw ApiException.conflict("ADMISSION_CLOSED", "This admission is already closed.");
-  }
-
-  private void assign(Admission a, Long roomId, String reason, String source) {
-    var ra = new RoomAssignment();
-    ra.admissionId = a.id;
-    ra.roomId = roomId;
-    ra.assignedAt = Instant.now();
-    ra.reason = reason;
-    ra.createdBy = actor.user().id;
-    assignments.save(ra);
-    audit.log("ROOM_ASSIGNED", "Admission", a.id, source);
-  }
-
-  @Transactional
-  public Admission admit(AdmissionInput in, String source) {
-    lock.acquire();
-    actor.staff();
-    patient(in.patientId());
-    activeDoctor(in.doctorId());
-    freeRoom(in.roomId());
-    if (admissions.findByPatientIdAndStatus(in.patientId(), "ACTIVE").isPresent())
-      throw ApiException.conflict(
-          "ALREADY_ADMITTED", "The patient already has an active admission.");
-    var a = new Admission();
-    a.patientId = in.patientId();
-    a.attendingDoctorId = in.doctorId();
-    a.admissionDateTime = Instant.now();
-    a.admissionNumber = "ADM-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
-    a.createdBy = actor.user().id;
-    admissions.saveAndFlush(a);
-    assign(a, in.roomId(), "Admission", source);
-    audit.log("ADMISSION_CREATED", "Admission", a.id, source);
-    return a;
-  }
-
-  @Transactional
-  public Admission transfer(Long id, TransferInput in, String source) {
-    lock.acquire();
-    actor.staff();
-    var a = admission(id);
-    active(a);
-    version(a, in.version());
-    var ra =
-        assignments.findByAdmissionIdAndReleasedAtIsNull(id).orElseThrow(ApiException::missing);
-    if (ra.roomId.equals(in.roomId()))
-      throw ApiException.conflict("SAME_ROOM", "The patient is already in that room.");
-    freeRoom(in.roomId());
-    ra.releasedAt = Instant.now();
-    assignments.saveAndFlush(ra);
-    assign(a, in.roomId(), in.reason(), source);
-    a.updatedAt = Instant.now();
-    admissions.saveAndFlush(a);
-    audit.log("ROOM_TRANSFERRED", "Admission", a.id, source);
-    return a;
-  }
-
-  @Transactional
-  public Admission discharge(Long id, Long v, String source) {
-    lock.acquire();
-    actor.staff();
-    var a = admission(id);
-    active(a);
-    version(a, v);
-    a.status = "DISCHARGED";
-    a.dischargeDateTime = Instant.now();
-    var ra =
-        assignments.findByAdmissionIdAndReleasedAtIsNull(id).orElseThrow(ApiException::missing);
-    ra.releasedAt = a.dischargeDateTime;
-    assignments.save(ra);
-    admissions.saveAndFlush(a);
-    audit.log("PATIENT_DISCHARGED", "Admission", a.id, source);
-    return a;
-  }
-
-  @Transactional
-  public Admission changeDoctor(Long id, Long doctorId, Long v) {
-    lock.acquire();
-    actor.staff();
-    var a = admission(id);
-    active(a);
-    version(a, v);
-    activeDoctor(doctorId);
-    a.attendingDoctorId = doctorId;
-    admissions.saveAndFlush(a);
-    audit.log("DOCTOR_ASSIGNED", "Admission", a.id, "UI");
-    return a;
-  }
-
-  @Transactional
-  public PerformedProcedure recordProcedure(Long id, RecordProcedureInput in) {
-    lock.acquire();
-    var a = admission(id);
-    active(a);
-    activeDoctor(in.doctorId());
-    if (actor.doctor() && !actor.user().doctorId.equals(in.doctorId()))
-      throw new AccessDeniedException("Cannot record for another doctor");
-    if (in.performedAt().isBefore(a.admissionDateTime) || in.performedAt().isAfter(Instant.now()))
-      throw new ApiException(
-          400, "INVALID_PROCEDURE_TIME", "Procedure time must fall within the active admission.");
-    var mp = catalogue.findById(in.medicalProcedureId()).orElseThrow(ApiException::missing);
-    if (!mp.active)
-      throw ApiException.conflict("PROCEDURE_INACTIVE", "Select an active procedure.");
-    var p = new PerformedProcedure();
-    p.admissionId = id;
-    p.medicalProcedureId = mp.id;
-    p.performedByDoctorId = in.doctorId();
-    p.performedAt = in.performedAt();
-    p.note = in.note();
-    p.priceAtExecution = mp.currentCost;
-    performed.saveAndFlush(p);
-    audit.log("PROCEDURE_RECORDED", "PerformedProcedure", p.id, "UI");
-    return p;
   }
 }
