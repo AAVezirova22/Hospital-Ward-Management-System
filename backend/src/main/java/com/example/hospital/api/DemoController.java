@@ -44,6 +44,7 @@ public class DemoController {
         List.of(new SimpleGrantedAuthority("ROLE_" + user.role))));
     SecurityContextHolder.setContext(context);
     request.getSession(true).setAttribute("credentialStamp", user.passwordHash);
+    request.getSession().setAttribute("accountId", user.id);
     new HttpSessionSecurityContextRepository().saveContext(context, request, response);
     user.lastLoginAt = Instant.now();
     users.save(user);

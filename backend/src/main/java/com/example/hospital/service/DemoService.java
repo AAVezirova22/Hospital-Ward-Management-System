@@ -38,7 +38,7 @@ public class DemoService {
     lock.acquire();
     // Only enabled on a dedicated synthetic database. IDs are never reused:
     // old sessions and stale proposals cannot refer to newly created records.
-    for (String table : new String[]{"ai_sessions", "ai_pending_actions", "ai_interactions",
+    for (String table : new String[]{"email_verifications", "ai_sessions", "ai_pending_actions", "ai_interactions",
         "audit_events", "performed_procedures", "room_assignments", "admissions",
         "app_users", "patients", "doctors", "rooms", "medical_procedures"}) {
       jdbc.update("delete from " + table);
