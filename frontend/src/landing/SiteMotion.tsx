@@ -2,12 +2,14 @@
 import {
   createContext,
   useContext,
+  useRef,
   useEffect,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { MotionConfig, motion } from "motion/react";
+import { MotionConfig, motion, useAnimate, useInView } from "motion/react";
+import { FilmChoreography } from "./FilmChoreography";
 
 const motionQuery = "(prefers-reduced-motion: reduce)";
 function subscribeMotion(onChange: () => void) {
@@ -16,7 +18,7 @@ function subscribeMotion(onChange: () => void) {
   return () => media.removeEventListener("change", onChange);
 }
 const readMotion = () => window.matchMedia(motionQuery).matches;
-const serverMotion = () => false;
+const serverMotion = () => true;
 
 const MotionPreferences = createContext({
   paused: false,
@@ -26,7 +28,14 @@ const MotionPreferences = createContext({
 });
 export const useSiteMotion = () => useContext(MotionPreferences);
 
-export function LandingExperience({ children }: { children: ReactNode }) {
+export function LandingExperience({
+  children,
+  nonce,
+}: {
+  children: ReactNode;
+  nonce?: string;
+}) {
+  const root = useRef<HTMLDivElement>(null);
   const reduced = useSyncExternalStore(
     subscribeMotion,
     readMotion,
@@ -54,17 +63,19 @@ export function LandingExperience({ children }: { children: ReactNode }) {
     <MotionPreferences.Provider
       value={{
         paused,
-        reduced: ready && (Boolean(reduced) || paused),
+        reduced: !ready || Boolean(reduced) || paused,
         ready,
         toggle,
       }}
     >
-      <MotionConfig reducedMotion={paused ? "always" : "user"}>
+      <MotionConfig nonce={nonce} reducedMotion={paused ? "always" : "user"}>
         <div
+          ref={root}
           className="mc"
-          data-motion={ready && (paused || reduced) ? "reduced" : "full"}
+          data-motion={!ready || paused || reduced ? "reduced" : "full"}
           data-ready={ready}
         >
+          <FilmChoreography root={root} active={ready && !reduced && !paused} />
           {children}
         </div>
       </MotionConfig>
@@ -81,20 +92,35 @@ export function Reveal({
   className?: string;
   delay?: number;
 }) {
-  const { reduced } = useSiteMotion();
-  return (
-    <motion.div
-      className={className}
-      data-reveal
-      initial={reduced ? false : { opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.15 }}
-      transition={{
-        duration: reduced ? 0 : 0.8,
-        delay: reduced ? 0 : delay,
+  const { reduced, ready } = useSiteMotion();
+  const [scope, animate] = useAnimate();
+  const visible = useInView(scope, { once: true, amount: 0.15 });
+  const revealed = useRef(false);
+  useEffect(() => {
+    if (!ready) return;
+    if (reduced) {
+      animate(scope.current, { opacity: 1, y: 0 }, { duration: 0 });
+      return;
+    }
+    if (revealed.current) return;
+    if (!visible) {
+      animate(scope.current, { opacity: 0, y: 36 }, { duration: 0 });
+      return;
+    }
+    revealed.current = true;
+    const entrance = animate(
+      scope.current,
+      { opacity: [0, 1], y: [36, 0] },
+      {
+        duration: 0.95,
+        delay,
         ease: [0.22, 1, 0.36, 1],
-      }}
-    >
+      },
+    );
+    return () => entrance.stop();
+  }, [ready, reduced, visible, delay, animate, scope]);
+  return (
+    <motion.div ref={scope} className={className} data-reveal>
       {children}
     </motion.div>
   );
