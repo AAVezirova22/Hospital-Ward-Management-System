@@ -2,11 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import localFont from "next/font/local";
-import "../src/style.css";
-import "../src/design.css";
-import "../src/cinematic.css";
-import "../src/operations.css";
-import "../src/command-center.css";
+import { IBM_Plex_Mono, Newsreader, Outfit, Syne } from "next/font/google";
 
 const geist = localFont({
   src: "../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
@@ -16,21 +12,51 @@ const geist = localFont({
   adjustFontFallback: false,
 });
 
+const syne = Syne({
+  subsets: ["latin"],
+  variable: "--font-syne",
+  display: "swap",
+  weight: ["500", "600", "700", "800"],
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-outfit",
+  display: "swap",
+});
+
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+  display: "swap",
+  style: ["normal", "italic"],
+});
+
+const plex = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-plex",
+  display: "swap",
+  weight: ["400", "500"],
+});
+
 const publicUrl =
   process.env.PUBLIC_APP_URL || "https://hospital-ward-frontend.onrender.com";
 const socialImage = "/opengraph-image";
 
 export const metadata: Metadata = {
   metadataBase: new URL(publicUrl),
-  title: "Medcore | Hospital Operations",
+  title: {
+    default: "Medcore | The ward, in the moment.",
+    template: "%s | Medcore",
+  },
   description:
-    "A calm command center for ward planning, care history, and human-confirmed operational assistance.",
+    "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
   applicationName: "Medcore",
   appleWebApp: { capable: true, title: "Medcore", statusBarStyle: "default" },
   openGraph: {
-    title: "Medcore | Hospital Operations",
+    title: "Medcore | The ward, in the moment.",
     description:
-      "Live ward planning, clear care history, and human-confirmed operational assistance.",
+      "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
     type: "website",
     url: "/",
     siteName: "Medcore",
@@ -45,8 +71,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Medcore | Hospital Operations",
-    description: "A calm command center for ward planning and care operations.",
+    title: "Medcore | The ward, in the moment.",
+    description:
+      "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
     images: [socialImage],
   },
   icons: { icon: "/favicon.svg" },
@@ -55,24 +82,11 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="en" className={geist.variable} nonce={nonce}>
-      <head>
-        <link
-          rel="preload"
-          as="image"
-          href="/medcore-atrium.webp"
-          media="(min-width: 801px)"
-          fetchPriority="high"
-        />
-        <link
-          rel="preload"
-          as="image"
-          href="/medcore-atrium-640.webp"
-          media="(max-width: 800px)"
-          fetchPriority="high"
-        />
-      </head>
-      <body data-csp-nonce={nonce}>{children}</body>
+    <html
+      lang="en"
+      className={`${geist.variable} ${syne.variable} ${outfit.variable} ${newsreader.variable} ${plex.variable}`}
+    >
+      <body>{children}</body>
     </html>
   );
 }

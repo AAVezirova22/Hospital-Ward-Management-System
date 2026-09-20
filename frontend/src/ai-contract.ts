@@ -51,7 +51,7 @@ export const aiResponse = z.discriminatedUnion("responseType", [
               key: z.string(),
               operation: z.string(),
               source: z.string(),
-              fields: z.record(z.unknown()),
+              fields: z.record(z.string(), z.unknown()),
             }),
           )
           .min(1)
@@ -62,12 +62,12 @@ export const aiResponse = z.discriminatedUnion("responseType", [
   z.object({
     ...base,
     responseType: z.literal("TEXT"),
-    data: z.record(z.unknown()),
+    data: z.record(z.string(), z.unknown()),
   }),
   z.object({
     ...base,
     responseType: z.literal("ERROR"),
-    data: z.record(z.unknown()),
+    data: z.record(z.string(), z.unknown()),
   }),
   z.object({
     ...base,
@@ -110,7 +110,7 @@ export const aiResponse = z.discriminatedUnion("responseType", [
   z.object({
     ...base,
     responseType: z.literal("REPORT_RESULT"),
-    data: z.record(z.unknown()),
+    data: z.record(z.string(), z.unknown()),
   }),
   z.object({
     ...base,
