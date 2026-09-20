@@ -10,6 +10,10 @@ The supplied frontend-taste, high-end visual design, GPT taste, redesign, and fu
 - Generated architectural imagery on sign-in and the overview, with an optimized 212 KB WebP and early image/font loading.
 - Framer Motion image entrance and scroll depth, staggered content reveals, spring button feedback, shared navigation selection, and route transitions. Modal entrance animations use CSS transforms and opacity.
 - Light/dark themes, keyboard focus indicators, skip links, mobile navigation, and reduced-motion support.
+- Canvas UI's actual [Clouds React/WebGL source](https://canvasui.dev/docs/components/clouds), vendored from its official registry, creates the atmospheric layer over architectural images. The component and shared rectangle-cache helper retain David Haz's [MIT + Commons Clause license](../frontend/src/components/canvasui/LICENSE.md).
+- Cinematic opening aperture, masked two-line title reveal, 24-second camera drift, spring-smoothed pointer parallax, short route crossfades, and a restrained film-grain texture. Patient data and forms remain normal HTML, outside the shader.
+- A persistent pause/play control disables decorative motion; changes to the operating system's reduced-motion setting apply immediately. Small screens (800px and below), hidden tabs, and offscreen artwork do not mount the GPU effect. WebGL context loss leaves static artwork and usable controls.
+- The shader loads after initial content, runs at a capped 30fps, limits pixel density to 1.25, and renders its expensive noise field at 35% resolution. No new runtime package is required. No experimental browser flags or origin-trial tokens are needed for the mist overlay.
 - Reworked overview, patient lists, room cards, forms, reports, and assistant surfaces.
 - The operational brief now reads verified dashboard totals directly; opening the overview does not make a redundant external AI request.
 
@@ -27,20 +31,19 @@ The browser distinguishes service unavailability, network failure, malformed CSR
 
 The supplied key is stored only in the ignored root `.env` and passed to the Java backend. It is absent from frontend source and configuration.
 
-The local configuration uses `AI_MODE=external`, `gemini-3.5-flash`, and Google's [OpenAI-compatible chat endpoint](https://ai.google.dev/gemini-api/docs/openai). A direct minimal request to Google returned:
+The replacement key and requested model are configured locally with `AI_MODE=external`, `gemini-3.5-flash-lite`, and Google's [OpenAI-compatible chat endpoint](https://ai.google.dev/gemini-api/docs/openai). The backend has been recreated with this configuration. A direct minimal request with the new key returned:
 
-> HTTP 403, PERMISSION_DENIED: Your project has been denied access. Please contact support.
+> HTTP 402, RESOURCE_EXHAUSTED: Your prepayment credits are depleted.
 
-The application also returns its structured assistant-unavailable response. Live Gemini operation has not passed: the Google project must regain API access, or an authorized key from another enabled project must be supplied. Standard hospital workflows work independently.
+The authenticated application request also returns its structured assistant-unavailable response with model identifier `gemini-3.5-flash-lite`. Live Gemini operation has not passed: replenish the project's prepaid credits in [Google AI Studio](https://ai.studio/projects). Standard hospital workflows work independently. Both `.env` and private `.env.*` variants are excluded from Git; `.env.example` contains no key. Rotate keys shared in conversation before any public deployment.
 
 ## Verification
 
 - Production Docker build and TypeScript check passed.
 - All 10 frontend unit tests passed, including four new secure-session tests.
-- Seven browser tests passed: sign-in/service errors, both themes, responsive navigation, full patient admission/procedure/transfer/discharge journey, catalogue and account administration, doctor permissions, report filters, and mobile overflow/reduced-motion checks.
-- The existing assistant-success browser test was excluded because Google currently denies access; it is not claimed as passing. No backend business logic changed.
+- The existing assistant-success browser test remains excluded because Google currently requires prepaid credits; it is not claimed as passing. No backend business logic changed.
 - Browser tests create clearly named synthetic test records in the local demonstration database.
-- Lighthouse report: [redesign-lighthouse.json](redesign-lighthouse.json). This is a local mobile lab result for the sign-in page, not a field-performance measurement. The final pass scored 88 performance, 100 accessibility, and 96 best practices, with zero cumulative layout shift. The throttled largest-contentful-paint measurement was 3.9 seconds, above the 2.5-second target. Image discovery, eager loading, and high fetch priority checks pass. The console diagnostic is the expected unauthenticated `/auth/me` response (401) before sign-in.
+- Original redesign Lighthouse report: [redesign-lighthouse.json](redesign-lighthouse.json). This predates the Canvas UI pass. It scored 88 performance, 100 accessibility, and 96 best practices, with zero cumulative layout shift and 3.9-second mobile LCP. These are local lab results, not field-performance measurements. The expected unauthenticated `/auth/me` response (401) is logged before sign-in.
 - After the final font/loading adjustments, the two design browser tests passed again, including navigation at 1440 x 800 and mobile menu opening/closing.
 
 ## Artwork
