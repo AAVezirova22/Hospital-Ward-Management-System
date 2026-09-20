@@ -1597,15 +1597,30 @@ footer .live-dot {
   border-block: 1px solid var(--line, #30383d);
 }
 .assistant-sources .actions,
-.workflow-proposal .actions { flex-wrap: wrap; }
-.assistant-sources .result-row > span { min-width: 0; overflow-wrap: anywhere; }
-.workflow-proposal ol { padding-left: 24px; }
-.workflow-proposal li { margin: 20px 0; padding-left: 4px; }
+.workflow-proposal .actions {
+  flex-wrap: wrap;
+}
+.assistant-sources .result-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.workflow-proposal ol {
+  padding-left: 24px;
+}
+.workflow-proposal li {
+  margin: 20px 0;
+  padding-left: 4px;
+}
 .workflow-proposal dl > div {
   display: grid;
   grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr);
   gap: 12px;
   padding: 6px 0;
 }
-.workflow-proposal dt { opacity: .7; }
-.workflow-proposal dd { margin: 0; overflow-wrap: anywhere; }
+.workflow-proposal dt {
+  opacity: 0.7;
+}
+.workflow-proposal dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
