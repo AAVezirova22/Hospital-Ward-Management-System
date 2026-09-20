@@ -14,6 +14,7 @@ import { useUser, Modal, useData, ErrorBox } from "./workspace";
 import { fullName } from "../api";
 import type { Patient, AdmissionView } from "../api/contracts";
 import { Workflow } from "../features/admissions/Workflow";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
 function QuickTask({ kind, close }: { kind: string; close: () => void }) {
   const patients = useData("/patients");
@@ -96,6 +97,9 @@ export function MobileNavigation({ onAssistant }: { onAssistant: () => void }) {
   }, []);
   return (
     <>
+      <div className="mobile-workspace">
+        <WorkspaceSwitcher />
+      </div>
       <nav className="mobile-bottom-nav" aria-label="Quick navigation">
         {[
           ["dashboard", "Overview", LayoutDashboard],

@@ -188,7 +188,8 @@
   }
 }
 .mobile-bottom-nav,
-.mobile-quick-actions {
+.mobile-quick-actions,
+.mobile-workspace {
   display: none;
 }
 .quick-patients {
@@ -211,6 +212,18 @@
 @media (max-width: 760px) {
   .connection-state {
     display: none;
+  }
+  .mobile-workspace {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 23;
+    padding: 8px 12px;
+    background: var(--nav, var(--panel));
+    border-bottom: 1px solid var(--line);
+  }
+  .mobile-workspace .workspace-switcher {
+    width: 100%;
   }
   .mobile-bottom-nav {
     position: fixed;
