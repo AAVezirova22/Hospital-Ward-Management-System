@@ -41,15 +41,14 @@ public class PatientService {
     actor.staff();
     var p = id == null ? new Patient() : hospital.patient(id);
     if (id != null) HospitalService.version(p, in.version());
-    p.patientIdentifier = in.patientIdentifier().trim();
-    p.firstName = in.firstName().trim();
-    p.lastName = in.lastName().trim();
-    p.dateOfBirth = in.dateOfBirth();
-    p.address = in.address();
-    p.phoneNumber =
-        in.phoneNumber() == null || in.phoneNumber().isBlank() ? null : in.phoneNumber().trim();
+    p.setPatientIdentifier(in.patientIdentifier().trim());
+    p.setFirstName(in.firstName().trim());
+    p.setLastName(in.lastName().trim());
+    p.setDateOfBirth(in.dateOfBirth());
+    p.setAddress(in.address());
+    p.setPhoneNumber(in.phoneNumber() == null || in.phoneNumber().isBlank() ? null : in.phoneNumber().trim());
     patients.saveAndFlush(p);
-    audit.log(id == null ? "PATIENT_CREATED" : "PATIENT_UPDATED", "Patient", p.id, "UI");
+    audit.log(id == null ? "PATIENT_CREATED" : "PATIENT_UPDATED", "Patient", p.getId(), "UI");
     return p;
   }
 }
