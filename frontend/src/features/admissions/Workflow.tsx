@@ -13,7 +13,7 @@ import {
   Modal,
   Title,
 } from "../../components/workspace";
-import { CheckCircle2, ArrowRight } from "lucide-react";
+import { CheckCircle2, ArrowRight } from "../../icons";
 import { defaultProcedureTime } from "../../workflow-time";
 export function Workflow({
   kind,
