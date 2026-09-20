@@ -58,8 +58,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="preload"
           as="image"
           href="/medcore-atrium.webp"
+          media="(min-width: 801px)"
           fetchPriority="high"
         />
+        <link rel="preload" as="image" href="/medcore-atrium-640.webp" media="(max-width: 800px)" fetchPriority="high" />
       </head>
       <body>{children}</body>
     </html>
