@@ -147,6 +147,27 @@ export function WorkspaceSwitcher() {
                     </li>
                   ))}
                 </ul>
+                {hospital.owner && hospital.joinCode && (
+                  <p className="workspace-code">
+                    Hospital code {hospital.joinCode}
+                    <button
+                      type="button"
+                      className="icon"
+                      aria-label="Copy hospital join code"
+                      onClick={() => copyCode(hospital.joinCode!)}
+                    >
+                      <Copy size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() => rotate(true, hospital.id)}
+                    >
+                      Replace
+                    </button>
+                  </p>
+                )}
               </section>
             ))}
           </div>
