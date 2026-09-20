@@ -175,6 +175,35 @@ export function WorkspaceSwitcher() {
                             </button>
                           </p>
                         )}
+                        <button
+                          type="button"
+                          className="text-button"
+                          disabled={busy}
+                          onClick={() =>
+                            void (async () => {
+                              setBusy(true);
+                              setFormError(null);
+                              try {
+                                await api(
+                                  `/workspaces/departments/${department.id}/leave`,
+                                  "POST",
+                                  {},
+                                );
+                                if (
+                                  Number(activeDepartment()) === department.id
+                                )
+                                  setActiveDepartment(null);
+                                await client.invalidateQueries();
+                              } catch (e) {
+                                setFormError(e as Error);
+                              } finally {
+                                setBusy(false);
+                              }
+                            })()
+                          }
+                        >
+                          Leave department
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -199,6 +228,32 @@ export function WorkspaceSwitcher() {
                       </button>
                     </p>
                   )}
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() =>
+                      void (async () => {
+                        setBusy(true);
+                        setFormError(null);
+                        try {
+                          await api(
+                            `/workspaces/hospitals/${hospital.id}/leave`,
+                            "POST",
+                            {},
+                          );
+                          setActiveDepartment(null);
+                          await client.invalidateQueries();
+                        } catch (e) {
+                          setFormError(e as Error);
+                        } finally {
+                          setBusy(false);
+                        }
+                      })()
+                    }
+                  >
+                    Leave hospital
+                  </button>
                   {hospital.owner && (
                     <button
                       type="button"
