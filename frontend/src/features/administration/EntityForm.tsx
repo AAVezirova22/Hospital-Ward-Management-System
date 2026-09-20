@@ -6,7 +6,7 @@ import { useData, ErrorBox, Modal } from "../../components/workspace";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Check } from "lucide-react";
+import { Check } from "../../icons";
 type Field = {
   key: string;
   label: string;
