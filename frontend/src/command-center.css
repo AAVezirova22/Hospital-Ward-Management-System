@@ -285,3 +285,6 @@
 .compact-capacity { display:none; }
 .activity-panel summary { font-size:20px; font-weight:500; cursor:pointer; padding-bottom:16px; }
 @media(max-width:760px) { .overview-floor-plan { display:none; } .compact-capacity { display:grid; gap:16px; padding:20px; background:var(--panel); border-radius:16px; margin-bottom:24px; } .compact-capacity meter { width:100%; height:14px; accent-color:var(--mint); } }
+.proposal-checks { list-style:none; padding:0; display:grid; gap:14px; margin:24px 0; }
+.proposal-checks li { display:flex; gap:10px; align-items:center; line-height:1.5; }
+.proposal-checks svg { flex-shrink:0; color:var(--mint); }

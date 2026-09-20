@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
 import type { AdmissionView, RoomCapacity } from "../../api/contracts";
 export function ProposalPreview({
   current,
@@ -34,6 +34,8 @@ export function ProposalPreview({
   const room = current?.rooms.find((r) => !r.assignment.releasedAt)?.room;
   return (
     <>
+      <h3>{actionType === "TRANSFER" ? "Transfer proposal" : "Action proposal"}</h3>
+      {current && <p><strong>{current.patient.firstName} {current.patient.lastName}</strong></p>}
       <div className="proposal-preview">
         <span>
           Current placement
@@ -57,6 +59,11 @@ export function ProposalPreview({
           {destination.bedCount} occupied.
         </p>
       )}
+      <ul className="proposal-checks">
+        {destination && <li>{destination.active && destination.availableBeds > 0 ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />}Room {destination.roomNumber}: {destination.active ? `${destination.availableBeds} available capacity slots at proposal time` : "inactive"}</li>}
+        {current && <li>{current.admission.status === "ACTIVE" ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />}Admission {current.admission.status.toLowerCase()}</li>}
+        <li><CheckCircle2 size={17} />Your confirmation is required before any write</li>
+      </ul>
       <p>
         Admission, permissions and capacity are checked when preparing this
         proposal and rechecked on confirmation.
