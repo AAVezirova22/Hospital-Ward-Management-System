@@ -12,6 +12,7 @@ import {
 import dynamic from "next/dynamic";
 import {
   motion,
+  AnimatePresence,
   MotionConfig,
   useInView,
   useMotionValue,
