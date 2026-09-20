@@ -1,14 +1,13 @@
 "use client";
 
 import { FilmMedia } from "./FilmMedia";
-import { clip, still } from "./media";
+import { still } from "./media";
 
 export function Story() {
   return (
     <section className="film-story" aria-label="Patient story">
       <FilmMedia
         still={still("patient")}
-        video={clip("patient")}
         alt="Kalina Ruseva sitting by a hospital window in morning light"
       />
       <div className="film-story-shade" />
