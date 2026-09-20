@@ -19,6 +19,17 @@ export function activeDepartment() {
   } catch {}
   return departmentId;
 }
+
+export function setActiveDepartment(id: string | number | null) {
+  departmentId = id == null ? null : String(id);
+  try {
+    if (departmentId) localStorage.setItem(DEPARTMENT_KEY, departmentId);
+    else localStorage.removeItem(DEPARTMENT_KEY);
+  } catch {}
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("workspace-changed"));
+  }
+}
 export class ApiError extends Error {
   constructor(
     public status: number,
