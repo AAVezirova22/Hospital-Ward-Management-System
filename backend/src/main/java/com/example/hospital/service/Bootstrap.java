@@ -80,11 +80,7 @@ public class Bootstrap implements CommandLineRunner {
     users.save(admin);
     enroll(admin);
     if (!seed) return;
-    String[][] ds = {
-      {"Elena", "Dimitrova", "Internal medicine"},
-      {"Martin", "Ivanov", "Cardiology"},
-      {"Nadia", "Petrova", "Neurology"}
-    };
+    String[][] ds = DemoScenario.DOCTORS;
     for (int i = 0; i < ds.length; i++) {
       var d = new Doctor();
       d.doctorIdentifier = "DOC-00" + (i + 1);
@@ -115,30 +111,11 @@ public class Bootstrap implements CommandLineRunner {
       r.active = i != 7;
       rooms.save(r);
     }
-    String[][] ps = {
-      {"Ivan", "Petrov"},
-      {"Mila", "Georgieva"},
-      {"Alexander", "Kolev"},
-      {"Sofia", "Ivanova"},
-      {"Daniel", "Stoyanov"},
-      {"Eva", "Nikolova"},
-      {"Boris", "Dimitrov"},
-      {"Anna", "Todorova"},
-      {"Stefan", "Marinov"},
-      {"Maria", "Popova"},
-      {"Nikolai", "Vasilev"},
-      {"Vera", "Angelova"},
-      {"Lilia", "Hristova"}, {"Pavel", "Dobrev"}, {"Irina", "Mihaylova"},
-      {"Victor", "Radev"}, {"Daria", "Ilieva"}, {"Emil", "Kostov"},
-      {"Yana", "Pavlova"}, {"Radoslav", "Dinev"}, {"Elitsa", "Yordanova"},
-      {"Kalin", "Atanasov"}, {"Nina", "Borisova"}, {"Todor", "Zhelev"},
-      {"Raya", "Stankova"}, {"Plamen", "Nedev"}, {"Alina", "Markova"},
-      {"Georgi", "Velikov"}
-    };
+    String[][] ps = DemoScenario.PATIENTS;
     var allDoctors = doctors.findAll();
     var allRooms = rooms.findAll();
-    String[] names = {"Complete blood count", "Electrocardiogram", "Ultrasound examination", "Chest X-ray"};
-    String[] costs = {"27.40", "46.80", "83.50", "68.20"};
+    String[] names = DemoScenario.PROCEDURES;
+    String[] costs = DemoScenario.PROCEDURE_COSTS;
     for (int i = 0; i < names.length; i++) {
       var mp = new MedicalProcedure();
       mp.procedureCode = "PR-00" + (i + 1);
