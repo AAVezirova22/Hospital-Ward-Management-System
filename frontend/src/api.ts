@@ -1,27 +1,6 @@
-import type { Admission, Doctor, Patient } from "./api/contracts";
-export type Row = Record<string, unknown> & {
-  id?: number;
-  admission?: Admission;
-  patient?: Patient;
-  doctor?: Doctor;
-  rooms?: unknown;
-  admissions?: unknown;
-  assignment?: unknown;
-  eventType?: string;
-  entityType?: string;
-  entityId?: number;
-  userId?: number;
-  source?: string;
-  timestamp?: string;
-  metadata?: string;
-  firstName?: string;
-  lastName?: string;
-  patientIdentifier?: string;
-  roomNumber?: string;
-  availableBeds?: number;
-  status?: string;
-};
-export type Row = Record<string, any>;
+// These pages still consume several endpoint shapes that are not modeled yet.
+// Keep the shared legacy row type permissive; typed endpoints use api/contracts.
+export type Row = any;
 export type User = {
   id: number;
   username: string;
@@ -117,7 +96,7 @@ export async function token() {
   csrf = result;
   return csrf!;
 }
-export async function api<T = unknown>(
+export async function api<T = any>(
   path: string,
   method = "GET",
   body?: unknown,
