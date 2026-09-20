@@ -212,4 +212,11 @@ class WorkspaceIsolationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.role").value("MEDICAL_STAFF"));
   }
+
+  @Test
+  void unknownDepartmentHeadersAreRejected() throws Exception {
+    call("admin", "GET", "/api/v1/patients", null, 999999L)
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("DEPARTMENT_ACCESS_DENIED"));
+  }
 }
