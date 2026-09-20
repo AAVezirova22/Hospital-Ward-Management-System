@@ -12,6 +12,9 @@ import java.util.concurrent.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.hospital.security.DepartmentContext;
 
 @Service
 public class AiAssistantService {
@@ -23,6 +26,10 @@ public class AiAssistantService {
   private final HospitalService h;
   private final AuditService audit;
   private final int limit;
+  @Autowired private AiSourceService sources;
+  @Autowired private ObjectMapper json;
+  private record Conversation(long departmentId, Instant expiresAt, List<Map<String, Object>> turns) {}
+  private final ConcurrentHashMap<String, Conversation> conversations = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Long, Window> windows = new ConcurrentHashMap<>();
 
   private static class Window {
@@ -68,6 +75,7 @@ public class AiAssistantService {
 
   public void clear(String key) {
     var s = session(key);
+    conversations.remove(key);
     s.selectedPatientId = null;
     sessions.save(s); /* Only metadata is persisted; no conversation text to erase. */
   }
@@ -106,17 +114,60 @@ public class AiAssistantService {
         s.selectedPatientId = in.selectedPatientId();
         sessions.save(s);
       }
-      var context =
-          new AiModelClient.Context(
-              u.role,
-              in.route() == null ? "/app/dashboard" : in.route(),
-              s.selectedPatientId,
-              tools.definitions());
-      var call = model.complete(in.message(), context);
-      interaction.toolNames = call.name();
-      var result = tools.execute(call, s.selectedPatientId);
+      var sourceData = in.sourceIds() == null || in.sourceIds().isEmpty()
+          ? List.<Map<String, String>>of() : sources.context(in.sourceIds());
+      var connected = in.connectedFiles() == null ? List.<Inputs.ConnectedFile>of() : in.connectedFiles();
+      boolean local = model.identifier().equals("local-command-model");
+      AiToolRegistry.Response result;
+      if (local && (!sourceData.isEmpty() || !connected.isEmpty())) {
+        result = new AiToolRegistry.Response("TEXT",
+            "File-based workflow planning requires a configured external AI model. Local command mode only understands the documented commands.",
+            Map.of(), null, null);
+      } else {
+        conversations.values().removeIf(c -> !c.expiresAt().isAfter(Instant.now()));
+        var previous = conversations.get(s.sessionKey);
+        List<Map<String, Object>> observations = new ArrayList<>();
+        if (previous != null && previous.departmentId() == DepartmentContext.id()) observations.addAll(previous.turns());
+        result = null;
+        for (int step = 0; step < 8; step++) {
+          var context = new AiModelClient.Context(u.role,
+              in.route() == null ? "/app/dashboard" : in.route(), s.selectedPatientId,
+              local ? tools.definitions() : tools.agentDefinitions(), sourceData, connected, observations);
+          var call = model.complete(in.message(), context);
+          interaction.toolNames = call.name();
+          if (call.name().equals("readConnectedFiles")) {
+            AiToolRegistry.requireArgument(call, "ids", 700);
+            var ids = Arrays.stream(call.arguments().get("ids").split(",")).map(String::strip).distinct().toList();
+            var allowed = connected.stream().map(Inputs.ConnectedFile::id).toList();
+            if (ids.isEmpty() || ids.size() > 10 || !allowed.containsAll(ids)) throw new IllegalArgumentException();
+            result = new AiToolRegistry.Response("FILE_REQUEST", "Reading relevant files from your connected folder.",
+                Map.of("ids", ids), null, null);
+            break;
+          }
+          result = local ? tools.execute(call, s.selectedPatientId) : tools.executeAgent(call, s.selectedPatientId);
+          if (local || Set.of("TEXT", "ERROR", "CONFIRMATION_CARD", "WORKFLOW_PROPOSAL", "NAVIGATION_COMMAND").contains(result.responseType())) break;
+          String data;
+          try { data = json.writeValueAsString(result.data()); }
+          catch (Exception e) { throw new IllegalArgumentException(); }
+          if (data.length() > 40000) {
+            result = new AiToolRegistry.Response("TEXT", "The query returned too much data. Narrow the request by patient, date or department.", Map.of(), null, null);
+            break;
+          }
+          observations.add(Map.of("tool", call.name(), "arguments", call.arguments(), "result", result.data()));
+          if (step == 7) result = new AiToolRegistry.Response("TEXT",
+              "The task needs more steps. Narrow the request into smaller workflows.", Map.of(), null, null);
+        }
+        if (!local && result != null && !result.responseType().equals("FILE_REQUEST")) {
+          List<Map<String, Object>> turns = new ArrayList<>();
+          if (previous != null && previous.departmentId() == DepartmentContext.id()) turns.addAll(previous.turns());
+          turns.add(Map.of("previousUserRequest", in.message(), "assistantResponse", result.message()));
+          while (turns.size() > 6) turns.removeFirst();
+          if (conversations.size() < 1000 || conversations.containsKey(s.sessionKey))
+            conversations.put(s.sessionKey, new Conversation(DepartmentContext.id(), Instant.now().plusSeconds(1800), turns));
+        }
+      }
       interaction.status =
-          result.responseType().equals("CONFIRMATION_CARD") ? "CONFIRMATION_REQUIRED" : "SUCCESS";
+          Set.of("CONFIRMATION_CARD", "WORKFLOW_PROPOSAL").contains(result.responseType()) ? "CONFIRMATION_REQUIRED" : "SUCCESS";
       audit.log("AI_QUERY_EXECUTED", "AiSession", s.id, "AI");
       return new AiToolRegistry.Response(
           result.responseType(), result.message(), result.data(), s.sessionKey, model.identifier());
