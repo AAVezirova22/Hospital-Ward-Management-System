@@ -110,6 +110,15 @@ function Atmosphere() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref);
   const [available, setAvailable] = useState(false);
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(() => setIdle(true), { timeout:3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(() => setIdle(true),2500);
+    return () => clearTimeout(timer);
+  },[]);
   useEffect(() => {
     const screen = matchMedia("(min-width: 801px)");
     const update = () => setAvailable(!document.hidden && screen.matches);
@@ -130,7 +139,7 @@ function Atmosphere() {
       aria-hidden="true"
       data-canvas-ui="clouds"
     >
-      {enabled && available && inView && (
+      {enabled && idle && available && inView && (
         <Clouds
           className="cinema-clouds"
           color={[0.64, 0.76, 0.66]}
