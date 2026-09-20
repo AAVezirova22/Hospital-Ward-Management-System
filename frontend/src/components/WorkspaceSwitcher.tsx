@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BedDouble,
   ChevronDown,
-} from "lucide-react";
+} from "../icons";
 import { api, activeDepartment, setActiveDepartment } from "../api";
 import type { WorkspaceHospital, WorkspaceList } from "../api/contracts";
 import { ErrorBox, Modal } from "./workspace";
