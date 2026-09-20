@@ -161,7 +161,9 @@ test("live motion changes unmount canvas and clean up pinned choreography", asyn
   page.on("pageerror", (error) => errors.push(error.message));
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
-  await expect(page.locator(".mc-hero-liquid canvas").last()).toBeAttached();
+  await expect(
+    page.locator(".mc-hero-frame .mc-ambient canvas").last(),
+  ).toBeAttached();
   await expect(page.locator(".pin-spacer")).toHaveCount(1);
   await page.getByRole("button", { name: "Pause animations" }).click();
   await expect(page.locator(".mc canvas")).toHaveCount(0);
