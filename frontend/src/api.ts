@@ -167,7 +167,11 @@ export async function login(username: string, password: string): Promise<User> {
   const user = await r.json();
   csrf = null;
   await token();
-  return user;
+  try {
+    return await api<User>("/auth/me");
+  } catch {
+    return user;
+  }
 }
 export async function logout() {
   await api("/auth/logout", "POST");
