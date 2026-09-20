@@ -32,6 +32,10 @@ export function Assistant({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const sources = useAssistantSources();
   const mounted = useRef(true);
+  const lastResult = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    lastResult.current?.scrollIntoView({ block: "start" });
+  }, [results.length]);
   useEffect(() => {
     mounted.current = true;
     ref.current?.showModal();
@@ -149,7 +153,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         {results.map((r, i) => (
-          <div className="ai-result" key={i}>
+          <div className="ai-result" key={i} ref={i === results.length - 1 ? lastResult : undefined}>
             <div className="ai-query">› {r.query}</div>
             <p>{r.message}</p>
             <small className="ai-mode">
