@@ -144,6 +144,27 @@ export function WorkspaceSwitcher() {
                         {department.name}
                         <small>{department.role.replaceAll("_", " ").toLowerCase()}</small>
                       </button>
+                      {department.joinCode && (
+                        <p className="workspace-code">
+                          Department code {department.joinCode}
+                          <button
+                            type="button"
+                            className="icon"
+                            aria-label="Copy department join code"
+                            onClick={() => copyCode(department.joinCode!)}
+                          >
+                            <Copy size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            disabled={busy}
+                            onClick={() => rotate(false, department.id)}
+                          >
+                            Replace
+                          </button>
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>
