@@ -3,6 +3,7 @@ import { ArrowRight, RefreshCw, CheckCircle2 } from "lucide-react";
 import { api, fullName, type User } from "../../api";
 import type { ArrivalPlan } from "../../api/contracts";
 import { WardMap } from "./WardMap";
+import { PlanReview } from "./PlanReview";
 import { executableOrder } from "./model";
 import { LoadingState } from "../../components/LoadingState";
 import { useWardPlanner } from "./useWardPlanner";
@@ -327,81 +328,24 @@ export function WardPlanner({ user }: { user: User }) {
             }
             changedRoom={changedRoom}
           />
-          {plan.length > 0 && (
-            <section className="panel plan-review">
-              <h2>{review ? "Review your plan" : "Staged transfers"}</h2>
-              <p>
-                The attending doctor stays unchanged. Each successful transfer
-                creates a ROOM_TRANSFERRED audit event.
-              </p>
-              {stale && (
-                <p className="error" role="alert">
-                  A staged admission changed. Remove it and prepare a new
-                  transfer.
-                </p>
-              )}
-              {conflicts && (
-                <p className="error" role="alert">
-                  Capacity changed. Revise the plan before confirming.
-                </p>
-              )}
-              {plan.map((p) => (
-                <div className="planned-transfer" key={p.admissionId}>
-                  <strong>{p.patientName}</strong>
-                  <span>
-                    Room {roomName(p.fromRoomId)} <ArrowRight size={16} /> Room{" "}
-                    {roomName(p.toRoomId)}
-                  </span>
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() => {
-                      setPlan((list) =>
-                        list.filter((x) => x.admissionId !== p.admissionId),
-                      );
-                      setReview(false);
-                    }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              {review && (
-                <p>
-                  Transfers apply one at a time. If capacity or permissions
-                  change, processing stops; completed transfers remain saved.
-                </p>
-              )}
-              <div className="actions">
-                <button
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() => {
-                    setPlan([]);
-                    setReview(false);
-                  }}
-                >
-                  Discard plan
-                </button>
-                <button
-                  className="primary"
-                  disabled={
-                    busy ||
-                    stale ||
-                    conflicts ||
-                    Boolean(roomsQuery.error || admissionsQuery.error)
-                  }
-                  onClick={() => (review ? confirm() : setReview(true))}
-                >
-                  {busy
-                    ? "Applying plan…"
-                    : review
-                      ? "Confirm transfers"
-                      : "Review plan"}
-                </button>
-              </div>
-            </section>
-          )}
+          <PlanReview
+            plan={plan}
+            review={review}
+            busy={busy}
+            stale={stale}
+            conflicts={conflicts}
+            loadError={Boolean(roomsQuery.error || admissionsQuery.error)}
+            roomName={roomName}
+            onRemove={(admissionId) => {
+              setPlan((list) => list.filter((x) => x.admissionId !== admissionId));
+              setReview(false);
+            }}
+            onDiscard={() => {
+              setPlan([]);
+              setReview(false);
+            }}
+            onConfirm={() => (review ? confirm() : setReview(true))}
+          />
         </div>
       </div>
     </>
