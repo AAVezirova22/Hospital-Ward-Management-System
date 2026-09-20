@@ -131,3 +131,7 @@ export interface WorkspaceHospital {
   joinCode: string | null;
   departments: WorkspaceDepartment[];
 }
+export interface WorkspaceList {
+  activeDepartmentId: number;
+  hospitals: WorkspaceHospital[];
+}
