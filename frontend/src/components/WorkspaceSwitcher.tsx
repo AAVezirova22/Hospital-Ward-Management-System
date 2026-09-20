@@ -152,6 +152,7 @@ export function WorkspaceSwitcher() {
       <button
         type="button"
         className="department workspace-switcher"
+        aria-label="Open hospital switcher"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
