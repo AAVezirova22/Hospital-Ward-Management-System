@@ -1,12 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import {
-  ChatCircle,
-  Check,
-  FileCsv,
-  WifiHigh,
-} from "@phosphor-icons/react";
+import { ChatCircle, Check, FileCsv, WifiHigh } from "@phosphor-icons/react";
 import {
   AnimatePresence,
   motion,
@@ -14,6 +9,7 @@ import {
   useTransform,
 } from "motion/react";
 import { useSiteMotion } from "./SiteMotion";
+import { AmbientLight } from "./AmbientLight";
 
 type Conversation = {
   request: string;
@@ -24,89 +20,42 @@ type Conversation = {
 export function PhoneScene({
   conversation,
   showFile,
-  scrollProgress,
+  progress,
 }: {
   conversation: Conversation;
   showFile: boolean;
-  scrollProgress: MotionValue<number>;
+  progress: MotionValue<number>;
 }) {
   const { reduced } = useSiteMotion();
 
-  const rotateY = useTransform(
-    scrollProgress,
-    [0.05, 0.32, 0.72, 0.96],
-    [-72, 0, 0, 13],
-  );
-  const rotateX = useTransform(
-    scrollProgress,
-    [0.05, 0.35, 0.96],
-    [8, 0, -4],
-  );
-  const rotateZ = useTransform(
-    scrollProgress,
-    [0.05, 0.35, 0.96],
-    [-4, 0, 2.5],
-  );
+  const rotateY = useTransform(progress, [0, 0.2, 0.64, 0.95], [-32, 0, 0, -9]);
+  const rotateX = useTransform(progress, [0, 0.2, 0.95], [7, 0, -2]);
+  const rotateZ = useTransform(progress, [0, 0.2, 0.95], [-5, 0, -2]);
   const phoneScale = useTransform(
-    scrollProgress,
-    [0.05, 0.36, 0.72, 0.96],
-    [0.82, 1.06, 1.06, 0.88],
+    progress,
+    [0, 0.2, 0.64, 0.95],
+    [0.86, 1, 1, 0.88],
   );
-  const phoneX = useTransform(
-    scrollProgress,
-    [0.05, 0.68, 0.96],
-    ["8vw", "0vw", "-17vw"],
-  );
-  const phoneY = useTransform(
-    scrollProgress,
-    [0.05, 0.36, 0.96],
-    ["3vh", "0vh", "-1vh"],
-  );
-  const workspaceOpacity = useTransform(
-    scrollProgress,
-    [0.58, 0.76, 0.96],
-    [0, 0.72, 1],
-  );
-  const workspaceScale = useTransform(
-    scrollProgress,
-    [0.58, 0.84, 0.96],
-    [0.86, 0.96, 1],
-  );
-  const workspaceX = useTransform(
-    scrollProgress,
-    [0.58, 0.96],
-    ["10vw", "12vw"],
-  );
-  const requestOpacity = useTransform(
-    scrollProgress,
-    [0.22, 0.3],
-    [0, 1],
-  );
-  const requestY = useTransform(scrollProgress, [0.22, 0.3], [14, 0]);
-  const fileOpacity = useTransform(scrollProgress, [0.31, 0.39], [0, 1]);
-  const fileY = useTransform(scrollProgress, [0.31, 0.39], [12, 0]);
-  const responseOpacity = useTransform(
-    scrollProgress,
-    [0.39, 0.48],
-    [0, 1],
-  );
-  const responseY = useTransform(scrollProgress, [0.39, 0.48], [14, 0]);
-  const followOpacity = useTransform(
-    scrollProgress,
-    [0.49, 0.57],
-    [0, 1],
-  );
-  const followY = useTransform(scrollProgress, [0.49, 0.57], [14, 0]);
-  const handoffOpacity = useTransform(
-    scrollProgress,
-    [0.7, 0.82],
-    [0, 1],
-  );
-  const auraScale = useTransform(scrollProgress, [0.08, 0.52], [0.72, 1]);
-  const auraOpacity = useTransform(scrollProgress, [0.08, 0.88], [0.25, 0.8]);
+  const phoneX = useTransform(progress, [0, 0.64, 0.95], ["0%", "0%", "-30%"]);
+  const phoneY = useTransform(progress, [0, 0.2, 0.95], [42, 0, -14]);
+  const workspaceOpacity = useTransform(progress, [0.66, 0.91], [0, 1]);
+  const workspaceScale = useTransform(progress, [0.66, 0.95], [0.86, 1]);
+  const workspaceX = useTransform(progress, [0.66, 0.95], ["10%", "0%"]);
+  const requestOpacity = useTransform(progress, [0.18, 0.23], [0, 1]);
+  const requestY = useTransform(progress, [0.18, 0.23], [8, 0]);
+  const fileOpacity = useTransform(progress, [0.27, 0.32], [0, 1]);
+  const fileY = useTransform(progress, [0.27, 0.32], [8, 0]);
+  const responseOpacity = useTransform(progress, [0.37, 0.42], [0, 1]);
+  const responseY = useTransform(progress, [0.37, 0.42], [8, 0]);
+  const followOpacity = useTransform(progress, [0.54, 0.59], [0, 1]);
+  const followY = useTransform(progress, [0.54, 0.59], [8, 0]);
+  const handoffOpacity = useTransform(progress, [0.89, 0.96], [0, 1]);
+  const auraScale = useTransform(progress, [0, 0.95], [0.96, 1.04]);
+  const auraOpacity = useTransform(progress, [0, 0.2], [0.35, 0.55]);
 
   return (
     <div className="mc-phone-stage">
+      <AmbientLight />
       <motion.div
         className="mc-phone-aura"
         aria-hidden="true"
@@ -135,7 +84,7 @@ export function PhoneScene({
               alt=""
               width={1440}
               height={1593}
-              sizes="(max-width: 767px) 94vw, 48vw"
+              sizes="(max-width: 767px) calc(100vw - 72px), (max-width: 1100px) 45vw, 520px"
             />
           </div>
         </motion.div>
@@ -184,9 +133,9 @@ export function PhoneScene({
                   <motion.div
                     className="mc-message-thread"
                     key={`${conversation.request}-${showFile}`}
-                    initial={reduced ? false : { opacity: 0.7 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0.7 }}
+                    initial={reduced ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
                     transition={{ duration: reduced ? 0 : 0.2 }}
                   >
                     <motion.p
@@ -228,9 +177,12 @@ export function PhoneScene({
                     >
                       {conversation.followup}
                     </motion.p>
-                    <span className="mc-message-read">
+                    <motion.span
+                      className="mc-message-read"
+                      style={{ opacity: reduced ? 1 : followOpacity }}
+                    >
                       <Check size={12} /> Illustrative conversation
-                    </span>
+                    </motion.span>
                   </motion.div>
                 </AnimatePresence>
               </div>
