@@ -8,10 +8,11 @@ The supplied frontend-taste, high-end visual design, GPT taste, redesign, and fu
 
 - Forest-green and mint palette, self-hosted Geist variable font, and consistent rounded controls and nested image frames.
 - Generated architectural imagery on sign-in and the overview, with an optimized 212 KB WebP and early image/font loading.
-- Framer Motion image entrance and scroll depth, staggered content reveals, spring button feedback, shared navigation selection, and route transitions. Modal entrance animations use CSS transforms and opacity.
+- Framer Motion image entrance and scroll depth, staggered sign-in reveals, spring button feedback, and route transitions. Modal entrance animations use CSS transforms and opacity.
 - Light/dark themes, keyboard focus indicators, skip links, mobile navigation, and reduced-motion support.
 - Canvas UI's actual [Clouds React/WebGL source](https://canvasui.dev/docs/components/clouds), vendored from its official registry, creates the atmospheric layer over architectural images. The component and shared rectangle-cache helper retain David Haz's [MIT + Commons Clause license](../frontend/src/components/canvasui/LICENSE.md).
-- Cinematic opening aperture, masked two-line title reveal, 24-second camera drift, spring-smoothed pointer parallax, short route crossfades, and a restrained film-grain texture. Patient data and forms remain normal HTML, outside the shader.
+- Cinematic opening aperture, masked two-line title reveal, 24-second camera drift, spring-smoothed pointer parallax, and a restrained film-grain texture. Patient data and forms remain normal HTML, outside the shader.
+- Menu refinement: screens switch immediately with a subtle 180ms opacity settle. The exit delay, vertical page movement, and nested workspace reveals have been removed. Menu highlights fade in place and reserve their indicator space, avoiding sliding and layout shifts. Production build, TypeScript, and all three existing cinematic browser checks passed after this adjustment.
 - A persistent pause/play control disables decorative motion; changes to the operating system's reduced-motion setting apply immediately. Small screens (800px and below), hidden tabs, and offscreen artwork do not mount the GPU effect. WebGL context loss leaves static artwork and usable controls.
 - The shader loads after initial content, runs at a capped 30fps, limits pixel density to 1.25, and renders its expensive noise field at 35% resolution. No new runtime package is required. No experimental browser flags or origin-trial tokens are needed for the mist overlay.
 - Reworked overview, patient lists, room cards, forms, reports, and assistant surfaces.
@@ -27,23 +28,20 @@ The ignored local `.env` now contains a valid bootstrap password, and the backen
 
 The browser distinguishes service unavailability, network failure, malformed CSRF responses, expired sign-in sessions, and invalid credentials. CSRF protection remains enabled. Tests cover session error handling, and real browser sign-in succeeds.
 
-## Gemini configuration and remaining blocker
+## Gemini configuration
 
 The supplied key is stored only in the ignored root `.env` and passed to the Java backend. It is absent from frontend source and configuration.
 
-The replacement key and requested model are configured locally with `AI_MODE=external`, `gemini-3.5-flash-lite`, and Google's [OpenAI-compatible chat endpoint](https://ai.google.dev/gemini-api/docs/openai). The backend has been recreated with this configuration. A direct minimal request with the new key returned:
+The latest replacement key and requested model are configured locally with `AI_MODE=external`, `gemini-3.5-flash-lite`, and Google's [OpenAI-compatible chat endpoint](https://ai.google.dev/gemini-api/docs/openai). The backend has been recreated with this configuration. A direct request succeeded, and an authenticated Medcore request for department status returned `REPORT_RESULT`, model `gemini-3.5-flash-lite`, and the message "Current department operations."
 
-> HTTP 402, RESOURCE_EXHAUSTED: Your prepayment credits are depleted.
-
-The authenticated application request also returns its structured assistant-unavailable response with model identifier `gemini-3.5-flash-lite`. Live Gemini operation has not passed: replenish the project's prepaid credits in [Google AI Studio](https://ai.studio/projects). Standard hospital workflows work independently. Both `.env` and private `.env.*` variants are excluded from Git; `.env.example` contains no key. Rotate keys shared in conversation before any public deployment.
+The earlier key returned HTTP 402 for depleted prepaid credits; that blocker does not apply to the latest tested key. Both `.env` and private `.env.*` variants are excluded from Git; `.env.example` contains no key.
 
 ## Verification
 
 - Production Docker build and TypeScript check passed.
 - All 14 frontend unit tests passed, including secure-session handling and procedure-time defaults under browser/server clock skew. The procedure default now cannot precede the active admission's server-recorded timestamp; explicitly entered times and backend validation are unchanged.
 - All 10 selected browser tests passed on the final production build: Canvas UI rendering and context-loss fallback; saved motion preference and live OS changes; desktop/mobile navigation; both themes; service-error handling; patient admission/procedure/transfer/discharge; account and catalogue administration; doctor permissions; reports; and assistant-unavailable recovery. The recovery test uses a deterministic error response, not a successful Gemini call.
-- TypeScript, formatting, and whitespace checks passed. The authenticated assistant probe reported the configured model correctly; a direct Google request established the separate prepaid-credit blocker.
-- The existing assistant-success browser test remains excluded because Google currently requires prepaid credits; it is not claimed as passing. No backend business logic changed.
+- TypeScript, formatting, and whitespace checks passed. The latest authenticated assistant probe successfully generated a live department report through Gemini. No backend business logic changed.
 - Browser tests create clearly named synthetic test records in the local demonstration database.
 - Original redesign Lighthouse report: [redesign-lighthouse.json](redesign-lighthouse.json). This predates the Canvas UI pass. It scored 88 performance, 100 accessibility, and 96 best practices, with zero cumulative layout shift and 3.9-second mobile LCP. These are local lab results, not field-performance measurements. The expected unauthenticated `/auth/me` response (401) is logged before sign-in.
 - Canvas UI pass: [cinematic-lighthouse.json](cinematic-lighthouse.json), mobile lab scores 86 performance, 100 accessibility, 96 best practices; LCP 3.9 seconds, total blocking time 160ms, layout shift 0. The 2.5-second LCP target remains unmet; cinematic changes are not claimed to improve loading performance.
