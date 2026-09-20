@@ -20,7 +20,7 @@ export function Admissions() {
   return (
     <>
       <Title
-        eyebrow="HOSPITALIZATION"
+        eyebrow="Hospitalization"
         title="Every stay, connected."
         description="Follow admissions from placement through transfer and discharge."
       />
