@@ -27,7 +27,7 @@ export function Rooms() {
   return (
     <>
       <Title
-        eyebrow="CAPACITY MATRIX"
+        eyebrow="Capacity matrix"
         title="The right space, in view."
         description="Live bed availability. Capacity is checked again at admission and transfer."
       >
