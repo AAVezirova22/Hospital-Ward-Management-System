@@ -28,7 +28,7 @@ public class ReportService {
 
   public Map<String, Object> dashboard() {
     long departmentId = DepartmentContext.id();
-    Long doctorId = actor.doctor() ? actor.user().doctorId : null;
+    Long doctorId = actor.doctor() ? actor.user().getDoctorId() : null;
     Long activeAdmissions =
         doctorId == null
             ? jdbc.queryForObject(
@@ -116,7 +116,7 @@ public class ReportService {
     }
     if (actor.doctor()) {
       sql.append(" and a.attending_doctor_id=?");
-      args.add(actor.user().doctorId);
+      args.add(actor.user().getDoctorId());
     }
     sql.append(" order by a.admission_date_time desc");
     return jdbc.query(
@@ -162,7 +162,7 @@ public class ReportService {
     }
     if (actor.doctor()) {
       sql.append(" and a.attending_doctor_id=?");
-      args.add(actor.user().doctorId);
+      args.add(actor.user().getDoctorId());
     }
     sql.append(" order by pp.performed_at desc");
     List<Map<String, Object>> rows =
