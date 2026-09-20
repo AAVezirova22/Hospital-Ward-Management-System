@@ -54,6 +54,13 @@ import { OperationsOverview } from "./features/dashboard/OperationsOverview";
 import { DemoAccess, DemoReset, WakeScreen } from "./features/demo/DemoAccess";
 import { Registration, EmailVerification, ResendConfirmation } from "./features/auth/Registration";
 import { PatientPortal } from "./features/patients/PatientPortal";
+import { CommandResults } from "./features/assistant/CommandResults";
+import { ProposalPreview } from "./features/assistant/ProposalPreview";
+import { ProcedureCharts, CapacityChart } from "./features/reports/ReportCharts";
+import { NotificationCenter } from "./components/NotificationCenter";
+import { useUrlState } from "./components/useUrlState";
+import { DataTable } from "./components/data-table/DataTable";
+import { LoadingState } from "./components/LoadingState";
 import {
   LoginScene,
   Reveal,
@@ -442,6 +449,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             </strong>
           </div>
           <div className="top-right">
+            <NotificationCenter/>
             <MotionToggle />
             <ThemeToggle />
             <span className="top-date">
@@ -476,6 +484,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         </footer>
       </div>
       <SavedNotice />
+      {pathname !== "/app/presentation" && <button className="mobile-assistant" aria-label="Ask operations assistant" onClick={() => setAssistant(true)}><Sparkles size={20}/>Ask assistant</button>}
       {assistant && <Assistant onClose={() => setAssistant(false)} />}
     </div>
   );
@@ -758,8 +767,8 @@ function RoomCard({
 }
 function Patients() {
   const user = useUser();
-  const [search, setSearch] = useState(""),
-    [edit, setEdit] = useState<Row | null>(null);
+  const [search, setSearch] = useUrlState("q");
+  const [edit, setEdit] = useState<Row | null>(null);
   const { data, error, isLoading } = useData(
     "/patients?q=" + encodeURIComponent(search),
   );
@@ -789,44 +798,15 @@ function Patients() {
       </div>
       <ErrorBox error={error} />
       <div className="panel table-panel">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Patient</th>
-              <th scope="col">Patient ID</th>
-              <th scope="col">Date of birth</th>
-              <th scope="col">Phone</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {Array.isArray(data) &&
-              data.map((p: Row) => (
-                <tr key={p.id}>
-                  <td>
-                    <Link className="person-link" to={"/app/patients/" + p.id}>
-                      <span className="avatar">
-                        {p.firstName[0]}
-                        {p.lastName[0]}
-                      </span>
-                      {fullName(p)}
-                    </Link>
-                  </td>
-                  <td className="mono">{p.patientIdentifier}</td>
-                  <td>{p.dateOfBirth}</td>
-                  <td>{p.phoneNumber || "Not recorded"}</td>
-                  <td>
-                    <Link to={"/app/patients/" + p.id} className="text-button">
-                      Open dossier
-                      <ArrowUpRight size={16} />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+        <DataTable<import("./api/contracts").Patient> rows={Array.isArray(data) ? data : []} rowKey={p=>p.id} columns={[
+          {key:"name",label:"Patient",value:fullName,render:p=><Link className="person-link" to={"/app/patients/"+p.id}><span className="avatar">{p.firstName[0]}{p.lastName[0]}</span>{fullName(p)}</Link>},
+          {key:"identifier",label:"Patient ID",value:p=>p.patientIdentifier,render:p=>p.patientIdentifier},
+          {key:"birth",label:"Date of birth",value:p=>p.dateOfBirth,render:p=>p.dateOfBirth},
+          {key:"phone",label:"Phone",render:p=>p.phoneNumber || "Not recorded"},
+          {key:"open",label:"Record",render:p=><Link to={"/app/patients/"+p.id} className="text-button">Open dossier<ArrowUpRight size={16}/></Link>}
+        ]}/>
         {isLoading ? (
-          <div className="skeleton">Loading patients…</div>
+          <LoadingState label="Loading patients"/>
         ) : (
           Array.isArray(data) && data.length === 0 && <Empty />
         )}
@@ -1236,6 +1216,7 @@ const configs: Record<
           { value: "MEDICAL_STAFF", label: "Medical staff" },
           { value: "DOCTOR", label: "Doctor" },
           { value: "ADMIN", label: "Administrator" },
+          { value: "PATIENT", label: "Patient (registered account)" },
         ],
       },
       { key: "doctorId", label: "Linked doctor", type: "select" },
@@ -1459,7 +1440,7 @@ function Catalogue({ kind }: { kind: string }) {
                     </>
                   ) : (
                     <>
-                      <td>{r.username}</td>
+                      <td>{r.username}{r.email && <small className="muted">{r.email} · {r.emailVerified ? "Email verified" : "Awaiting verification"}</small>}{r.requestedRole === "DOCTOR" && r.role !== "DOCTOR" && <small className="status">Doctor access requested</small>}</td>
                       <td>{r.role.replaceAll("_", " ")}</td>
                       <td>{r.doctorId || "Not assigned"}</td>
                       <td>
@@ -1803,12 +1784,12 @@ function Workflow({
 }
 function Reports() {
   const today = new Date().toISOString().slice(0, 10);
-  const [from, setFrom] = useState(today.slice(0, 8) + "01"),
-    [to, setTo] = useState(today),
-    [patientId, setPatient] = useState(""),
-    [doctorId, setDoctor] = useState(""),
-    [roomId, setRoom] = useState(""),
-    [mode, setMode] = useState("procedures");
+  const [from, setFrom] = useUrlState("from",today.slice(0, 8) + "01"),
+    [to, setTo] = useUrlState("to",today),
+    [patientId, setPatient] = useUrlState("patientId"),
+    [doctorId, setDoctor] = useUrlState("doctorId"),
+    [roomId, setRoom] = useUrlState("roomId"),
+    [mode, setMode] = useUrlState("mode","procedures");
   const { data: patients } = useData("/patients"),
     { data: doctors } = useData("/doctors"),
     { data: rooms } = useData("/rooms");
@@ -1934,7 +1915,7 @@ function Reports() {
         <div className="skeleton">Calculating report…</div>
       ) : (
         data && (
-          <section className="panel table-panel">
+          <><div>{mode === "procedures" && <ProcedureCharts report={data as import("./api/contracts").ProcedureReport} onDoctor={setDoctor}/>} {mode === "capacity" && <CapacityChart rooms={data as import("./api/contracts").RoomCapacity[]} onRoom={id => {setRoom(id);setMode("census");}}/>}</div><section className="panel table-panel">
             {mode === "procedures" ? (
               <>
                 <div className="report-total">
@@ -2032,7 +2013,7 @@ function Reports() {
                 </tbody>
               </table>
             )}
-          </section>
+          </section></>
         )
       )}
     </>
@@ -2081,6 +2062,7 @@ function Audit() {
 }
 
 function Assistant({ onClose }: { onClose: () => void }) {
+  const user = useUser();
   const router = useRouter(),
     pathname = usePathname(),
     client = useQueryClient();
@@ -2157,6 +2139,7 @@ function Assistant({ onClose }: { onClose: () => void }) {
           Find records, explore capacity, or prepare a task for your
           confirmation.
         </p>
+        <CommandResults query={message} onClose={onClose} user={user}/>
         <div className="suggestions">
           {[
             "Show department status",
@@ -2253,6 +2236,7 @@ function Assistant({ onClose }: { onClose: () => void }) {
                   {r.data.action.actionType} PROPOSAL
                 </span>
                 <h3>{fullName(r.data.patient)}</h3>
+                <ProposalPreview current={r.data.current} destination={r.data.destination} actionType={r.data.action.actionType} expiresAt={r.data.action.expiresAt}/>
                 {r.data.current && (
                   <p>
                     Current room:{" "}
@@ -2281,7 +2265,7 @@ function Assistant({ onClose }: { onClose: () => void }) {
                     </button>
                     <button
                       className="primary"
-                      disabled={busy}
+                      disabled={busy || Date.parse(r.data.action.expiresAt) <= Date.now()}
                       onClick={() => action(r.data.action.id, "confirm", i)}
                     >
                       Confirm {r.data.action.actionType.toLowerCase()}
