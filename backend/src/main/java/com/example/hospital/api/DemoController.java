@@ -61,7 +61,7 @@ public class DemoController {
     new HttpSessionSecurityContextRepository().saveContext(context, request, response);
     user.lastLoginAt = Instant.now();
     users.save(user);
-    return user;
+    return Views.account(user);
   }
 
   @PostMapping("/reset")
