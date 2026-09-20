@@ -57,7 +57,7 @@ jobs:
             sleep 1
           done
           npm --prefix frontend run e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: verification-results
