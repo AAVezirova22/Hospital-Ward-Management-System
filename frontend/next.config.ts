@@ -10,8 +10,6 @@ const apiOrigin = (
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
-  // App Router still emits a small inline boot script, so CSP keeps 'unsafe-inline'
-  // plus 'strict-dynamic' until a nonce pipeline is wired through Next 16.
   async rewrites() {
     return [
       {
@@ -28,11 +26,6 @@ const nextConfig: NextConfig = {
       {
         key: "Permissions-Policy",
         value: "camera=(), microphone=(), geolocation=(), payment=()",
-      },
-      {
-        key: "Content-Security-Policy",
-        value:
-          "default-src 'self'; script-src 'self' 'unsafe-inline' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
       },
     ];
     if (process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production") {
