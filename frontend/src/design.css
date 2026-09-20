@@ -510,6 +510,7 @@ kbd {
   max-width: 1600px;
   min-height: calc(100dvh - 149px);
   outline: none;
+  overflow-x: clip;
 }
 .page-heading {
   padding-top: 20px;
