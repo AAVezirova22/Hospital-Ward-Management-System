@@ -358,6 +358,11 @@ export function WardPlanner({ user }: { user: User }) {
             selected={selected}
             onSelect={canWrite && !busy ? setSelected : undefined}
             onDrop={canWrite && !busy ? stage : undefined}
+            onVacant={canWrite && !busy ? (roomId) => {
+              setDestination(String(roomId));
+              if (selected) stage(selected, roomId);
+              else setNotice("Choose a patient to preview a transfer to this room.");
+            } : undefined}
             changedRoom={changedRoom}
           />
           {plan.length > 0 && (
