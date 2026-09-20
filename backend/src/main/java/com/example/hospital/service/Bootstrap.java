@@ -52,9 +52,9 @@ public class Bootstrap implements CommandLineRunner {
       throw new IllegalStateException(
           "Set BOOTSTRAP_PASSWORD (12+ characters, at most 72 UTF-8 bytes) for first startup.");
     var admin = new AppUser();
-    admin.username = "admin";
-    admin.passwordHash = encoder.encode(password);
-    admin.role = "ADMIN";
+    admin.setUsername("admin");
+    admin.setPasswordHash(encoder.encode(password));
+    admin.setRole("ADMIN");
     users.save(admin);
     enroll(admin);
     if (seed) demo.ifAvailable(d -> d.populate(admin, password, encoder));
@@ -73,13 +73,13 @@ public class Bootstrap implements CommandLineRunner {
     jdbc.update(
         "insert into hospital_memberships(hospital_id,user_id,owner) values (?,?,?) on conflict do nothing",
         hospitalId,
-        user.id,
-        "ADMIN".equals(user.role));
+        user.getId(),
+        "ADMIN".equals(user.getRole()));
     jdbc.update(
         "insert into department_memberships(department_id,user_id,role,doctor_id) values (?,?,?,?) on conflict do nothing",
         departmentId,
-        user.id,
-        user.role,
-        user.doctorId);
+        user.getId(),
+        user.getRole(),
+        user.getDoctorId());
   }
 }
