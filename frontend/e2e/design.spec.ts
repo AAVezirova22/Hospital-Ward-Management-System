@@ -61,9 +61,9 @@ test("redesigned workspace has working navigation and both themes", async ({
     page.getByRole("link", { name: "Overview", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /Medcore Hospital/i }),
+    page.getByRole("button", { name: "Open hospital switcher" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: /Medcore Hospital/i }).click();
+  await page.getByRole("button", { name: "Open hospital switcher" }).click();
   await expect(
     page.getByRole("heading", { name: "Hospitals and departments" }),
   ).toBeVisible();
