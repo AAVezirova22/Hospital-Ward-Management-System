@@ -30,7 +30,7 @@ test("seeded ward planner stages without saving and confirms through the authori
   const admissions = (await (
     await page.request.get("/api/v1/admissions")
   ).json()) as {
-    admission: { id: number; status: string };
+    admission: { id: number; status: string; version: number };
     assignment: { roomId: number } | null;
   }[];
   const rooms = (await (await page.request.get("/api/v1/rooms")).json()) as {
