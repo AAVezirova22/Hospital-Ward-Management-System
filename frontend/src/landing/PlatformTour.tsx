@@ -19,7 +19,9 @@ const panels = [
     icon: Heartbeat,
     copy: "One shared picture of admissions, capacity, and activity. Start every shift knowing where things stand.",
     link: "/app/dashboard",
-    position: "top",
+    position: "bottom",
+    image: "workspace.webp",
+    height: 1593,
   },
   {
     title: "A place for every patient.",
@@ -28,6 +30,8 @@ const panels = [
     copy: "Follow admissions through transfers and discharge. Plan room moves and check capacity before confirming a change.",
     link: "/app/planner",
     position: "bottom",
+    image: "workspace.webp",
+    height: 1593,
   },
   {
     title: "Everyone, on the same page.",
@@ -35,7 +39,9 @@ const panels = [
     icon: UsersThree,
     copy: "Bring doctors and staff into the right department. Keep permissions, assignments, and care history connected.",
     link: "/app/doctors",
-    position: "center",
+    position: "top",
+    image: "product-doctors.png",
+    height: 1000,
   },
   {
     title: "Know what the day adds up to.",
@@ -44,6 +50,8 @@ const panels = [
     copy: "Explore occupancy and procedure reports, filter by room or doctor, and take the numbers with you in a CSV export.",
     link: "/app/reports",
     position: "top",
+    image: "product-reports.png",
+    height: 1000,
   },
 ];
 
@@ -149,14 +157,14 @@ export function PlatformTour() {
             <div className="mc-product-window">
               <div className="mc-window-top">
                 <span>Medcore workspace</span>
-                <span>Department overview</span>
+                <span>{panel.name}</span>
               </div>
               <Image
-                src="/landing/stills/workspace.webp"
-                alt="Actual Medcore dashboard with admissions, bed availability, staff counts, and room capacity using demonstration data"
+                src={`/landing/stills/${panel.image}`}
+                alt={`Actual Medcore ${panel.name.toLowerCase()} with demonstration data`}
                 width={1440}
-                height={1593}
-                sizes="(max-width: 767px) 94vw, 68vw"
+                height={panel.height}
+                sizes="(max-width: 767px) calc(100vw - 52px), (max-width: 1100px) 62vw, 840px"
                 style={{ objectPosition: panel.position }}
               />
             </div>
