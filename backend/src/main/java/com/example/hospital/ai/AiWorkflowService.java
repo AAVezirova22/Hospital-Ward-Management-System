@@ -169,11 +169,11 @@ public class AiWorkflowService {
             DepartmentContext.set(new DepartmentContext.Scope(destination, "ADMIN", null));
             em.unwrap(Session.class).enableFilter("department").setParameter("departmentId", destination);
           }
-          case "createPatient" -> id = patients.save(null, (PatientInput) value).id;
-          case "createDoctor" -> id = catalogue.saveDoctor(null, (DoctorInput) value).id;
-          case "createRoom" -> id = catalogue.saveRoom(null, (RoomInput) value).id;
-          case "createProcedure" -> id = catalogue.saveProcedure(null, (ProcedureInput) value).id;
-          case "admit" -> id = stays.create((AdmissionInput) value, "AI").id;
+          case "createPatient" -> id = patients.save(null, (PatientInput) value).getId();
+          case "createDoctor" -> id = catalogue.saveDoctor(null, (DoctorInput) value).getId();
+          case "createRoom" -> id = catalogue.saveRoom(null, (RoomInput) value).getId();
+          case "createProcedure" -> id = catalogue.saveProcedure(null, (ProcedureInput) value).getId();
+          case "admit" -> id = stays.create((AdmissionInput) value, "AI").getId();
           case "transfer" -> {
             id = f.get("admissionId").asLong();
             stays.move(id, (TransferInput) value, "AI");
@@ -182,7 +182,7 @@ public class AiWorkflowService {
             id = f.get("admissionId").asLong();
             stays.close(id, ((DischargeInput) value).version(), "AI");
           }
-          case "recordProcedure" -> id = stays.record(f.get("admissionId").asLong(), (RecordProcedureInput) value).id;
+          case "recordProcedure" -> id = stays.record(f.get("admissionId").asLong(), (RecordProcedureInput) value).getId();
           default -> throw invalid();
         }
         ids.put(step.key(), id);
