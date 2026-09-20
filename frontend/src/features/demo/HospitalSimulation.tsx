@@ -11,7 +11,7 @@ const events = [
   { title: "Blood panel recorded", room: 0, delta: 0 },
   { title: "Discharge confirmed", room: 0, delta: -1 },
   { title: "Transfer prepared for review", room: 1, delta: 0 },
-  { title: "Evening handover complete", room: 1, delta: 0 },
+  { title: "Transfer confirmed · SIM-2 → SIM-1", room: 1, delta: -1 },
 ];
 export function HospitalSimulation() {
   const status = useQuery({
@@ -34,12 +34,12 @@ export function HospitalSimulation() {
   }, [step]);
   if (!status.data?.enabled) return null;
   const rooms = [0, 1].map((i) => {
-    const occupied =
+      const occupied =
       1 +
       events
         .slice(0, step)
         .filter((e) => e.room === i)
-        .reduce((n, e) => n + e.delta, 0);
+          .reduce((n, e) => n + e.delta, 0) + (step === events.length && i === 0 ? 1 : 0);
     return {
       id: i + 1,
       roomNumber: `SIM-${i + 1}`,
