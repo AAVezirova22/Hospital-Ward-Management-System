@@ -12,8 +12,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // A bounded eight-step assistant turn can outlast the default 30-second proxy timeout.
   experimental: { proxyTimeout: 150_000 },
-  // App Router still emits a small inline boot script, so CSP keeps 'unsafe-inline'
-  // plus 'strict-dynamic' until a nonce pipeline is wired through Next 16.
+  // App Router still emits a small inline boot script. 'strict-dynamic' without a
+  // nonce blocks Next chunks, so CSP keeps 'unsafe-inline' until a nonce pipeline
+  // is wired through Next 16.
   async rewrites() {
     return [
       {
@@ -33,8 +34,22 @@ const nextConfig: NextConfig = {
       },
       {
         key: "Content-Security-Policy",
-        value:
-          "default-src 'self'; script-src 'self' 'unsafe-inline' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+        value: [
+          "default-src 'self'",
+          process.env.NODE_ENV === "production"
+            ? "script-src 'self' 'unsafe-inline'"
+            : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data:",
+          "media-src 'self'",
+          process.env.NODE_ENV === "production"
+            ? "connect-src 'self'"
+            : "connect-src 'self' ws: wss:",
+          "font-src 'self'",
+          "object-src 'none'",
+          "base-uri 'self'",
+          "frame-ancestors 'none'",
+        ].join("; "),
       },
     ];
     if (
