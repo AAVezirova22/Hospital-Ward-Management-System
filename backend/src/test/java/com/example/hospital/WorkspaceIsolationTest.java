@@ -211,6 +211,9 @@ class WorkspaceIsolationTest {
     call(name, "GET", "/api/v1/auth/me", null, other)
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.role").value("MEDICAL_STAFF"));
+    var team = body(call("admin", "GET", "/api/v1/users", null, other), 200);
+    assertThat(team.toString()).contains(name);
+    assertThat(team.toString()).contains("MEDICAL_STAFF");
   }
 
   @Test
