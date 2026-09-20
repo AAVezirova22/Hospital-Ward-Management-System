@@ -16,9 +16,9 @@ import { WorkflowStory } from "./WorkflowStory";
 import { FileWorkflow } from "./FileWorkflow";
 import { MessageExperience } from "./MessageExperience";
 
-export function LandingPage() {
+export function LandingPage({ nonce }: { nonce?: string }) {
   return (
-    <LandingExperience>
+    <LandingExperience nonce={nonce}>
       <a className="mc-skip" href="#main-content">
         Skip to content
       </a>
@@ -33,10 +33,10 @@ export function LandingPage() {
               <br className="mc-desktop" /> moving parts.
               <span className="mc-inline-photo">
                 <Image
-                  src="/landing/stills/care.jpg"
-                  alt="A moment of connection between a clinician and patient"
+                  src="/landing/stills/clinical-conversation.webp"
+                  alt="A doctor talking with a patient at her bedside"
                   fill
-                  sizes="140px"
+                  sizes="(max-width: 767px) 85px, 128px"
                 />
               </span>
               <br />
@@ -134,10 +134,10 @@ export function LandingPage() {
             </Reveal>
             <div className="mc-close-photo">
               <Image
-                src="/landing/stills/presence.webp"
-                alt="Care professionals working together in a sunlit hospital"
+                src="/landing/stills/hospital-lobby.webp"
+                alt="Glass doors and reflected trees at a hospital entrance"
                 fill
-                sizes="(max-width: 767px) 90vw, 42vw"
+                sizes="(max-width: 767px) calc(100vw - 64px), (max-width: 1100px) calc((100vw - 148px) / 2.2), (max-width: 1436px) calc((100vw - 196px) / 2.2), 564px"
               />
             </div>
           </div>
