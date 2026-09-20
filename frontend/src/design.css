@@ -418,11 +418,12 @@ button:hover .button-icon {
   content: "";
   position: absolute;
   left: 0;
-  top: calc(50% - 9px);
+  top: 50%;
   width: 3px;
   height: 18px;
   border-radius: 4px;
   background: var(--mint);
+  transform: translateY(-50%);
 }
 .nav-active-dot {
   width: 4px;
