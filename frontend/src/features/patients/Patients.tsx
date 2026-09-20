@@ -13,7 +13,7 @@ import {
   Modal,
   Title,
 } from "../../components/workspace";
-import { Plus, Search, ArrowUpRight } from "lucide-react";
+import { Plus, Search, ArrowUpRight } from "../../icons";
 import { EntityForm } from "../administration/EntityForm";
 import { DataTable } from "../../components/data-table/DataTable";
 import { useUrlState } from "../../components/useUrlState";
