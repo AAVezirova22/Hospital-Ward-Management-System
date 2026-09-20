@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LandingPage } from "../src/landing/LandingPage";
 import "../src/landing/presence.css";
+import "../src/landing/phone-scene.css";
 
 export const metadata: Metadata = {
   title: { absolute: "Medcore | More presence. Less process." },

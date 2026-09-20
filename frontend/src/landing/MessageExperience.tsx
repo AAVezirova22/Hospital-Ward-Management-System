@@ -1,15 +1,11 @@
 "use client";
-import { useState } from "react";
+
+import { useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { AnimatePresence, motion } from "motion/react";
-import {
-  ArrowUpRight,
-  ChatCircle,
-  Check,
-  FileCsv,
-} from "@phosphor-icons/react";
-import { Reveal, useSiteMotion } from "./SiteMotion";
+import { ArrowUpRight, ChatCircle } from "@phosphor-icons/react";
+import { useScroll } from "motion/react";
+import { Reveal } from "./SiteMotion";
+import { PhoneScene } from "./PhoneScene";
 
 const conversations = [
   {
@@ -37,98 +33,70 @@ const conversations = [
 
 export function MessageExperience() {
   const [selected, setSelected] = useState(0);
-  const { reduced } = useSiteMotion();
+  const section = useRef<HTMLElement>(null);
   const conversation = conversations[selected];
+  const { scrollYProgress } = useScroll({
+    target: section,
+    offset: ["start start", "end end"],
+  });
+
   return (
     <section
-      className="mc-messages mc-wrap"
+      className="mc-messages mc-phone-story"
       id="workflow"
       aria-labelledby="messages-title"
+      ref={section}
     >
-      <div className="mc-message-art">
-        <div className="mc-message-photo">
-          <Image
-            src="/landing/stills/presence.webp"
-            alt="Hospital professionals staying connected through their work"
-            fill
-            sizes="(max-width: 767px) 94vw, 48vw"
+      <div className="mc-phone-sticky">
+        <div className="mc-wrap mc-phone-grid">
+          <PhoneScene
+            conversation={conversation}
+            showFile={selected === 1}
+            scrollProgress={scrollYProgress}
           />
-        </div>
-        <div className="mc-conversation">
-          <header>
-            <span className="mc-chat-avatar">
-              <ChatCircle size={23} weight="light" />
-            </span>
-            <div>
-              Medcore<small>In iMessage</small>
-            </div>
-            <span className="mc-example-label">Example</span>
-          </header>
-          <AnimatePresence mode="wait">
-            <motion.div
-              className="mc-message-thread"
-              key={selected}
-              initial={reduced ? false : { opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: reduced ? 0 : 0.24 }}
+
+          <Reveal className="mc-messages-copy">
+            <ChatCircle
+              className="mc-feature-icon"
+              size={38}
+              weight="light"
+              aria-hidden="true"
+            />
+            <h2 id="messages-title">
+              The conversation
+              <br />
+              carries on.
+            </h2>
+            <p>
+              Between rounds. Away from your desk. Reach your Medcore assistant
+              in iMessage and keep the work moving.
+            </p>
+            <div
+              className="mc-message-options"
+              aria-label="Choose an iMessage example"
             >
-              <p className="mc-bubble is-sent">{conversation.request}</p>
-              {selected === 1 && (
-                <p className="mc-message-file">
-                  <FileCsv size={24} />
-                  sample-admissions.csv
-                </p>
-              )}
-              <p className="mc-bubble is-received">{conversation.response}</p>
-              <p className="mc-bubble is-sent">{conversation.followup}</p>
-              <span className="mc-message-read">
-                <Check size={12} /> Illustrative conversation
-              </span>
-            </motion.div>
-          </AnimatePresence>
+              {conversations.map((item, index) => (
+                <button
+                  key={item.label}
+                  aria-pressed={selected === index}
+                  onClick={() => setSelected(index)}
+                >
+                  {item.label}
+                  <ArrowUpRight size={16} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <p className="mc-message-note">
+              A familiar conversation. A connected workflow.
+              <br />
+              Your team stays in control.
+            </p>
+            <Link href="/app" className="mc-text-link">
+              Continue in Medcore <ArrowUpRight aria-hidden="true" />
+            </Link>
+          </Reveal>
         </div>
       </div>
-      <Reveal className="mc-messages-copy">
-        <ChatCircle
-          className="mc-feature-icon"
-          size={38}
-          weight="light"
-          aria-hidden="true"
-        />
-        <h2 id="messages-title">
-          The conversation
-          <br />
-          carries on.
-        </h2>
-        <p>
-          Between rounds. Away from your desk. Reach your Medcore assistant in
-          iMessage and keep the work moving.
-        </p>
-        <div
-          className="mc-message-options"
-          aria-label="Choose an iMessage example"
-        >
-          {conversations.map((item, index) => (
-            <button
-              key={item.label}
-              aria-pressed={selected === index}
-              onClick={() => setSelected(index)}
-            >
-              {item.label}
-              <ArrowUpRight size={16} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-        <p className="mc-message-note">
-          A familiar conversation. A connected workflow.
-          <br />
-          Your team stays in control.
-        </p>
-        <Link href="/app" className="mc-text-link">
-          Continue in Medcore <ArrowUpRight aria-hidden="true" />
-        </Link>
-      </Reveal>
     </section>
   );
 }
