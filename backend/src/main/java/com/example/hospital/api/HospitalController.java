@@ -168,12 +168,15 @@ public class HospitalController {
       @RequestParam(required = false) Long patientId,
       @RequestParam(required = false) Long doctorId) {
     var report = h.procedureReport(from, to, patientId, doctorId);
-    var out = new StringBuilder("Record,Admission,Procedure,Performed at,Cost EUR\r\n");
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    var out = new StringBuilder("Department,Record,Admission,Procedure,Performed at,Cost EUR\r\n");
     for (Object o : (List<?>) report.get("rows")) {
       var row = (Map<?, ?>) o;
       var r = (com.example.hospital.domain.PerformedProcedure) row.get("record");
       out.append(
-          r.id
+          departmentId
+              + ","
+              + r.id
               + ","
               + r.admissionId
               + ","
@@ -185,7 +188,9 @@ public class HospitalController {
               + "\r\n");
     }
     return ResponseEntity.ok()
-        .header("Content-Disposition", "attachment; filename=procedure-report.csv")
+        .header(
+            "Content-Disposition",
+            "attachment; filename=procedure-report-department-" + departmentId + ".csv")
         .body(out.toString());
   }
 
