@@ -47,7 +47,7 @@ export function Reports() {
   return (
     <>
       <Title
-        eyebrow="OPERATIONAL REPORTING"
+        eyebrow="Operational reporting"
         title="Decisions, grounded in data."
         description="Authoritative reports calculated from saved department records."
       />
