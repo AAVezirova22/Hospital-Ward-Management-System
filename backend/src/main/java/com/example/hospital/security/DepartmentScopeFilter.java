@@ -35,11 +35,11 @@ public class DepartmentScopeFilter extends OncePerRequestFilter {
       var session = r.getSession(false);
       var stamp = session == null ? null : session.getAttribute("credentialStamp");
       if (u.isEmpty()
-          || !u.get().enabled
-          || (stamp != null && !stamp.equals(u.get().sessionStamp))
+          || !u.get().isEnabled()
+          || (stamp != null && !stamp.equals(u.get().getSessionStamp()))
           || (session != null
               && session.getAttribute("accountId") != null
-              && !session.getAttribute("accountId").equals(u.get().id))) {
+              && !session.getAttribute("accountId").equals(u.get().getId()))) {
         SecurityContextHolder.clearContext();
         if (r.getSession(false) != null) r.getSession(false).invalidate();
       } else {
@@ -64,7 +64,7 @@ public class DepartmentScopeFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext()
             .setAuthentication(
                 new UsernamePasswordAuthenticationToken(
-                    u.get().username,
+                    u.get().getUsername(),
                     null,
                     java.util.List.of(
                         new SimpleGrantedAuthority("ROLE_" + DepartmentContext.current().role()))));

@@ -37,11 +37,13 @@ public class WorkspaceService {
           long id = rs.getLong(1); boolean owner = rs.getBoolean(3);
           var departments = jdbc.query("select d.id,d.name,m.role from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? order by d.name,d.id",
               (d, i) -> new Department(d.getLong(1), d.getString(2), d.getString(3),
-                  "ADMIN".equals(d.getString(3))), id, user.id);
+                  "ADMIN".equals(d.getString(3))), id, user.getId());
           return new Hospital(id, rs.getString(2), owner, owner, departments);
-        }, user.id);
+        }, user.getId());
   }
 
+  /** Revealing a join code is itself an audited action, so this runs read-write. */
+  @Transactional
   public String reveal(boolean hospital, long id) {
     if (hospital) owner(id);
     else departmentAdmin(id);
@@ -61,7 +63,7 @@ public class WorkspaceService {
     return value.strip();
   }
   private void owner(long hospitalId) {
-    if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=? and owner=true", Boolean.class, hospitalId, actor.user().id)))
+    if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=? and owner=true", Boolean.class, hospitalId, actor.user().getId())))
       throw new ApiException(403, "HOSPITAL_OWNER_REQUIRED", "Only a hospital owner can manage this hospital.");
   }
 
@@ -71,7 +73,7 @@ public class WorkspaceService {
     if (Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from hospitals where lower(name)=lower(?)", Boolean.class, hospital)))
       throw ApiException.conflict("HOSPITAL_NAME_TAKEN", "A hospital with this name already exists.");
     long id = jdbc.queryForObject("insert into hospitals(name,join_code) values (?,?) returning id", Long.class, hospital, code("H-"));
-    jdbc.update("insert into hospital_memberships(hospital_id,user_id,owner) values (?,?,true)", id, actor.user().id);
+    jdbc.update("insert into hospital_memberships(hospital_id,user_id,owner) values (?,?,true)", id, actor.user().getId());
     var department = createDepartment(id, departmentName);
     audit.log("HOSPITAL_CREATED", "Hospital", id, "UI");
     String hospitalCode = jdbc.queryForObject("select join_code from hospitals where id=?", String.class, id);
@@ -86,7 +88,7 @@ public class WorkspaceService {
   public Map<String, Object> createDepartment(long hospitalId, String departmentName) {
     owner(hospitalId);
     long id = jdbc.queryForObject("insert into departments(hospital_id,name,join_code) values (?,?,?) returning id", Long.class, hospitalId, name(departmentName), code("D-"));
-    jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'ADMIN')", id, actor.user().id);
+    jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'ADMIN')", id, actor.user().getId());
     jdbc.update("insert into workflow_lock(id) values (?) on conflict do nothing", id);
     audit.log("DEPARTMENT_CREATED", "Department", id, "UI");
     String joinCode = jdbc.queryForObject("select join_code from departments where id=?", String.class, id);
@@ -104,31 +106,31 @@ public class WorkspaceService {
     if (!code.matches("(?:[HD]-)?[A-F0-9]{24,32}"))
       throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
     var user = actor.user();
-    guardJoinAttempts(user.id, remoteAddr);
+    guardJoinAttempts(user.getId(), remoteAddr);
     var departments = jdbc.queryForList("select id,hospital_id,join_code_expires_at,join_code_single_use from departments where join_code=?", code);
     if (!departments.isEmpty()) {
-      clearJoinAttempts(user.id, remoteAddr);
+      clearJoinAttempts(user.getId(), remoteAddr);
       var row = departments.getFirst();
       assertJoinFresh(row.get("join_code_expires_at"));
       long id = ((Number) row.get("id")).longValue();
       long hospitalId = ((Number) row.get("hospital_id")).longValue();
-      jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", hospitalId, user.id);
-      jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'MEDICAL_STAFF') on conflict do nothing", id, user.id);
+      jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", hospitalId, user.getId());
+      jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'MEDICAL_STAFF') on conflict do nothing", id, user.getId());
       if (Boolean.TRUE.equals(row.get("join_code_single_use"))) consumeJoinCode(false, id);
       audit.log("WORKSPACE_JOINED", "Department", id, "UI");
       return Map.of("hospitalId", hospitalId, "departmentId", id);
     }
     var hospitals = jdbc.queryForList("select id,join_code_expires_at,join_code_single_use from hospitals where join_code=?", code);
     if (hospitals.isEmpty()) {
-      recordJoinFailure(user.id, remoteAddr);
-      audit.log("JOIN_CODE_REJECTED", "Workspace", user.id, "UI");
+      recordJoinFailure(user.getId(), remoteAddr);
+      audit.log("JOIN_CODE_REJECTED", "Workspace", user.getId(), "UI");
       throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
     }
-    clearJoinAttempts(user.id, remoteAddr);
+    clearJoinAttempts(user.getId(), remoteAddr);
     var hospital = hospitals.getFirst();
     assertJoinFresh(hospital.get("join_code_expires_at"));
     long id = ((Number) hospital.get("id")).longValue();
-    jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", id, user.id);
+    jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", id, user.getId());
     if (Boolean.TRUE.equals(hospital.get("join_code_single_use"))) consumeJoinCode(true, id);
     audit.log("WORKSPACE_JOINED", "Hospital", id, "UI");
     String hospitalName = jdbc.queryForObject("select name from hospitals where id=?", String.class, id);
@@ -182,7 +184,7 @@ public class WorkspaceService {
   @Transactional
   public String rotate(boolean hospital, long id, Integer expiresInHours, boolean singleUse) {
     if (hospital) owner(id);
-    else if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'", Boolean.class, id, actor.user().id)))
+    else if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'", Boolean.class, id, actor.user().getId())))
       throw new ApiException(403, "DEPARTMENT_ADMIN_REQUIRED", "Only a department administrator can replace its code.");
     String table = hospital ? "hospitals" : "departments";
     for (int attempt = 0; attempt < 8; attempt++) {
@@ -207,7 +209,7 @@ public class WorkspaceService {
         jdbc.update("update " + table + " set join_code_expires_at=?, join_code_single_use=? where id=?", expires, singleUse, id);
         audit.log("JOIN_CODE_ROTATED", hospital ? "Hospital" : "Department", id, "UI");
         return next;
-      } catch (DuplicateKeyException | DataIntegrityViolationException e) {
+      } catch (DataIntegrityViolationException e) {
         if (attempt == 7)
           throw new ApiException(409, "JOIN_CODE_COLLISION", "Could not allocate a unique join code. Try again.");
       }
@@ -230,7 +232,7 @@ public class WorkspaceService {
   private void departmentAdmin(long departmentId) {
     if (Boolean.TRUE.equals(jdbc.queryForObject(
         "select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'",
-        Boolean.class, departmentId, actor.user().id))) return;
+        Boolean.class, departmentId, actor.user().getId()))) return;
     Long hospitalId = jdbc.queryForObject("select hospital_id from departments where id=?", Long.class, departmentId);
     if (hospitalId == null) throw new ApiException(404, "NOT_FOUND", "Department not found.");
     owner(hospitalId);
@@ -238,7 +240,7 @@ public class WorkspaceService {
 
   @Transactional
   public void leaveDepartment(long departmentId) {
-    long userId = actor.user().id;
+    long userId = actor.user().getId();
     if (!Boolean.TRUE.equals(jdbc.queryForObject(
         "select count(*) > 0 from department_memberships where department_id=? and user_id=?", Boolean.class, departmentId, userId)))
       throw new ApiException(404, "NOT_FOUND", "You are not a member of this department.");
@@ -248,7 +250,7 @@ public class WorkspaceService {
 
   @Transactional
   public void leaveHospital(long hospitalId) {
-    long userId = actor.user().id;
+    long userId = actor.user().getId();
     if (!Boolean.TRUE.equals(jdbc.queryForObject(
         "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, hospitalId, userId)))
       throw new ApiException(404, "NOT_FOUND", "You are not a member of this hospital.");
@@ -262,7 +264,7 @@ public class WorkspaceService {
   @Transactional
   public void revokeDepartment(long departmentId, long userId) {
     departmentAdmin(departmentId);
-    if (userId == actor.user().id) {
+    if (userId == actor.user().getId()) {
       leaveDepartment(departmentId);
       return;
     }

@@ -16,115 +16,115 @@ public final class Views {
       Long id, String patientIdentifier, String firstName, String lastName, LocalDate dateOfBirth) {
     public static Map<String, Object> of(Patient p) {
       Map<String, Object> row = new LinkedHashMap<>();
-      row.put("id", p.id);
-      row.put("patientIdentifier", p.patientIdentifier);
-      row.put("firstName", p.firstName);
-      row.put("lastName", p.lastName);
-      row.put("dateOfBirth", p.dateOfBirth);
+      row.put("id", p.getId());
+      row.put("patientIdentifier", p.getPatientIdentifier());
+      row.put("firstName", p.getFirstName());
+      row.put("lastName", p.getLastName());
+      row.put("dateOfBirth", p.getDateOfBirth());
       return row;
     }
   }
 
   public static Map<String, Object> patient(Patient p) {
     Map<String, Object> row = new LinkedHashMap<>();
-    row.put("id", p.id);
-    row.put("version", p.version);
-    row.put("patientIdentifier", p.patientIdentifier);
-    row.put("firstName", p.firstName);
-    row.put("lastName", p.lastName);
-    row.put("dateOfBirth", p.dateOfBirth);
-    row.put("address", p.address);
-    row.put("phoneNumber", p.phoneNumber);
+    row.put("id", p.getId());
+    row.put("version", p.getVersion());
+    row.put("patientIdentifier", p.getPatientIdentifier());
+    row.put("firstName", p.getFirstName());
+    row.put("lastName", p.getLastName());
+    row.put("dateOfBirth", p.getDateOfBirth());
+    row.put("address", p.getAddress());
+    row.put("phoneNumber", p.getPhoneNumber());
     return row;
   }
 
   public static Map<String, Object> doctor(Doctor d) {
     Map<String, Object> row = new LinkedHashMap<>();
-    row.put("id", d.id);
-    row.put("version", d.version);
-    row.put("doctorIdentifier", d.doctorIdentifier);
-    row.put("firstName", d.firstName);
-    row.put("lastName", d.lastName);
-    row.put("specialty", d.specialty);
-    row.put("active", d.active);
+    row.put("id", d.getId());
+    row.put("version", d.getVersion());
+    row.put("doctorIdentifier", d.getDoctorIdentifier());
+    row.put("firstName", d.getFirstName());
+    row.put("lastName", d.getLastName());
+    row.put("specialty", d.getSpecialty());
+    row.put("active", d.isActive());
     return row;
   }
 
   public static Map<String, Object> procedure(MedicalProcedure p) {
     Map<String, Object> row = new LinkedHashMap<>();
-    row.put("id", p.id);
-    row.put("version", p.version);
-    row.put("procedureCode", p.procedureCode);
-    row.put("procedureName", p.procedureName);
-    row.put("currentCost", p.currentCost);
-    row.put("active", p.active);
+    row.put("id", p.getId());
+    row.put("version", p.getVersion());
+    row.put("procedureCode", p.getProcedureCode());
+    row.put("procedureName", p.getProcedureName());
+    row.put("currentCost", p.getCurrentCost());
+    row.put("active", p.isActive());
     return row;
   }
 
   public static Map<String, Object> admission(Admission a) {
     Map<String, Object> row = new LinkedHashMap<>();
-    row.put("id", a.id);
-    row.put("version", a.version);
-    row.put("admissionNumber", a.admissionNumber);
-    row.put("patientId", a.patientId);
-    row.put("attendingDoctorId", a.attendingDoctorId);
-    row.put("admissionDateTime", a.admissionDateTime);
-    row.put("dischargeDateTime", a.dischargeDateTime);
-    row.put("expectedDischargeDate", a.expectedDischargeDate);
-    row.put("status", a.status);
+    row.put("id", a.getId());
+    row.put("version", a.getVersion());
+    row.put("admissionNumber", a.getAdmissionNumber());
+    row.put("patientId", a.getPatientId());
+    row.put("attendingDoctorId", a.getAttendingDoctorId());
+    row.put("admissionDateTime", a.getAdmissionDateTime());
+    row.put("dischargeDateTime", a.getDischargeDateTime());
+    row.put("expectedDischargeDate", a.getExpectedDischargeDate());
+    row.put("status", a.getStatus());
     return row;
   }
 
   public static Map<String, Object> performed(PerformedProcedure p) {
     Map<String, Object> row = new LinkedHashMap<>();
-    row.put("id", p.id);
-    row.put("admissionId", p.admissionId);
-    row.put("medicalProcedureId", p.medicalProcedureId);
-    row.put("performedByDoctorId", p.performedByDoctorId);
-    row.put("performedAt", p.performedAt);
-    row.put("priceAtExecution", p.priceAtExecution);
-    row.put("note", p.note);
+    row.put("id", p.getId());
+    row.put("admissionId", p.getAdmissionId());
+    row.put("medicalProcedureId", p.getMedicalProcedureId());
+    row.put("performedByDoctorId", p.getPerformedByDoctorId());
+    row.put("performedAt", p.getPerformedAt());
+    row.put("priceAtExecution", p.getPriceAtExecution());
+    row.put("note", p.getNote());
     return row;
   }
 
   public static Map<String, Object> room(Room r) {
     Map<String, Object> row = new LinkedHashMap<>();
-    row.put("id", r.id);
-    row.put("version", r.version);
-    row.put("roomNumber", r.roomNumber);
-    row.put("bedCount", r.bedCount);
-    row.put("active", r.active);
+    row.put("id", r.getId());
+    row.put("version", r.getVersion());
+    row.put("roomNumber", r.getRoomNumber());
+    row.put("bedCount", r.getBedCount());
+    row.put("active", r.isActive());
     return row;
   }
 
   public static Map<String, Object> assignment(RoomAssignment a) {
     if (a == null) return null;
     Map<String, Object> row = new LinkedHashMap<>();
-    row.put("id", a.id);
-    row.put("version", a.version);
-    row.put("admissionId", a.admissionId);
-    row.put("roomId", a.roomId);
-    row.put("assignedAt", a.assignedAt);
-    row.put("releasedAt", a.releasedAt);
-    row.put("reason", a.reason);
-    row.put("createdBy", a.createdBy);
+    row.put("id", a.getId());
+    row.put("version", a.getVersion());
+    row.put("admissionId", a.getAdmissionId());
+    row.put("roomId", a.getRoomId());
+    row.put("assignedAt", a.getAssignedAt());
+    row.put("releasedAt", a.getReleasedAt());
+    row.put("reason", a.getReason());
+    row.put("createdBy", a.getCreatedBy());
     return row;
   }
 
   public static Map<String, Object> account(AppUser u) {
     Map<String, Object> row = new LinkedHashMap<>();
-    row.put("id", u.id);
-    row.put("version", u.version);
-    row.put("username", u.username);
-    row.put("role", u.role);
-    row.put("enabled", u.enabled);
-    row.put("doctorId", u.doctorId);
-    row.put("patientId", u.patientId);
-    row.put("email", u.email);
-    row.put("emailVerified", u.emailVerified);
-    row.put("requestedRole", u.requestedRole);
-    row.put("accountRole", u.accountRole);
-    row.put("departmentRole", u.departmentRole);
+    row.put("id", u.getId());
+    row.put("version", u.getVersion());
+    row.put("username", u.getUsername());
+    row.put("role", u.getRole());
+    row.put("enabled", u.isEnabled());
+    row.put("doctorId", u.getDoctorId());
+    row.put("patientId", u.getPatientId());
+    row.put("email", u.getEmail());
+    row.put("emailVerified", u.isEmailVerified());
+    row.put("requestedRole", u.getRequestedRole());
+    row.put("accountRole", u.getAccountRole());
+    row.put("departmentRole", u.getDepartmentRole());
     return row;
   }
 }

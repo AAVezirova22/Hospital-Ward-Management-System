@@ -35,10 +35,10 @@ public class SecurityConfig {
             .findByUsername(username)
             .map(
                 u ->
-                    User.withUsername(u.username)
-                        .password(u.passwordHash)
-                        .roles(u.role)
-                        .disabled(!u.enabled)
+                    User.withUsername(u.getUsername())
+                        .password(u.getPasswordHash())
+                        .roles(u.getRole())
+                        .disabled(!u.isEnabled())
                         .build())
             .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
   }
@@ -74,12 +74,12 @@ public class SecurityConfig {
                         (r, s, a) -> {
                           var u = users.findByUsername(a.getName()).orElseThrow();
                           backoff.success(a.getName());
-                          u.lastLoginAt = Instant.now();
-                          if (u.sessionStamp == null || u.sessionStamp.isBlank())
-                            u.sessionStamp = SessionStamps.next();
+                          u.setLastLoginAt(Instant.now());
+                          if (u.getSessionStamp() == null || u.getSessionStamp().isBlank())
+                            u.setSessionStamp(SessionStamps.next());
                           users.save(u);
-                          r.getSession().setAttribute("credentialStamp", u.sessionStamp);
-                          r.getSession().setAttribute("accountId", u.id);
+                          r.getSession().setAttribute("credentialStamp", u.getSessionStamp());
+                          r.getSession().setAttribute("accountId", u.getId());
                           s.setContentType("application/json");
                           json.writeValue(s.getWriter(), u);
                         })

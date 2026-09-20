@@ -19,6 +19,7 @@ public class AiActionService {
   private final WorkflowLockRepository lock;
   private final Actor actor;
   private final HospitalService h;
+  private final StayService stays;
   private final AuditService audit;
   private final ObjectMapper json;
   private final int ttl;
@@ -29,6 +30,7 @@ public class AiActionService {
       WorkflowLockRepository l,
       Actor actor,
       HospitalService h,
+      StayService stays,
       AuditService au,
       ObjectMapper j,
       @Value("${app.ai.action-ttl-seconds}") int ttl,
@@ -37,6 +39,7 @@ public class AiActionService {
     lock = l;
     this.actor = actor;
     this.h = h;
+    this.stays = stays;
     audit = au;
     json = j;
     this.ttl = ttl;
@@ -54,7 +57,7 @@ public class AiActionService {
 
   public AiPendingAction get(Long id) {
     var a = actions.findById(id).orElseThrow(ApiException::missing);
-    if (!a.userId.equals(actor.user().id))
+    if (!a.getUserId().equals(actor.user().getId()))
       throw new AccessDeniedException("Action belongs to another user");
     return a;
   }
@@ -63,16 +66,16 @@ public class AiActionService {
   public Object prepare(String type, Payload p) {
     actor.staff();
     var a = new AiPendingAction();
-    a.userId = actor.user().id;
-    a.actionType = type;
-    a.expiresAt = Instant.now().plusSeconds(ttl);
+    a.setUserId(actor.user().getId());
+    a.setActionType(type);
+    a.setExpiresAt(Instant.now().plusSeconds(ttl));
     try {
-      a.payload = json.writeValueAsString(p);
+      a.setPayload(json.writeValueAsString(p));
     } catch (Exception e) {
       throw new IllegalArgumentException();
     }
     actions.saveAndFlush(a);
-    audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.id, "AI");
+    audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.getId(), "AI");
     return card(a, p);
   }
 
@@ -81,11 +84,11 @@ public class AiActionService {
     m.put("action", a);
     m.put("patient", h.patient(p.patientId()));
     if (p.roomId() != null) m.put("destination", h.room(p.roomId()));
-    if (p.admissionId() != null) m.put("current", h.admissionView(h.admission(p.admissionId())));
+    if (p.admissionId() != null) m.put("current", stays.view(p.admissionId()));
     if (p.doctorId() != null)
       m.put(
           "doctor",
-          h.doctors().stream().filter(d -> d.id.equals(p.doctorId())).findFirst().orElseThrow());
+          h.doctors().stream().filter(d -> d.getId().equals(p.doctorId())).findFirst().orElseThrow());
     return m;
   }
 
@@ -93,13 +96,13 @@ public class AiActionService {
   public Object prepareWorkflow(String text) {
     var plan = workflows.parse(text);
     var a = new AiPendingAction();
-    a.userId = actor.user().id;
-    a.actionType = "WORKFLOW";
-    a.expiresAt = Instant.now().plusSeconds(ttl);
-    try { a.payload = json.writeValueAsString(plan); }
+    a.setUserId(actor.user().getId());
+    a.setActionType("WORKFLOW");
+    a.setExpiresAt(Instant.now().plusSeconds(ttl));
+    try { a.setPayload(json.writeValueAsString(plan)); }
     catch (Exception e) { throw new IllegalArgumentException(); }
     actions.saveAndFlush(a);
-    audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.id, "AI");
+    audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.getId(), "AI");
     return Map.of("action", a, "workflow", plan);
   }
 
@@ -108,41 +111,41 @@ public class AiActionService {
     lock.acquire();
     actor.staff();
     var a = get(id);
-    if (!a.status.equals("PENDING"))
+    if (!a.getStatus().equals("PENDING"))
       throw ApiException.conflict("ACTION_CONSUMED", "This action is no longer pending.");
-    if (Instant.now().isAfter(a.expiresAt)) {
-      a.status = "EXPIRED";
+    if (Instant.now().isAfter(a.getExpiresAt())) {
+      a.setStatus("EXPIRED");
       actions.saveAndFlush(a);
       throw new ExpiredActionException();
     }
-    if (a.actionType.equals("WORKFLOW")) {
-      var result = workflows.execute(workflows.parse(a.payload));
-      a.status = "EXECUTED";
-      a.confirmedAt = Instant.now();
+    if (a.getActionType().equals("WORKFLOW")) {
+      var result = workflows.execute(workflows.parse(a.getPayload()));
+      a.setStatus("EXECUTED");
+      a.setConfirmedAt(Instant.now());
       actions.saveAndFlush(a);
-      audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.id, "AI");
+      audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.getId(), "AI");
       return result;
     }
     Payload p;
     try {
-      p = json.readValue(a.payload, Payload.class);
+      p = json.readValue(a.getPayload(), Payload.class);
     } catch (Exception e) {
       throw new IllegalArgumentException();
     }
     Object result =
-        switch (a.actionType) {
+        switch (a.getActionType()) {
           case "ADMISSION" ->
-              h.admit(new AdmissionInput(p.patientId(), p.doctorId(), p.roomId()), "AI");
+              stays.admit(new AdmissionInput(p.patientId(), p.doctorId(), p.roomId()), "AI");
           case "TRANSFER" ->
-              h.transfer(
+              stays.transfer(
                   p.admissionId(), new TransferInput(p.roomId(), p.reason(), p.version()), "AI");
-          case "DISCHARGE" -> h.discharge(p.admissionId(), p.version(), "AI");
+          case "DISCHARGE" -> stays.discharge(p.admissionId(), p.version(), "AI");
           default -> throw new IllegalArgumentException();
         };
-    a.status = "EXECUTED";
-    a.confirmedAt = Instant.now();
+    a.setStatus("EXECUTED");
+    a.setConfirmedAt(Instant.now());
     actions.saveAndFlush(a);
-    audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.id, "AI");
+    audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.getId(), "AI");
     return result;
   }
 
@@ -150,11 +153,11 @@ public class AiActionService {
   public Object cancel(Long id) {
     lock.acquire();
     var a = get(id);
-    if (!a.status.equals("PENDING"))
+    if (!a.getStatus().equals("PENDING"))
       throw ApiException.conflict("ACTION_CONSUMED", "This action is no longer pending.");
-    a.status = "CANCELLED";
+    a.setStatus("CANCELLED");
     actions.saveAndFlush(a);
-    audit.log("AI_ACTION_CANCELLED", "AiPendingAction", a.id, "AI");
+    audit.log("AI_ACTION_CANCELLED", "AiPendingAction", a.getId(), "AI");
     return a;
   }
 }

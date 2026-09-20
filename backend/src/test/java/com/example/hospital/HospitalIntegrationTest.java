@@ -55,7 +55,7 @@ class HospitalIntegrationTest extends HospitalSupport {
     mvc.perform(get("/api/v1/auth/me").session(session)).andExpect(status().isOk());
     mvc.perform(post("/api/v1/auth/logout").session(session).with(csrf()))
         .andExpect(status().isNoContent());
-    assertThat(users.findByUsername("admin").orElseThrow().passwordHash)
+    assertThat(users.findByUsername("admin").orElseThrow().getPasswordHash())
         .startsWith("$2a$")
         .doesNotContain("IntegrationPassword");
   }
@@ -228,7 +228,7 @@ class HospitalIntegrationTest extends HospitalSupport {
     assertThat(report.get("totalCost").decimalValue()).isEqualByComparingTo("42.50");
     var summary = ai("doctor", "summary", p.get("id").asLong());
     assertThat(summary.get("responseType").asText()).isEqualTo("PATIENT_SUMMARY");
-    assertThat(users.findByUsername("doctor").orElseThrow().role).isEqualTo("DOCTOR");
+    assertThat(users.findByUsername("doctor").orElseThrow().getRole()).isEqualTo("DOCTOR");
     request(
             "doctor",
             "GET",
@@ -299,12 +299,12 @@ class HospitalIntegrationTest extends HospitalSupport {
     var res = ai("admin", "discharge him", p.get("id").asLong());
     long id = res.path("data").path("action").path("id").asLong();
     var action = actions.findById(id).orElseThrow();
-    action.expiresAt = Instant.now().minusSeconds(10);
+    action.setExpiresAt(Instant.now().minusSeconds(10));
     actions.save(action);
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/confirm", null)
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("ACTION_EXPIRED"));
-    assertThat(actions.findById(id).orElseThrow().status).isEqualTo("EXPIRED");
+    assertThat(actions.findById(id).orElseThrow().getStatus()).isEqualTo("EXPIRED");
     res = ai("admin", "discharge him", p.get("id").asLong());
     id = res.path("data").path("action").path("id").asLong();
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/cancel", null)
@@ -372,8 +372,8 @@ class HospitalIntegrationTest extends HospitalSupport {
     request(
             "admin",
             "PUT",
-            "/api/v1/users/" + u.id,
-            Map.of("username", "admin", "role", "ADMIN", "enabled", false, "version", u.version))
+            "/api/v1/users/" + u.getId(),
+            Map.of("username", "admin", "role", "ADMIN", "enabled", false, "version", u.getVersion()))
         .andExpect(status().isConflict());
     request(
             "admin",

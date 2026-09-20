@@ -33,6 +33,11 @@ public class AiAssistantService {
   private final ConcurrentHashMap<String, Conversation> conversations = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Long, Window> windows = new ConcurrentHashMap<>();
 
+  /** One in-flight assistant request per user; every read and write holds the instance monitor. */
+  private static final class Window {
+    private boolean busy;
+  }
+
 
 
   public AiAssistantService(
@@ -58,7 +63,7 @@ public class AiAssistantService {
 
   public AiSession session(String key) {
     var s = sessions.findBySessionKey(key).orElseThrow(ApiException::missing);
-    if (!s.userId.equals(actor.user().id))
+    if (!s.getUserId().equals(actor.user().getId()))
       throw new AccessDeniedException("Session belongs to another user");
     return s;
   }
@@ -67,27 +72,27 @@ public class AiAssistantService {
     var s = session(key);
     return Map.of(
         "sessionId",
-        s.sessionKey,
+        s.getSessionKey(),
         "interactions",
-        interactions.findTop50BySessionIdAndUserIdOrderByStartedAtDesc(key, actor.user().id));
+        interactions.findTop50BySessionIdAndUserIdOrderByStartedAtDesc(key, actor.user().getId()));
   }
 
   public void clear(String key) {
     var s = session(key);
     conversations.remove(key);
-    s.selectedPatientId = null;
+    s.setSelectedPatientId(null);
     sessions.save(s); /* Only metadata is persisted; no conversation text to erase. */
   }
 
   public AiToolRegistry.Response message(MessageInput in) {
     var u = actor.user();
-    var window = windows.computeIfAbsent(u.id, k -> new Window());
+    var window = windows.computeIfAbsent(u.getId(), k -> new Window());
     synchronized (window) {
       if (window.busy)
         throw new ApiException(
             429, "AI_RATE_LIMIT", "Wait before sending another assistant request.");
       rates.hit(
-          "ai:" + u.id,
+          "ai:" + u.getId(),
           limit,
           Duration.ofMinutes(1),
           "AI_RATE_LIMIT",
@@ -95,30 +100,29 @@ public class AiAssistantService {
       window.busy = true;
     }
     var interaction = new AiInteraction();
-    interaction.userId = u.id;
-    interaction.startedAt = Instant.now();
-    interaction.modelIdentifier = model.identifier();
-    interaction.requestType = "MESSAGE";
-    interaction.status = "FAILED";
+    interaction.setUserId(u.getId());
+    interaction.setStartedAt(Instant.now());
+    interaction.setModelIdentifier(model.identifier());
+    interaction.setRequestType("MESSAGE");
+    interaction.setStatus("FAILED");
     AiSession s = null;
     try {
       if (in.sessionId() == null || in.sessionId().isBlank()) {
         s = new AiSession();
-        s.userId = u.id;
-        s.sessionKey = UUID.randomUUID().toString();
+        s.setUserId(u.getId());
+        s.setSessionKey(UUID.randomUUID().toString());
         s = sessions.save(s);
       } else s = session(in.sessionId());
-      interaction.sessionId = s.sessionKey;
+      interaction.setSessionId(s.getSessionKey());
       if (in.selectedPatientId() != null) {
         h.patient(in.selectedPatientId());
-        s.selectedPatientId = in.selectedPatientId();
+        s.setSelectedPatientId(in.selectedPatientId());
         sessions.save(s);
       } else if (in.route() != null && in.route().startsWith("/app/patients/")) {
         String ref = in.route().substring("/app/patients/".length()).split("[?#]")[0];
         if (!ref.isBlank()) {
           try {
-            s.selectedPatientId =
-                h.patientByRef(java.net.URLDecoder.decode(ref, java.nio.charset.StandardCharsets.UTF_8)).id;
+            s.setSelectedPatientId(h.patientByRef(java.net.URLDecoder.decode(ref, java.nio.charset.StandardCharsets.UTF_8)).getId());
             sessions.save(s);
           } catch (RuntimeException ignored) {
             // Route may be the directory itself.
@@ -136,16 +140,16 @@ public class AiAssistantService {
             Map.of(), null, null);
       } else {
         conversations.values().removeIf(c -> !c.expiresAt().isAfter(Instant.now()));
-        var previous = conversations.get(s.sessionKey);
+        var previous = conversations.get(s.getSessionKey());
         List<Map<String, Object>> observations = new ArrayList<>();
         if (previous != null && previous.departmentId() == DepartmentContext.id()) observations.addAll(previous.turns());
         result = null;
         for (int step = 0; step < 8; step++) {
-          var context = new AiModelClient.Context(u.role,
-              in.route() == null ? "/app/dashboard" : in.route(), s.selectedPatientId,
+          var context = new AiModelClient.Context(u.getRole(),
+              in.route() == null ? "/app/dashboard" : in.route(), s.getSelectedPatientId(),
               local ? tools.definitions() : tools.agentDefinitions(), sourceData, connected, observations);
           var call = model.complete(in.message(), context);
-          interaction.toolNames = call.name();
+          interaction.setToolNames(call.name());
           if (call.name().equals("readConnectedFiles")) {
             AiToolRegistry.requireArgument(call, "ids", 700);
             var ids = Arrays.stream(call.arguments().get("ids").split(",")).map(String::strip).distinct().toList();
@@ -155,7 +159,7 @@ public class AiAssistantService {
                 Map.of("ids", ids), null, null);
             break;
           }
-          result = local ? tools.execute(call, s.selectedPatientId) : tools.executeAgent(call, s.selectedPatientId);
+          result = local ? tools.execute(call, s.getSelectedPatientId()) : tools.executeAgent(call, s.getSelectedPatientId());
           if (local || Set.of("TEXT", "ERROR", "CONFIRMATION_CARD", "WORKFLOW_PROPOSAL", "NAVIGATION_COMMAND").contains(result.responseType())) break;
           String data;
           try { data = json.writeValueAsString(result.data()); }
@@ -173,23 +177,22 @@ public class AiAssistantService {
           if (previous != null && previous.departmentId() == DepartmentContext.id()) turns.addAll(previous.turns());
           turns.add(Map.of("previousUserRequest", in.message(), "assistantResponse", result.message()));
           while (turns.size() > 6) turns.removeFirst();
-          if (conversations.size() < 1000 || conversations.containsKey(s.sessionKey))
-            conversations.put(s.sessionKey, new Conversation(DepartmentContext.id(), Instant.now().plusSeconds(1800), turns));
+          if (conversations.size() < 1000 || conversations.containsKey(s.getSessionKey()))
+            conversations.put(s.getSessionKey(), new Conversation(DepartmentContext.id(), Instant.now().plusSeconds(1800), turns));
         }
       }
-      interaction.status =
-          Set.of("CONFIRMATION_CARD", "WORKFLOW_PROPOSAL").contains(result.responseType()) ? "CONFIRMATION_REQUIRED" : "SUCCESS";
-      audit.log("AI_QUERY_EXECUTED", "AiSession", s.id, "AI");
+      interaction.setStatus(Set.of("CONFIRMATION_CARD", "WORKFLOW_PROPOSAL").contains(result.responseType()) ? "CONFIRMATION_REQUIRED" : "SUCCESS");
+      audit.log("AI_QUERY_EXECUTED", "AiSession", s.getId(), "AI");
       return new AiToolRegistry.Response(
-          result.responseType(), result.message(), result.data(), s.sessionKey, model.identifier());
+          result.responseType(), result.message(), result.data(), s.getSessionKey(), model.identifier());
     } catch (AccessDeniedException e) {
-      interaction.status = "REJECTED";
+      interaction.setStatus("REJECTED");
       throw e;
     } catch (ApiException e) {
-      interaction.status = "REJECTED";
+      interaction.setStatus("REJECTED");
       throw e;
     } catch (IllegalArgumentException e) {
-      interaction.status = "REJECTED";
+      interaction.setStatus("REJECTED");
       throw new ApiException(
           400, "INVALID_TOOL_CALL", "The assistant request could not be interpreted safely.");
     } catch (IllegalStateException e) {
@@ -197,13 +200,12 @@ public class AiAssistantService {
           "ERROR",
           "The assistant is unavailable. All standard hospital screens remain available.",
           Map.of(),
-          s == null ? null : s.sessionKey,
+          s == null ? null : s.getSessionKey(),
           model.identifier());
     } finally {
-      interaction.completedAt = Instant.now();
-      interaction.latencyMs =
-          Duration.between(interaction.startedAt, interaction.completedAt).toMillis();
-      if (interaction.sessionId != null) interactions.save(interaction);
+      interaction.setCompletedAt(Instant.now());
+      interaction.setLatencyMs(Duration.between(interaction.getStartedAt(), interaction.getCompletedAt()).toMillis());
+      if (interaction.getSessionId() != null) interactions.save(interaction);
       synchronized (window) {
         window.busy = false;
       }

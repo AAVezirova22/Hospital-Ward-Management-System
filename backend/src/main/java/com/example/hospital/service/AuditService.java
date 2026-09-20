@@ -4,6 +4,7 @@ import com.example.hospital.domain.AuditEvent;
 import com.example.hospital.repository.AuditEventRepository;
 import com.example.hospital.security.Actor;
 import java.time.Instant;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -24,12 +25,12 @@ public class AuditService {
 
   public void log(String event, String entity, Long id, String source, java.util.Map<String, ?> extra) {
     var e = new AuditEvent();
-    e.userId = actor.user().id;
-    e.eventType = event;
-    e.entityType = entity;
-    e.entityId = id;
-    e.source = source;
-    e.timestamp = Instant.now();
+    e.setUserId(actor.user().getId());
+    e.setEventType(event);
+    e.setEntityType(entity);
+    e.setEntityId(id);
+    e.setSource(source);
+    e.setTimestamp(Instant.now());
     var payload = new java.util.LinkedHashMap<String, Object>();
     payload.put("event", event);
     payload.put("entity", entity);
@@ -39,7 +40,7 @@ public class AuditService {
         payload.put(k, v);
     });
     String json = payload.toString();
-    e.metadata = json.length() > 500 ? json.substring(0, 500) : json;
+    e.setMetadata(json.length() > 500 ? json.substring(0, 500) : json);
     events.save(e);
     publisher.publishEvent(new OperationsStream.Changed(com.example.hospital.security.DepartmentContext.id()));
   }

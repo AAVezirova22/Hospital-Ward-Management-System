@@ -19,14 +19,18 @@ public class AiWorkflowService {
   public record Plan(String title, List<Step> steps) {}
   private final ObjectMapper json;
   private final Validator validator;
-  private final HospitalService hospital;
+  private final PatientService patients;
+  private final CatalogueService catalogue;
+  private final StayService stays;
   private final WorkspaceService workspaces;
   private final Actor actor;
   private final EntityManager em;
 
-  public AiWorkflowService(ObjectMapper json, Validator validator, HospitalService hospital,
+  public AiWorkflowService(ObjectMapper json, Validator validator, PatientService patients,
+      CatalogueService catalogue, StayService stays,
       WorkspaceService workspaces, Actor actor, EntityManager em) {
-    this.json = json; this.validator = validator; this.hospital = hospital;
+    this.json = json; this.validator = validator; this.patients = patients;
+    this.catalogue = catalogue; this.stays = stays;
     this.workspaces = workspaces; this.actor = actor; this.em = em;
   }
 
@@ -164,20 +168,20 @@ public class AiWorkflowService {
             DepartmentContext.set(new DepartmentContext.Scope(destination, "ADMIN", null));
             em.unwrap(Session.class).enableFilter("department").setParameter("departmentId", destination);
           }
-          case "createPatient" -> id = hospital.savePatient(null, (PatientInput) value).id;
-          case "createDoctor" -> id = hospital.saveDoctor(null, (DoctorInput) value).id;
-          case "createRoom" -> id = hospital.saveRoom(null, (RoomInput) value).id;
-          case "createProcedure" -> id = hospital.saveProcedure(null, (ProcedureInput) value).id;
-          case "admit" -> id = hospital.admit((AdmissionInput) value, "AI").id;
+          case "createPatient" -> id = patients.save(null, (PatientInput) value).getId();
+          case "createDoctor" -> id = catalogue.saveDoctor(null, (DoctorInput) value).getId();
+          case "createRoom" -> id = catalogue.saveRoom(null, (RoomInput) value).getId();
+          case "createProcedure" -> id = catalogue.saveProcedure(null, (ProcedureInput) value).getId();
+          case "admit" -> id = stays.admit((AdmissionInput) value, "AI").getId();
           case "transfer" -> {
             id = f.get("admissionId").asLong();
-            hospital.transfer(id, (TransferInput) value, "AI");
+            stays.transfer(id, (TransferInput) value, "AI");
           }
           case "discharge" -> {
             id = f.get("admissionId").asLong();
-            hospital.discharge(id, ((DischargeInput) value).version(), "AI");
+            stays.discharge(id, ((DischargeInput) value).version(), "AI");
           }
-          case "recordProcedure" -> id = hospital.recordProcedure(f.get("admissionId").asLong(), (RecordProcedureInput) value).id;
+          case "recordProcedure" -> id = stays.performProcedure(f.get("admissionId").asLong(), (RecordProcedureInput) value).getId();
           default -> throw invalid();
         }
         ids.put(step.key(), id);
