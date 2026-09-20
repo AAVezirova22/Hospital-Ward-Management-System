@@ -100,7 +100,7 @@ export function Title({
   description,
   children,
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description: string;
   children?: React.ReactNode;
@@ -108,11 +108,12 @@ export function Title({
   return (
     <div className="page-heading">
       <div>
-        <span className="eyebrow">{eyebrow}</span>
+        {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
       {children}
     </div>
   );
+}
 }

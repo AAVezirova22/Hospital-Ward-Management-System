@@ -24,7 +24,6 @@ export function Dashboard({
       <>
         <OverviewHero>
           <Title
-            eyebrow="WORKSPACE"
             title="Create a hospital or join with a code."
             description="This account has no open department yet, so the ward looks empty until you join one."
           />
@@ -37,7 +36,6 @@ export function Dashboard({
     <>
       <OverviewHero>
         <Title
-          eyebrow="WARD OPERATIONS"
           title="Your ward. In the moment."
           description="Capacity, care journeys and the next action, together."
         >
