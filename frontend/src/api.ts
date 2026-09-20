@@ -96,6 +96,14 @@ export async function api<T = any>(
       csrf = null;
       window.dispatchEvent(new Event("session-expired"));
     }
+    if (
+      r.status === 403 &&
+      e.code === "DEPARTMENT_ACCESS_DENIED" &&
+      department
+    ) {
+      setActiveDepartment(null);
+      return api(path, method, body);
+    }
     throw new ApiError(
       r.status,
       e.code || "REQUEST_FAILED",
