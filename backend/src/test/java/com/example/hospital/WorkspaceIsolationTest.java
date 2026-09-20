@@ -58,4 +58,58 @@ class WorkspaceIsolationTest {
   String unique() {
     return UUID.randomUUID().toString().substring(0, 8);
   }
+
+  @Test
+  void recordsStayInsideTheSelectedDepartment() throws Exception {
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "North Clinic " + unique(), "departmentName", "Cardiology"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var homePatient =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/patients",
+                Map.of(
+                    "patientIdentifier",
+                    "HOME-" + unique(),
+                    "firstName",
+                    "Home",
+                    "lastName",
+                    "Patient",
+                    "dateOfBirth",
+                    "1980-01-01"),
+                1L),
+            201);
+    var otherPatient =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/patients",
+                Map.of(
+                    "patientIdentifier",
+                    "AWAY-" + unique(),
+                    "firstName",
+                    "Away",
+                    "lastName",
+                    "Patient",
+                    "dateOfBirth",
+                    "1981-02-02"),
+                other),
+            201);
+    var home = body(call("admin", "GET", "/api/v1/patients", null, 1L), 200);
+    var away = body(call("admin", "GET", "/api/v1/patients", null, other), 200);
+    assertThat(home.toString()).contains(homePatient.get("patientIdentifier").asText());
+    assertThat(home.toString()).doesNotContain(otherPatient.get("patientIdentifier").asText());
+    assertThat(away.toString()).contains(otherPatient.get("patientIdentifier").asText());
+    assertThat(away.toString()).doesNotContain(homePatient.get("patientIdentifier").asText());
+  }
 }
