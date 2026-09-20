@@ -99,6 +99,12 @@ export function OperationsOverview({
       : percent >= d.thresholds.warningPercent
         ? "warning"
         : "safe";
+  const today = d.trends.at(-1),
+    yesterday = d.trends.at(-2);
+  const admissionChange =
+    today && yesterday ? today.admissions - yesterday.admissions : null;
+  const censusChange =
+    today && yesterday ? today.occupied - yesterday.occupied : null;
   return (
     <div className="operations-overview">
       <div className="operations-metrics">
@@ -112,9 +118,28 @@ export function OperationsOverview({
             {occupied} occupied · {beds - occupied} available
           </p>
           <small>
-            Warning ≥ {d.thresholds.warningPercent}% · Critical ≥{" "}
-            {d.thresholds.criticalPercent}%
+            {d.scope === "Department" && censusChange !== null
+              ? `${censusChange > 0 ? "+" : ""}${censusChange} patients vs yesterday’s closing census`
+              : "Department-wide capacity"}
           </small>
+          <Sparkline
+            values={d.trends.slice(-7).map((t) => t.occupied)}
+            label={`Seven-day census (${d.scope})`}
+          />
+        </article>
+        <article className="operation-stat">
+          <span>Admissions today</span>
+          <strong>{today?.admissions ?? 0}</strong>
+          <p>
+            {admissionChange === null
+              ? "Comparison unavailable"
+              : `${admissionChange > 0 ? "+" : ""}${admissionChange} vs yesterday`}
+          </p>
+          <small>{d.scope} · UTC</small>
+          <Sparkline
+            values={d.trends.slice(-7).map((t) => t.admissions)}
+            label="Seven-day admissions"
+          />
         </article>
         <article className="operation-stat">
           <span>Average active stay</span>
@@ -123,19 +148,15 @@ export function OperationsOverview({
             <small> days</small>
           </strong>
           <p>{d.scope}</p>
-          <Sparkline
-            values={d.trends.slice(-7).map((t) => t.occupied)}
-            label="Seven-day occupied census"
-          />
+          <small>
+            {d.longStayPatients} stays over {d.thresholds.longStayDays} days
+          </small>
         </article>
         <article className="operation-stat">
           <span>Expected discharges today</span>
           <strong>{d.expectedDischargesToday}</strong>
           <p>Staff-scheduled dates · UTC</p>
-          <Sparkline
-            values={d.trends.slice(-7).map((t) => t.admissions)}
-            label="Seven-day admissions"
-          />
+          <small>Scheduled dates, not a discharge forecast</small>
         </article>
       </div>
       <div className="section-heading">
