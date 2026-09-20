@@ -14,7 +14,7 @@ The original phone hid messages until the reader scrolled, translated beyond its
 - Product: the real workspace rises into view with perspective and scale resolving to a readable screen.
 - Story: the heading stays pinned on desktop as photographic panels rise and their images move independently.
 - Files: inputs and review panel converge as their chapter enters view.
-- Conversation: the phone rotates into view, pauses face-on for the messages, then moves aside as the workspace appears. Playback starts at 35% visibility and completes in 8 seconds without requiring more scrolling. It holds the ending instead of looping abruptly. Pause, resume and replay are available on mobile and desktop. Offscreen and hidden-tab playback suspends.
+- Conversation: the phone rotates into view, pauses face-on for the messages, then moves aside as the workspace appears. Playback starts at 35% visibility and completes in 2.5 seconds without requiring more scrolling. It holds the ending instead of looping abruptly. Pause, resume and replay are available on mobile and desktop. Offscreen and hidden-tab playback suspends.
 - Closing: a slow photographic camera move accompanies the final call to action.
 
 GSAP owns the clock and outer scroll frames. Motion alone writes the phone transforms and content entrance animations. They never compete for the same element's transform. Canvas UI affects an empty decorative layer, keeping controls and text in normal HTML. GPU effects unmount for small screens, reduced motion, offscreen artwork and hidden documents. Its original license remains intact.
