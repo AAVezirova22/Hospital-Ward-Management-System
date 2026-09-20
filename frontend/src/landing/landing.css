@@ -220,11 +220,11 @@ html:has(.film) body {
   color: var(--paper);
   overflow: hidden;
 }
-.film-hero .film-media {
+.film-hero .film-media,
+.film-hero-gpu {
   position: absolute;
   inset: 0;
   z-index: 0;
-  pointer-events: none;
 }
 .film-hero-shade {
   position: absolute;
@@ -378,23 +378,6 @@ html:has(.film) body {
   display: grid;
   place-items: center;
   color: var(--paper);
-  animation: film-drop 2.8s var(--ease) infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .film-hero-down {
-    animation: none;
-  }
-}
-@keyframes film-drop {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.7;
-  }
-  50% {
-    transform: translateY(6px);
-    opacity: 1;
-  }
 }
 
 .film-media {
@@ -407,25 +390,10 @@ html:has(.film) body {
   height: 100%;
   object-fit: cover;
 }
-.film-media-video {
-  position: absolute;
-  inset: 0;
-}
-.is-drift {
-  animation: film-drift 28s var(--ease) infinite alternate;
-}
-@media (prefers-reduced-motion: reduce) {
-  .is-drift {
-    animation: none;
-  }
-}
-@keyframes film-drift {
-  from {
-    transform: scale(1.04) translate3d(0, 0, 0);
-  }
-  to {
-    transform: scale(1.12) translate3d(-1.6%, 1.1%, 0);
-  }
+.film-hero-gpu,
+.film-care-gpu {
+  width: 100%;
+  height: 100%;
 }
 
 .film-care {
@@ -434,7 +402,8 @@ html:has(.film) body {
   color: var(--paper);
   display: grid;
 }
-.film-care .film-media {
+.film-care .film-media,
+.film-care-gpu {
   position: absolute;
   inset: 0;
 }
@@ -456,6 +425,7 @@ html:has(.film) body {
   justify-content: space-between;
   gap: 48px;
   min-height: 100dvh;
+  pointer-events: none;
 }
 .film-care h2 {
   margin: 0;
@@ -517,23 +487,24 @@ html:has(.film) body {
   color: var(--paper);
   cursor: pointer;
 }
-.film-dept .film-media,
-.film-dept .film-media-video {
+.film-dept .film-media {
   position: absolute;
   inset: 0;
 }
-.film-dept .film-media-video {
-  opacity: 0;
-  transition: opacity 0.9s var(--ease);
+.film-dept-under {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: end;
+  gap: 10px;
+  padding: 28px;
+  background: #121a24;
+  color: var(--paper);
 }
-.film-dept:hover .film-media-video,
-.film-dept:focus-within .film-media-video {
-  opacity: 1;
-}
-@media (hover: none) {
-  .film-dept .film-media-video {
-    opacity: 1;
-  }
+.film-dept-under strong {
+  font-family: var(--display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.03em;
 }
 .film-dept-meta {
   position: absolute;
