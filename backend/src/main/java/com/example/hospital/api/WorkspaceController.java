@@ -21,7 +21,7 @@ public class WorkspaceController {
   public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "hospitals", workspaces.list()); }
   @PostMapping("/hospitals") @ResponseStatus(HttpStatus.CREATED)
   public Object create(@Valid @RequestBody HospitalInput input) {
-    return Map.of("departmentId", workspaces.createHospital(input.name(), input.departmentName()));
+    return workspaces.createHospital(input.name(), input.departmentName());
   }
   @PostMapping("/hospitals/{id}/departments") @ResponseStatus(HttpStatus.CREATED)
   public Object department(@PathVariable long id, @Valid @RequestBody DepartmentInput input) {
