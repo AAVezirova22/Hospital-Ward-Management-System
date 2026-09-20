@@ -1,0 +1,64 @@
+.ward-corridor {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 22px;
+  border-block: 1px dashed var(--line);
+  color: var(--muted);
+}
+.ward-corridor span {
+  font-size: 12px;
+}
+.ward-room .ward-patient {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  width: 100%;
+  text-align: left;
+}
+.ward-patient small {
+  margin-left: auto;
+  font-size: 10px;
+}
+.ward-patient.vacant {
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+}
+.ward-patient:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.ward-room.critical {
+  border-color: var(--critical);
+}
+.ward-room.critical .ward-room-heading > span {
+  color: var(--critical);
+}
+.ward-room.warning .ward-room-heading > span {
+  color: var(--gold);
+}
+:root {
+  --critical: #e89b88;
+  --information: #92bff2;
+}
+:root[data-theme="light"] {
+  --critical: #a13c28;
+  --information: #245b9b;
+}
+@media (max-width: 760px) {
+  .ward-corridor {
+    flex-wrap: wrap;
+  }
+  .ward-corridor span {
+    width: 100%;
+    text-align: center;
+  }
+  .ward-map,
+  .planner-layout .ward-map {
+    grid-template-columns: 1fr;
+  }
+}
