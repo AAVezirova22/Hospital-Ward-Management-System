@@ -73,6 +73,23 @@ class AiSafetyTest {
   }
 
   @Test
+  void malformedNumericToolArgumentsAreInvalidToolCalls() {
+    for (var call :
+        List.of(
+            new AiModelClient.ToolCall("getAvailableRooms", Map.of("minimumFreeBeds", "two")),
+            new AiModelClient.ToolCall("getAdmission", Map.of("admissionId", "not-a-number")),
+            new AiModelClient.ToolCall(
+                "getAdmissions", Map.of("from", "not-a-date", "to", "2026-01-01")),
+            new AiModelClient.ToolCall("getAdmissions", Map.of("to", "2026-01-01")))) {
+      assertThatThrownBy(() -> registry.execute(call, null))
+          .isInstanceOf(ApiException.class)
+          .extracting("code")
+          .isEqualTo("INVALID_TOOL_CALL");
+    }
+    verifyNoInteractions(hospital, actions);
+  }
+
+  @Test
   void modelFailureIsStructuredAndRateLimitOnlyAffectsAssistant() {
     var model =
         new AiModelClient() {
