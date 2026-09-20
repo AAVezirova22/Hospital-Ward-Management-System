@@ -63,7 +63,12 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
           layoutId={animated ? "sidebar-selection" : undefined}
           className="nav-selection"
           aria-hidden="true"
-          transition={{ type: "spring", stiffness: 260, damping: 32, mass: 0.7 }}
+          transition={{
+            type: "spring",
+            stiffness: 260,
+            damping: 32,
+            mass: 0.7,
+          }}
         />
       )}
       {children}
@@ -348,27 +353,27 @@ function Shell({
         <WorkspaceSwitcher />
         <span className="nav-label">WORKSPACE</span>
         <LayoutGroup id="workspace-navigation">
-        <nav>
-          {nav.map(([url, label, Icon]) => (
-            <NavLink to={"/app/" + url} key={url}>
-              <Icon size={18} />
-              {label}
-            </NavLink>
-          ))}
-          {user.role === "ADMIN" && (
-            <>
-              <span className="nav-label admin-label">ADMINISTRATION</span>
-              <NavLink to="/app/users">
-                <ShieldCheck size={18} />
-                Team access
+          <nav>
+            {nav.map(([url, label, Icon]) => (
+              <NavLink to={"/app/" + url} key={url}>
+                <Icon size={18} />
+                {label}
               </NavLink>
-              <NavLink to="/app/audit">
-                <History size={18} />
-                Audit history
-              </NavLink>
-            </>
-          )}
-        </nav>
+            ))}
+            {user.role === "ADMIN" && (
+              <>
+                <span className="nav-label admin-label">ADMINISTRATION</span>
+                <NavLink to="/app/users">
+                  <ShieldCheck size={18} />
+                  Team access
+                </NavLink>
+                <NavLink to="/app/audit">
+                  <History size={18} />
+                  Audit history
+                </NavLink>
+              </>
+            )}
+          </nav>
         </LayoutGroup>
         <div className="sidebar-note">
           <span>More clarity.</span>
