@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api, fullName, type User } from "../../api";
+import { api, fullName, activeDepartment, type User } from "../../api";
 import type { Patient, RoomCapacity, Doctor } from "../../api/contracts";
 export function CommandResults({
   query,
@@ -16,15 +16,15 @@ export function CommandResults({
   const router = useRouter(),
     [selected, setSelected] = useState(-1);
   const patients = useQuery({
-    queryKey: ["/patients"],
+    queryKey: ["/patients", activeDepartment()],
     queryFn: () => api<Patient[]>("/patients"),
   });
   const rooms = useQuery({
-    queryKey: ["/rooms"],
+    queryKey: ["/rooms", activeDepartment()],
     queryFn: () => api<RoomCapacity[]>("/rooms"),
   });
   const doctors = useQuery({
-    queryKey: ["/doctors"],
+    queryKey: ["/doctors", activeDepartment()],
     queryFn: () => api<Doctor[]>("/doctors"),
   });
   const screens = [

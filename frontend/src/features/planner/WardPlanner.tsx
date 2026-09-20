@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, RefreshCw, CheckCircle2 } from "lucide-react";
-import { api, fullName, type User } from "../../api";
+import { api, fullName, activeDepartment, type User } from "../../api";
 import type {
   AdmissionView,
   RoomCapacity,
@@ -20,12 +20,12 @@ import { LoadingState } from "../../components/LoadingState";
 export function WardPlanner({ user }: { user: User }) {
   const client = useQueryClient();
   const roomsQuery = useQuery({
-    queryKey: ["/rooms"],
+    queryKey: ["/rooms", activeDepartment()],
     queryFn: () => api<RoomCapacity[]>("/rooms"),
     refetchInterval: 15000,
   });
   const admissionsQuery = useQuery({
-    queryKey: ["/admissions"],
+    queryKey: ["/admissions", activeDepartment()],
     queryFn: () => api<AdmissionView[]>("/admissions"),
     refetchInterval: 15000,
   });

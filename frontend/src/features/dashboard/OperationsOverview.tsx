@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import Link from "next/link";
-import { api, date } from "../../api";
+import { api, date, activeDepartment } from "../../api";
 import type {
   OperationsReport,
   RoomCapacity,
@@ -53,17 +53,17 @@ export function OperationsOverview({
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedAdmission, setSelectedAdmission] = useState<number>();
   const ops = useQuery({
-    queryKey: ["/reports/operations"],
+    queryKey: ["/reports/operations", activeDepartment()],
     queryFn: () => api<OperationsReport>("/reports/operations"),
     refetchInterval: 15000,
   });
   const roomQuery = useQuery({
-    queryKey: ["/rooms"],
+    queryKey: ["/rooms", activeDepartment()],
     queryFn: () => api<RoomCapacity[]>("/rooms"),
     refetchInterval: 15000,
   });
   const admissionQuery = useQuery({
-    queryKey: ["/admissions"],
+    queryKey: ["/admissions", activeDepartment()],
     queryFn: () => api<AdmissionView[]>("/admissions"),
     refetchInterval: 15000,
   });
