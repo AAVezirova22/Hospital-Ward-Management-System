@@ -9,7 +9,7 @@ test("Canvas UI renders, pauses, survives context loss and respects saved prefer
     colorScheme: "dark",
     reducedMotion: "no-preference",
   });
-  await page.goto("/");
+  await page.goto("/app");
   await expect(
     page.getByRole("heading", { name: "Welcome back." }),
   ).toBeVisible();
@@ -56,7 +56,7 @@ test("reduced motion and small screens keep static artwork without a GPU layer",
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await page.goto("/app");
   await expect(
     page.getByRole("heading", { name: "Welcome back." }),
   ).toBeVisible();
@@ -102,7 +102,7 @@ test("animated workspace navigation stays usable when the AI provider is unavail
     colorScheme: "dark",
     reducedMotion: "no-preference",
   });
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByLabel("Username", { exact: true }).fill("admin");
   await page
     .getByLabel("Password", { exact: true })
