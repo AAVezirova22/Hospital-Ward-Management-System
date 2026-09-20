@@ -44,7 +44,7 @@ class WorkspaceIsolationTest {
       registry.add("spring.datasource.username", container::getUsername);
       registry.add("spring.datasource.password", container::getPassword);
     } else {
-      HospitalIntegrationTest.database(registry);
+      HospitalSupport.database(registry);
       registry.add("spring.flyway.schemas", () -> "workspace_isolation");
       registry.add("spring.flyway.default-schema", () -> "workspace_isolation");
       registry.add("spring.flyway.create-schemas", () -> true);
