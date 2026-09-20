@@ -68,7 +68,7 @@ public class RegistrationService {
     lock.acquire();
     String normalized = address.trim().toLowerCase(Locale.ROOT);
     if (users.findByUsername(username).isPresent() || Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from app_users where email = ?",Boolean.class,normalized)))
-      throw ApiException.conflict("ACCOUNT_EXISTS","An account with these details already exists. Sign in or request a new confirmation.");
+      return;
     var patient = new Patient(); patient.firstName=first.trim(); patient.lastName=last.trim(); patient.dateOfBirth=dob;
     patient.patientIdentifier="SELF-" + UUID.randomUUID(); patients.saveAndFlush(patient);
     var u = new AppUser(); u.username=username; u.email=normalized; u.passwordHash=encoder.encode(password);
