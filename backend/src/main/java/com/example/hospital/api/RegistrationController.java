@@ -23,10 +23,19 @@ public class RegistrationController {
   @GetMapping("/status") public Object status() {return Map.of("enabled",registration.available());}
   @GetMapping("/hospitals") public Object hospitals() {return registration.hospitals();}
   @PostMapping("/signup") public Object signup(@Valid @RequestBody Signup in,HttpServletRequest request) {
-    registration.limit(request.getRemoteAddr());
+    registration.limit(clientKey(request, in.email()));
     registration.signup(in.username(),in.email(),in.password(),in.firstName(),in.lastName(),in.dateOfBirth(),in.requestedRole(),in.hospitalId());
     return Map.of("message","Check your inbox to confirm your email. Doctor requests require administrator approval after verification.");
   }
   @PostMapping("/verify") public Object verify(@Valid @RequestBody Verify in) {registration.verify(in.token());return Map.of("message","Email confirmed. You can now sign in. Doctor access requests will be reviewed by an administrator.");}
-  @PostMapping("/resend") public Object resend(@Valid @RequestBody Resend in,HttpServletRequest request) {registration.limit(request.getRemoteAddr());registration.resend(in.email());return Map.of("message","If an unverified account matches, a new confirmation email has been sent.");}
+  @PostMapping("/resend") public Object resend(@Valid @RequestBody Resend in,HttpServletRequest request) {registration.limit(clientKey(request, in.email()));registration.resend(in.email());return Map.of("message","If an unverified account matches, a new confirmation email has been sent.");}
+
+  private static String clientKey(HttpServletRequest request, String email) {
+    String forwarded = request.getHeader("X-Forwarded-For");
+    String ip = request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
+    if (forwarded != null && !forwarded.isBlank() && (ip.startsWith("10.") || ip.startsWith("127.") || ip.equals("https://example.net/id/garnet") || ip.startsWith("172."))) {
+      ip = forwarded.split(",")[0].trim();
+    }
+    return Integer.toHexString((ip + ":" + email.trim().toLowerCase()).hashCode());
+  }
 }
