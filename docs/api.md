@@ -25,6 +25,12 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
 | GET | `/audit` | Latest 100 events; admin-only |
+| GET | `/workspaces` | Hospitals and departments the account can open, plus the active department |
+| POST | `/workspaces/hospitals` | `{name, departmentName}`; owner of the hospital and admin of its first department |
+| POST | `/workspaces/hospitals/{id}/departments` | `{name}`; hospital owner only |
+| POST | `/workspaces/join` | `{code}`; hospital codes add hospital membership, department codes add medical staff access |
+| POST | `/workspaces/hospitals/{id}/code` | Replace the hospital join code; owner only |
+| POST | `/workspaces/departments/{id}/code` | Replace the department join code; department administrator only |
 
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 
