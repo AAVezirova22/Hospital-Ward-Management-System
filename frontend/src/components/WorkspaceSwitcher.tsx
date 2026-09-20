@@ -30,3 +30,29 @@ async function copyCode(value: string) {
     );
   } catch {}
 }
+
+export function WorkspaceSwitcher() {
+  const client = useQueryClient();
+  const { data, error, isLoading } = useQuery<WorkspaceList>({
+    queryKey: ["/workspaces", activeDepartment()],
+    queryFn: () => api("/workspaces"),
+  });
+  const [open, setOpen] = useState(false);
+  const current = useMemo(() => currentNames(data), [data]);
+  return (
+    <button
+      type="button"
+      className="department workspace-switcher"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      onClick={() => setOpen(true)}
+    >
+      <BedDouble size={19} strokeWidth={1.5} />
+      <div>
+        {current.hospital?.name || "Hospital"}
+        <small>{current.department?.name || "Choose a department"}</small>
+      </div>
+      <ChevronDown size={16} aria-hidden="true" />
+    </button>
+  );
+}
