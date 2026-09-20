@@ -38,7 +38,22 @@ export function WorkspaceSwitcher() {
     queryFn: () => api("/workspaces"),
   });
   const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<"list" | "join" | "hospital" | "department">(
+    "list",
+  );
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<Error | null>(null);
   const current = useMemo(() => currentNames(data), [data]);
+
+  const refresh = async (id?: number) => {
+    if (id) setActiveDepartment(id);
+    await client.invalidateQueries();
+  };
+
+  const openDepartment = async (id: number) => {
+    await refresh(id);
+    setOpen(false);
+  };
   return (
     <button
       type="button"
