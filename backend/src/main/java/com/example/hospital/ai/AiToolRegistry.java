@@ -41,6 +41,46 @@ public class AiToolRegistry {
           Map.entry("navigate", List.of("route")),
           Map.entry("help", List.of()));
 
+  public List<Map<String, Object>> agentDefinitions() {
+    var definitions = new ArrayList<>(definitions());
+    definitions.add(definition("respond", "Answer the user or ask for missing fields. Never claim changes before confirmation.", "message", 4000));
+    definitions.add(definition("readConnectedFiles", "Read files from the user-connected folder. ids is a comma-separated list of manifest IDs, at most 10. Never invent IDs or paths.", "ids", 700));
+    definitions.add(definition("getWorkflowCatalogue", "Read authorized doctors, rooms, procedures and workspace names for workflow planning.", null, 0));
+    if (!actor.doctor())
+      definitions.add(definition("prepareWorkflow", AiWorkflowService.DESCRIPTION, "plan", 50000));
+    return definitions;
+  }
+
+  private Map<String, Object> definition(String name, String description, String argument, int length) {
+    return Map.of("type", "function", "function", Map.of("name", name, "description", description,
+        "parameters", Map.of("type", "object", "properties", argument == null ? Map.of()
+            : Map.of(argument, Map.of("type", "string", "maxLength", length)),
+            "required", argument == null ? List.of() : List.of(argument), "additionalProperties", false)));
+  }
+
+  public Response executeAgent(AiModelClient.ToolCall call, Long selected) {
+    if (call.name().equals("prepareWorkflow")) {
+      requireArgument(call, "plan", 50000);
+      return response("WORKFLOW_PROPOSAL", "Review every step and its source. Confirm to apply the complete workflow.", actions.prepareWorkflow(call.arguments().get("plan")));
+    }
+    if (call.name().equals("respond")) {
+      requireArgument(call, "message", 4000);
+      return response("TEXT", call.arguments().get("message"), Map.of());
+    }
+    if (call.name().equals("getWorkflowCatalogue")) {
+      if (call.arguments() == null || !call.arguments().isEmpty()) throw new IllegalArgumentException();
+      return response("REPORT_RESULT", "Current authorized catalogue.",
+          Map.of("doctors", h.doctors(), "rooms", h.rooms(0), "procedures", h.procedures()));
+    }
+    return execute(call, selected);
+  }
+
+  public static void requireArgument(AiModelClient.ToolCall call, String name, int max) {
+    if (call.arguments() == null || !call.arguments().keySet().equals(Set.of(name))
+        || call.arguments().get(name) == null || call.arguments().get(name).isBlank()
+        || call.arguments().get(name).length() > max) throw new IllegalArgumentException();
+  }
+
   public List<Map<String, Object>> definitions() {
     return SCHEMAS.entrySet().stream()
         .filter(e -> !actor.doctor() || !e.getKey().startsWith("prepare"))
