@@ -170,14 +170,15 @@ export function OperationsOverview({
           </Link>
         )}
       </div>
-      <WardMap
+      <div className="compact-capacity"><strong>{occupied} / {beds} beds occupied</strong><meter min={0} max={Math.max(1,beds)} value={occupied} aria-label="Department occupied beds" /><Link href="/app/planner">Open interactive ward map →</Link></div>
+      <div className="overview-floor-plan"><WardMap
         rooms={rooms}
         admissions={admissions}
         selected={selectedAdmission}
         onSelect={presentation ? undefined : setSelectedAdmission}
         warning={d.thresholds.warningPercent}
         critical={d.thresholds.criticalPercent}
-      />
+      /></div>
       {selectedAdmission &&
         admissions.find((v) => v.admission.id === selectedAdmission) && (
           <BedDrawer
