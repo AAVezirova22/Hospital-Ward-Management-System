@@ -1,7 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { FilmMedia } from "./FilmMedia";
-import { clip, still } from "./media";
+import { still } from "./media";
+import { useGpuScene } from "./gpu";
+
+const Peel = dynamic(() => import("../vendor/canvasui/Peel"), { ssr: false });
 
 const DEPTS = [
   {
@@ -27,23 +31,52 @@ const DEPTS = [
 ];
 
 export function Departments() {
+  const gpu = useGpuScene();
   return (
     <section className="film-departments" id="specialists">
       <h2 className="film-kicker">Departments</h2>
       <div className="film-dept-track">
-        {DEPTS.map((dept) => (
-          <article className="film-dept" key={dept.key}>
-            <FilmMedia
-              still={still(dept.key)}
-              video={clip(dept.key)}
-              alt={`${dept.title} at Medcore`}
-            />
-            <div className="film-dept-meta">
-              <h3>{dept.title}</h3>
+        {DEPTS.map((dept) => {
+          const face = (
+            <>
+              <FilmMedia
+                still={still(dept.key)}
+                alt={`${dept.title} at Medcore`}
+              />
+              <div className="film-dept-meta">
+                <h3>{dept.title}</h3>
+                <p>{dept.copy}</p>
+              </div>
+            </>
+          );
+          const under = (
+            <div className="film-dept-under">
+              <strong>{dept.title}</strong>
               <p>{dept.copy}</p>
             </div>
-          </article>
-        ))}
+          );
+          return gpu ? (
+            <Peel
+              className="film-dept"
+              key={dept.key}
+              side="bottom"
+              mode="hover"
+              reveal={260}
+              zone={160}
+              curl={180}
+              bow={40}
+              shade={0.2}
+              shine={0.35}
+              under={under}
+            >
+              {face}
+            </Peel>
+          ) : (
+            <article className="film-dept" key={dept.key}>
+              {face}
+            </article>
+          );
+        })}
       </div>
     </section>
   );
