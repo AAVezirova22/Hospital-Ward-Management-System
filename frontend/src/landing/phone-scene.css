@@ -1,27 +1,27 @@
 .mc-phone-story.mc-messages {
   display: block;
   position: relative;
-  min-height: 215dvh;
-  padding: 0;
+  min-height: auto;
+  padding: 100px 0 120px;
 }
 .mc-phone-sticky {
-  position: sticky;
+  position: relative;
   top: 0;
-  min-height: 100dvh;
+  min-height: 0;
   display: grid;
   align-items: center;
-  overflow: clip;
-  padding-block: 92px 48px;
+  overflow: visible;
+  padding: 0;
 }
 .mc-phone-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(330px, 0.72fr);
+  grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
   align-items: center;
   gap: clamp(48px, 7vw, 118px);
 }
 .mc-phone-stage {
   position: relative;
-  min-height: clamp(590px, 76dvh, 760px);
+  min-height: clamp(590px, 48vw, 680px);
   perspective: 1700px;
   transform-style: preserve-3d;
   isolation: isolate;
@@ -30,7 +30,7 @@
   position: absolute;
   left: 48%;
   top: 46%;
-  width: min(46vw, 660px);
+  width: 110%;
   aspect-ratio: 1;
   border-radius: 50%;
   transform: translate(-50%, -50%);
@@ -50,9 +50,9 @@
 }
 .mc-phone-workspace-anchor {
   position: absolute;
-  left: 51%;
+  left: 56%;
   top: 50%;
-  width: min(46vw, 650px);
+  width: 88%;
   transform: translate(-50%, -50%);
   z-index: 1;
 }
@@ -64,7 +64,6 @@
     0 35px 90px color-mix(in srgb, var(--mc-green) 16%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--mc-bg) 88%, transparent);
   transform-origin: 55% 50%;
-  will-change: transform, opacity;
 }
 .mc-phone-workspace-window {
   overflow: hidden;
@@ -89,15 +88,15 @@
 .mc-phone-workspace-window img {
   display: block;
   width: 100%;
-  height: min(55dvh, 520px);
+  height: 360px;
   object-fit: cover;
-  object-position: top;
+  object-position: bottom;
 }
 .mc-phone-anchor {
   position: absolute;
-  left: 47%;
+  left: 48%;
   top: 49%;
-  width: clamp(250px, 22vw, 326px);
+  width: clamp(250px, 21vw, 298px);
   aspect-ratio: 0.49;
   transform: translate(-50%, -50%);
   z-index: 3;
@@ -108,22 +107,20 @@
   height: 100%;
   transform-style: preserve-3d;
   transform-origin: 50% 50%;
-  will-change: transform;
 }
 .mc-phone-shell {
   position: absolute;
   inset: 0;
   border-radius: clamp(42px, 4vw, 56px);
   padding: 7px;
-  background:
-    linear-gradient(
-      105deg,
-      color-mix(in srgb, var(--mc-bg) 82%, #ffffff) 0%,
-      color-mix(in srgb, var(--mc-green) 28%, var(--mc-bg)) 19%,
-      color-mix(in srgb, var(--mc-ink) 32%, var(--mc-bg)) 48%,
-      color-mix(in srgb, var(--mc-green) 18%, var(--mc-bg)) 76%,
-      color-mix(in srgb, var(--mc-bg) 82%, #ffffff) 100%
-    );
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--mc-bg) 82%, #ffffff) 0%,
+    color-mix(in srgb, var(--mc-green) 28%, var(--mc-bg)) 19%,
+    color-mix(in srgb, var(--mc-ink) 32%, var(--mc-bg)) 48%,
+    color-mix(in srgb, var(--mc-green) 18%, var(--mc-bg)) 76%,
+    color-mix(in srgb, var(--mc-bg) 82%, #ffffff) 100%
+  );
   box-shadow:
     0 46px 95px color-mix(in srgb, var(--mc-green) 22%, transparent),
     0 14px 28px color-mix(in srgb, var(--mc-ink) 10%, transparent),
@@ -330,15 +327,14 @@
   outline-offset: 3px;
 }
 html[data-site-theme="dark"] .mc-phone-shell {
-  background:
-    linear-gradient(
-      105deg,
-      #5e7165 0%,
-      #243d31 18%,
-      #8fa393 47%,
-      #253b31 74%,
-      #667b6c 100%
-    );
+  background: linear-gradient(
+    105deg,
+    #5e7165 0%,
+    #243d31 18%,
+    #8fa393 47%,
+    #253b31 74%,
+    #667b6c 100%
+  );
 }
 html[data-site-theme="dark"] .mc-phone-face {
   box-shadow:
@@ -347,161 +343,142 @@ html[data-site-theme="dark"] .mc-phone-face {
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-site-theme]) .mc-phone-shell {
-    background:
-      linear-gradient(
-        105deg,
-        #5e7165 0%,
-        #243d31 18%,
-        #8fa393 47%,
-        #253b31 74%,
-        #667b6c 100%
-      );
+    background: linear-gradient(
+      105deg,
+      #5e7165 0%,
+      #243d31 18%,
+      #8fa393 47%,
+      #253b31 74%,
+      #667b6c 100%
+    );
   }
 }
 @media (max-width: 1100px) {
   .mc-phone-grid {
     gap: 44px;
-    grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.78fr);
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
   }
   .mc-phone-anchor {
     left: 45%;
     width: clamp(238px, 24vw, 288px);
   }
   .mc-phone-workspace-anchor {
-    left: 49%;
-    width: min(49vw, 560px);
+    left: 54%;
+    width: 90%;
+  }
+}
+
+.mc-phone-film {
+  min-width: 0;
+}
+.mc-film-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  min-height: 44px;
+  margin-top: 20px;
+}
+.mc-film-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--mc-text);
+  background: var(--mc-card);
+  transition:
+    transform 300ms var(--mc-ease),
+    background 300ms var(--mc-ease);
+}
+.mc-film-controls button:hover {
+  background: var(--mc-tint);
+}
+.mc-film-controls button:active {
+  transform: scale(0.97);
+}
+.mc-phone-film[data-playing="true"] .mc-phone-device,
+.mc-phone-film[data-playing="true"] .mc-phone-workspace {
+  will-change: transform;
+}
+
+@media (max-width: 900px) {
+  .mc-phone-grid {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+  .mc-phone-film {
+    order: 1;
+    width: min(100%, 620px);
+    margin-inline: auto;
+  }
+  .mc-phone-story .mc-messages-copy {
+    order: 0;
+    max-width: 600px;
+  }
+  .mc-phone-stage {
+    min-height: 710px;
+    perspective: 1700px;
+  }
+  .mc-phone-anchor {
+    left: 50%;
+    top: 40%;
+    width: 260px;
+  }
+  .mc-phone-workspace-anchor {
+    left: 52%;
+    top: 65%;
+    width: 90%;
+  }
+  .mc-phone-workspace-window img {
+    height: 280px;
+  }
+  .mc-phone-handoff {
+    bottom: 2%;
+    white-space: nowrap;
   }
 }
 @media (max-width: 767px) {
   .mc-phone-story.mc-messages {
-    min-height: auto;
-    padding-block: 84px 96px;
-  }
-  .mc-phone-sticky {
-    position: static;
-    min-height: 0;
-    overflow: visible;
-    padding: 0;
-  }
-  .mc-phone-grid {
-    grid-template-columns: 1fr;
-    gap: 44px;
-  }
-  .mc-phone-story .mc-messages-copy {
-    order: 0;
+    padding-block: 80px 96px;
   }
   .mc-phone-stage {
-    order: 1;
-    min-height: 650px;
-    perspective: none;
-  }
-  .mc-phone-aura {
-    width: 120vw;
-    opacity: 0.52 !important;
-    transform: translate(-50%, -50%) !important;
-  }
-  .mc-phone-workspace-anchor {
-    left: 50%;
-    top: 72%;
-    width: 96%;
-  }
-  .mc-phone-workspace {
-    opacity: 1 !important;
-    transform: translateY(0) scale(0.94) !important;
-  }
-  .mc-phone-workspace-window img {
-    height: 315px;
+    min-height: 670px;
   }
   .mc-phone-anchor {
-    left: 50%;
-    top: 35%;
-    width: min(64vw, 250px);
+    width: min(70vw, 250px);
   }
-  .mc-phone-device {
-    transform: none !important;
+  .mc-phone-conversation .mc-bubble {
+    font-size: 0.72rem;
   }
-  .mc-phone-conversation .mc-bubble,
-  .mc-phone-conversation .mc-message-file,
-  .mc-phone-conversation .mc-message-read {
-    opacity: 1 !important;
-    transform: none !important;
+  .mc-phone-workspace-window img {
+    height: 250px;
   }
-  .mc-phone-handoff {
-    bottom: 1%;
-    opacity: 1 !important;
-    transform: translateX(-50%) !important;
+  .mc-phone-workspace-window header {
+    padding-inline: 10px;
+    gap: 8px;
+    font-size: 0.55rem;
   }
 }
 @media (max-width: 390px) {
-  .mc-phone-stage {
-    min-height: 620px;
-  }
   .mc-phone-anchor {
-    width: min(70vw, 242px);
-  }
-  .mc-phone-workspace-window img {
-    height: 290px;
+    width: min(72vw, 238px);
   }
   .mc-phone-handoff {
-    gap: 7px;
-    padding-inline: 10px;
     font-size: 0.52rem;
   }
-  .mc-phone-handoff i {
-    width: 18px;
-  }
 }
-@media (prefers-reduced-motion: reduce) {
-  .mc-phone-story.mc-messages {
-    min-height: auto;
-    padding-block: 120px;
-  }
-  .mc-phone-sticky {
-    position: static;
-    min-height: auto;
-    padding: 0;
-  }
-  .mc-phone-device {
-    transform: none !important;
-  }
-  .mc-phone-workspace {
-    opacity: 1 !important;
-    transform: none !important;
-  }
-  .mc-phone-conversation .mc-bubble,
-  .mc-phone-conversation .mc-message-file,
-  .mc-phone-conversation .mc-message-read {
-    opacity: 1 !important;
-    transform: none !important;
-  }
-  .mc-phone-handoff {
-    opacity: 1 !important;
-    transform: translateX(-50%) !important;
-  }
-}
-.mc[data-motion="reduced"] .mc-phone-story.mc-messages {
-  min-height: auto;
-  padding-block: 120px;
-}
-.mc[data-motion="reduced"] .mc-phone-sticky {
-  position: static;
-  min-height: auto;
-  padding: 0;
-}
-.mc[data-motion="reduced"] .mc-phone-device {
-  transform: none !important;
-}
+/* Pause and reduced motion never change chapter height or scroll position. */
+.mc[data-motion="reduced"] .mc-phone-device,
 .mc[data-motion="reduced"] .mc-phone-workspace {
-  opacity: 1 !important;
-  transform: none !important;
+  will-change: auto;
 }
-.mc[data-motion="reduced"] .mc-phone-conversation .mc-bubble,
-.mc[data-motion="reduced"] .mc-phone-conversation .mc-message-file,
-.mc[data-motion="reduced"] .mc-phone-conversation .mc-message-read {
-  opacity: 1 !important;
-  transform: none !important;
+
+.mc-film-controls-slot {
+  min-height: 64px;
 }
-.mc[data-motion="reduced"] .mc-phone-handoff {
-  opacity: 1 !important;
-  transform: translateX(-50%) !important;
+
+.mc-phone-stage > .mc-ambient {
+  mask-image: radial-gradient(ellipse at center, #000 20%, transparent 72%);
 }
