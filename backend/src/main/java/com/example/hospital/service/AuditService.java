@@ -4,6 +4,7 @@ import com.example.hospital.domain.AuditEvent;
 import com.example.hospital.repository.AuditEventRepository;
 import com.example.hospital.security.Actor;
 import java.time.Instant;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
