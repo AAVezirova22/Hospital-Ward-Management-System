@@ -21,3 +21,12 @@ function currentNames(data: WorkspaceList | undefined) {
     department: data?.hospitals[0]?.departments[0],
   };
 }
+
+async function copyCode(value: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    window.dispatchEvent(
+      new CustomEvent("saved", { detail: "Join code copied" }),
+    );
+  } catch {}
+}
