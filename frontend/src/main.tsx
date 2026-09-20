@@ -47,6 +47,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api, login, logout, fullName, money, date, Row, User } from "./api";
 import { aiResponse } from "./ai-contract";
+import { defaultProcedureTime } from "./workflow-time";
 import {
   LoginScene,
   Reveal,
@@ -1494,9 +1495,7 @@ function Workflow({
       medicalProcedureId: "",
       reason: "",
       note: "",
-      performedAt: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 23),
+      performedAt: defaultProcedureTime(active?.admission.admissionDateTime),
     }),
     [review, setReview] = useState(kind === "discharge"),
     [error, setError] = useState<Error | null>(null),

@@ -166,11 +166,9 @@
 @keyframes workspace-arrival {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: none;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
