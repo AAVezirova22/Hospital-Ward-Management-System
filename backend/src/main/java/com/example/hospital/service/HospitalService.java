@@ -148,14 +148,10 @@ public class HospitalService {
     return rooms.findAll().stream()
         .map(
             r -> {
-              Map<String, Object> m = new LinkedHashMap<>();
-              m.put("id", r.id);
-              m.put("roomNumber", r.roomNumber);
-              m.put("bedCount", r.bedCount);
-              m.put("active", r.active);
-              m.put("version", r.version);
-              m.put("occupiedBeds", occupied(r.id));
-              m.put("availableBeds", r.active ? r.bedCount - occupied(r.id) : 0);
+              Map<String, Object> m = new LinkedHashMap<>(Views.room(r));
+              long used = occupied(r.id);
+              m.put("occupiedBeds", used);
+              m.put("availableBeds", r.active ? r.bedCount - used : 0);
               return m;
             })
         .filter(m -> ((Number) m.get("availableBeds")).intValue() >= minFree)
@@ -167,11 +163,11 @@ public class HospitalService {
     v.put("admission", Views.admission(a));
     v.put("patient", Views.patient(patient(a.patientId)));
     v.put("doctor", Views.doctor(doctors.findById(a.attendingDoctorId).orElseThrow()));
-    v.put("assignment", assignments.findByAdmissionIdAndReleasedAtIsNull(a.id).orElse(null));
+    v.put("assignment", Views.assignment(assignments.findByAdmissionIdAndReleasedAtIsNull(a.id).orElse(null)));
     v.put(
         "rooms",
         assignments.findByAdmissionIdOrderByAssignedAt(a.id).stream()
-            .map(ra -> Map.of("assignment", ra, "room", room(ra.roomId)))
+            .map(ra -> Map.of("assignment", Views.assignment(ra), "room", Views.room(room(ra.roomId))))
             .toList());
     var ps = performed.findByAdmissionIdOrderByPerformedAtDesc(a.id);
     v.put(
