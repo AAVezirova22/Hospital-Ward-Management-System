@@ -41,7 +41,14 @@ public class UserService {
 
   public List<AppUser> list() {
     actor.admin();
-    return users.findAll().stream().filter(this::visible).map(this::scoped).toList();
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    var ids = new LinkedHashSet<Long>();
+    ids.addAll(jdbc.queryForList("select user_id from department_memberships where department_id=?", Long.class, departmentId));
+    ids.addAll(jdbc.queryForList(
+        "select u.id from app_users u join patients p on p.id=u.patient_id where p.department_id=?",
+        Long.class, departmentId));
+    if (ids.isEmpty()) return List.of();
+    return users.findAllById(ids).stream().map(this::scoped).toList();
   }
 
   private AppUser scoped(AppUser user) {
