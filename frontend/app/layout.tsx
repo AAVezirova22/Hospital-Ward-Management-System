@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import localFont from "next/font/local";
-import "../src/style.css";
-import "../src/design.css";
-import "../src/cinematic.css";
-import "../src/operations.css";
-import "../src/command-center.css";
+import { IBM_Plex_Mono, Newsreader, Outfit, Syne } from "next/font/google";
 
 const geist = localFont({
   src: "../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
@@ -14,21 +10,51 @@ const geist = localFont({
   weight: "100 900",
 });
 
+const syne = Syne({
+  subsets: ["latin"],
+  variable: "--font-syne",
+  display: "swap",
+  weight: ["500", "600", "700", "800"],
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-outfit",
+  display: "swap",
+});
+
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+  display: "swap",
+  style: ["normal", "italic"],
+});
+
+const plex = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-plex",
+  display: "swap",
+  weight: ["400", "500"],
+});
+
 const publicUrl =
   process.env.PUBLIC_APP_URL || "https://hospital-ward-frontend.onrender.com";
 const socialImage = "/opengraph-image";
 
 export const metadata: Metadata = {
   metadataBase: new URL(publicUrl),
-  title: "Medcore | Hospital Operations",
+  title: {
+    default: "Medcore | Advanced care. Human at heart.",
+    template: "%s | Medcore",
+  },
   description:
-    "A calm command center for ward planning, care history, and human-confirmed operational assistance.",
+    "Specialist care, modern diagnostics, and treatment built around you.",
   applicationName: "Medcore",
   appleWebApp: { capable: true, title: "Medcore", statusBarStyle: "default" },
   openGraph: {
-    title: "Medcore | Hospital Operations",
+    title: "Medcore | Advanced care. Human at heart.",
     description:
-      "Live ward planning, clear care history, and human-confirmed operational assistance.",
+      "Specialist care, modern diagnostics, and treatment built around you.",
     type: "website",
     url: "/",
     siteName: "Medcore",
@@ -43,8 +69,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Medcore | Hospital Operations",
-    description: "A calm command center for ward planning and care operations.",
+    title: "Medcore | Advanced care. Human at heart.",
+    description:
+      "Specialist care, modern diagnostics, and treatment built around you.",
     images: [socialImage],
   },
   icons: { icon: "/favicon.svg" },
@@ -52,23 +79,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={geist.variable}>
-      <head>
-        <link
-          rel="preload"
-          as="image"
-          href="/medcore-atrium.webp"
-          media="(min-width: 801px)"
-          fetchPriority="high"
-        />
-        <link
-          rel="preload"
-          as="image"
-          href="/medcore-atrium-640.webp"
-          media="(max-width: 800px)"
-          fetchPriority="high"
-        />
-      </head>
+    <html
+      lang="en"
+      className={`${geist.variable} ${syne.variable} ${outfit.variable} ${newsreader.variable} ${plex.variable}`}
+    >
       <body>{children}</body>
     </html>
   );
