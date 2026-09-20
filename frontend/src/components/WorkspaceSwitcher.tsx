@@ -72,6 +72,29 @@ export function WorkspaceSwitcher() {
       setBusy(false);
     }
   };
+
+  const close = () => {
+    setOpen(false);
+    setPanel("list");
+    setFormError(null);
+  };
+
+  const rotate = async (hospital: boolean, id: number) => {
+    setBusy(true);
+    setFormError(null);
+    try {
+      const path = hospital
+        ? `/workspaces/hospitals/${id}/code`
+        : `/workspaces/departments/${id}/code`;
+      const result = await api<{ code: string }>(path, "POST");
+      await client.invalidateQueries({ queryKey: ["/workspaces"] });
+      if (result.code) await copyCode(result.code);
+    } catch (e) {
+      setFormError(e as Error);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <button
       type="button"
