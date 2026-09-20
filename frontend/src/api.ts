@@ -176,6 +176,7 @@ export async function login(username: string, password: string): Promise<User> {
 export async function logout() {
   await api("/auth/logout", "POST");
   csrf = null;
+  setActiveDepartment(null);
 }
 export const fullName = (
   p: { firstName?: string; lastName?: string } | null | undefined,

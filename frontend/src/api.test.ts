@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, login, setActiveDepartment, token } from "./api";
+import { api, login, logout, setActiveDepartment, token } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("secure-session failures", () => {
@@ -57,5 +57,24 @@ describe("department scope", () => {
         headers: expect.objectContaining({ "X-Department-Id": "12" }),
       }),
     );
+  });
+  it("clears the remembered department on logout", async () => {
+    setActiveDepartment(12);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json({ token: "t", headerName: "X-CSRF-TOKEN" }),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 204 })),
+    );
+    await logout();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json([], { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api("/patients");
+    expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBeUndefined();
   });
 });
