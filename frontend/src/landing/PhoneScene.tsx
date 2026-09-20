@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { ChatCircle, Check, FileCsv, WifiHigh } from "@phosphor-icons/react";
 import {
@@ -27,6 +28,9 @@ export function PhoneScene({
   progress: MotionValue<number>;
 }) {
   const { reduced } = useSiteMotion();
+  const [frontSurface, setFrontSurface] = useState<"phone" | "workspace">(
+    "phone",
+  );
 
   const rotateY = useTransform(progress, [0, 0.2, 0.64, 0.95], [-32, 0, 0, -9]);
   const rotateX = useTransform(progress, [0, 0.2, 0.95], [7, 0, -2]);
@@ -40,6 +44,11 @@ export function PhoneScene({
   const phoneY = useTransform(progress, [0, 0.2, 0.95], [42, 0, -14]);
   const workspaceOpacity = useTransform(progress, [0.66, 0.91], [0, 1]);
   const workspaceScale = useTransform(progress, [0.66, 0.95], [0.86, 1]);
+  const workspacePointerEvents = useTransform(
+    progress,
+    [0.66, 0.76],
+    (value) => (value >= 0.74 ? "auto" : "none"),
+  );
   const workspaceX = useTransform(progress, [0.66, 0.95], ["10%", "0%"]);
   const requestOpacity = useTransform(progress, [0.18, 0.23], [0, 1]);
   const requestY = useTransform(progress, [0.18, 0.23], [8, 0]);
@@ -65,13 +74,21 @@ export function PhoneScene({
         }}
       />
 
-      <div className="mc-phone-workspace-anchor" aria-hidden="true">
+      <div
+        className="mc-phone-workspace-anchor"
+        data-front={frontSurface === "workspace"}
+        onPointerEnter={() => setFrontSurface("workspace")}
+        aria-hidden="true"
+        style={{ zIndex: frontSurface === "workspace" ? 4 : 1 }}
+      >
         <motion.div
           className="mc-phone-workspace"
+          data-front={frontSurface === "workspace"}
           style={{
             opacity: reduced ? 1 : workspaceOpacity,
             scale: reduced ? 0.94 : workspaceScale,
             x: reduced ? 0 : workspaceX,
+            pointerEvents: reduced ? "auto" : workspacePointerEvents,
           }}
         >
           <div className="mc-phone-workspace-window">
@@ -90,10 +107,16 @@ export function PhoneScene({
         </motion.div>
       </div>
 
-      <div className="mc-phone-anchor">
+      <div
+        className="mc-phone-anchor"
+        data-front={frontSurface === "phone"}
+        onPointerEnter={() => setFrontSurface("phone")}
+        style={{ zIndex: frontSurface === "phone" ? 4 : 1 }}
+      >
         <motion.div
           className="mc-phone-device"
           data-testid="cinematic-phone"
+          data-front={frontSurface === "phone"}
           style={{
             rotateY: reduced ? 0 : rotateY,
             rotateX: reduced ? 0 : rotateX,
