@@ -162,7 +162,7 @@ export function OperationsOverview({
       <div className="section-heading">
         <div>
           <h2>The ward, at a glance.</h2>
-          <p>Live room capacity · refreshed every 15 seconds</p>
+          <p>Room capacity · live updates with a 15-second refresh fallback</p>
         </div>
         {!presentation && (
           <Link className="secondary" href="/app/planner">

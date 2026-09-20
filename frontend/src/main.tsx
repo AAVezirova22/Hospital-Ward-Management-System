@@ -36,6 +36,7 @@ import {
 import { PatientPortal } from "./features/patients/PatientPortal";
 import { Assistant } from "./features/assistant/Assistant";
 import { NotificationCenter } from "./components/NotificationCenter";
+import { LiveOperations } from "./components/LiveOperations";
 import {
   LoginScene,
   ThemeToggle,
@@ -394,6 +395,7 @@ function Shell({
             </strong>
           </div>
           <div className="top-right">
+            <LiveOperations />
             <NotificationCenter />
             <MotionToggle />
             <ThemeToggle />
