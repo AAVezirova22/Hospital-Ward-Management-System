@@ -46,7 +46,7 @@ Partial unique indexes enforce one active admission per patient and one unreleas
 
 A transfer releases the previous assignment, flushes it, inserts the next assignment, increments the admission version and writes an audit event in one transaction. Failure rolls the entire operation back. Discharge updates status, closes the assignment and releases the bed in one transaction. Existing-record edits require the version last displayed to the user.
 
-For a large multi-department deployment, the global row should become a department-scoped lock or a consistently ordered per-room locking strategy, accompanied by native PostgreSQL load tests. The present application is scoped to one hospital department.
+For a large multi-department deployment, the global row should become a department-scoped lock or a consistently ordered per-room locking strategy, accompanied by native PostgreSQL load tests. Clinical records are already isolated per department; the write lock is still process-wide.
 
 ## Access policy
 
