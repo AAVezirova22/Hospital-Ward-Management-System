@@ -14,11 +14,13 @@ public class AiToolRegistry {
   private final HospitalService h;
   private final AiActionService actions;
   private final Actor actor;
+  private final WorkspaceService workspaces;
 
-  public AiToolRegistry(HospitalService h, AiActionService a, Actor actor) {
+  public AiToolRegistry(HospitalService h, AiActionService a, Actor actor, WorkspaceService workspaces) {
     this.h = h;
     actions = a;
     this.actor = actor;
+    this.workspaces = workspaces;
   }
 
   public record Response(
@@ -35,6 +37,7 @@ public class AiToolRegistry {
           Map.entry("getAdmissions", List.of("from", "to")),
           Map.entry("getProcedureStatistics", List.of("from", "to")),
           Map.entry("getDashboardSummary", List.of()),
+          Map.entry("listWorkspaces", List.of()),
           Map.entry("prepareAdmission", List.of("patientQuery", "doctorQuery", "roomNumber")),
           Map.entry("prepareTransfer", List.of("patientQuery", "roomNumber")),
           Map.entry("prepareDischarge", List.of("patientQuery")),
@@ -116,15 +119,16 @@ public class AiToolRegistry {
       case "help" ->
           response(
               "TEXT",
-              "I can find patients, show room capacity, summarize records, report procedures and"
-                  + " prepare admissions, transfers or discharges. I cannot make clinical decisions"
-                  + " or change permissions.",
+              "I can find patients, show room capacity, summarize records, report procedures, list"
+                  + " your hospitals and prepare admissions, transfers or discharges. Tools stay"
+                  + " inside the open department unless you ask for listWorkspaces. I cannot make"
+                  + " clinical decisions or change permissions.",
               Map.of());
       case "searchPatients" ->
           response(
               "PATIENT_LIST",
               "Matching patients within your access.",
-              Map.of("patients", h.patients(a.getOrDefault("query", ""))));
+              Map.of("department", h.scopeLabel(), "patients", h.patients(a.getOrDefault("query", ""))));
       case "getPatientSummary" ->
           response(
               "PATIENT_SUMMARY",
@@ -178,6 +182,35 @@ public class AiToolRegistry {
                   null));
       case "getDashboardSummary" ->
           response("REPORT_RESULT", "Current department operations.", h.dashboard());
+      case "listWorkspaces" ->
+          response(
+              "REPORT_RESULT",
+              "Hospitals and departments you can open. Clinical tools stay in the current department.",
+              Map.of(
+                  "activeDepartmentId",
+                  com.example.hospital.security.DepartmentContext.id(),
+                  "hospitals",
+                  workspaces.list().stream()
+                      .map(
+                          hospital ->
+                              Map.of(
+                                  "id",
+                                  hospital.id(),
+                                  "name",
+                                  hospital.name(),
+                                  "departments",
+                                  hospital.departments().stream()
+                                      .map(
+                                          department ->
+                                              Map.of(
+                                                  "id",
+                                                  department.id(),
+                                                  "name",
+                                                  department.name(),
+                                                  "role",
+                                                  department.role()))
+                                      .toList()))
+                      .toList()));
       case "navigate" -> {
         var route = a.getOrDefault("route", "");
         if (!Set.of(

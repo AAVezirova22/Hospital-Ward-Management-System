@@ -32,7 +32,7 @@ class AiSafetyTest {
     u.doctorId = 1L;
     when(actor.user()).thenReturn(u);
     when(actor.doctor()).thenReturn(true);
-    registry = new AiToolRegistry(hospital, actions, actor);
+    registry = new AiToolRegistry(hospital, actions, actor, mock(WorkspaceService.class));
   }
 
   @Test

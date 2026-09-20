@@ -88,6 +88,10 @@ public class LocalModelClient implements AiModelClient {
       a.put("query", s.replaceFirst("(?i)^(find|show patient|open) ", ""));
       return new ToolCall("searchPatients", a);
     }
+    if (l.contains("workspace")
+        || l.contains("which hospital")
+        || l.contains("my hospital")
+        || l.contains("list hospital")) return new ToolCall("listWorkspaces", Map.of());
     if (l.contains("department")
         || l.contains("dashboard")
         || l.contains("status")
