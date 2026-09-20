@@ -282,4 +282,39 @@ class WorkspaceIsolationTest {
     call(name, "GET", "/api/v1/patients", null, departmentId)
         .andExpect(status().isForbidden());
   }
+
+  @Test
+  void auditHistoryStaysInsideTheSelectedDepartment() throws Exception {
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Audit Clinic " + unique(), "departmentName", "Records"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var patient =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/patients",
+                Map.of(
+                    "patientIdentifier",
+                    "AUD-" + unique(),
+                    "firstName",
+                    "Audit",
+                    "lastName",
+                    "Only",
+                    "dateOfBirth",
+                    "1975-05-05"),
+                other),
+            201);
+    var home = body(call("admin", "GET", "/api/v1/audit", null, 1L), 200);
+    var away = body(call("admin", "GET", "/api/v1/audit", null, other), 200);
+    assertThat(away.toString()).contains(patient.get("id").asText());
+    assertThat(home.toString()).doesNotContain("\"entityId\":" + patient.get("id").asLong());
+  }
 }
