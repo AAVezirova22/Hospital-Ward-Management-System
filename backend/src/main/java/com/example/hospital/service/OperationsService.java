@@ -39,7 +39,7 @@ public class OperationsService {
     var now = Instant.now();
     var today = LocalDate.now(ZoneOffset.UTC);
     long departmentId = com.example.hospital.security.DepartmentContext.id();
-    Long doctorId = actor.doctor() ? actor.user().doctorId : null;
+    Long doctorId = actor.doctor() ? actor.user().getDoctorId() : null;
     var trends = new ArrayList<Map<String, Object>>();
     for (int i = 13; i >= 0; i--) {
       var day = today.minusDays(i);
@@ -63,9 +63,9 @@ public class OperationsService {
         ? jdbc.queryForList("select id from admissions where department_id=?", Long.class, departmentId)
         : jdbc.queryForList("select id from admissions where department_id=? and attending_doctor_id=?", Long.class, departmentId, doctorId);
     var recent = ids.isEmpty() ? List.of() : audit.findAll(org.springframework.data.domain.Sort.by("timestamp").descending()).stream()
-        .filter(e -> "Admission".equals(e.entityType) && ids.contains(e.entityId))
-        .limit(12).map(e -> Map.of("id", e.id, "eventType", e.eventType,
-            "timestamp", e.timestamp, "admissionId", e.entityId, "source", e.source)).toList();
+        .filter(e -> "Admission".equals(e.getEntityType()) && ids.contains(e.getEntityId()))
+        .limit(12).map(e -> Map.of("id", e.getId(), "eventType", e.getEventType(),
+            "timestamp", e.getTimestamp(), "admissionId", e.getEntityId(), "source", e.getSource())).toList();
     Long longStay = doctorId == null
         ? jdbc.queryForObject("select count(*) from admissions where department_id=? and status='ACTIVE' and admission_date_time<?", Long.class, departmentId, java.sql.Timestamp.from(now.minusSeconds(longStayDays * 86400L)))
         : jdbc.queryForObject("select count(*) from admissions where department_id=? and status='ACTIVE' and admission_date_time<? and attending_doctor_id=?", Long.class, departmentId, java.sql.Timestamp.from(now.minusSeconds(longStayDays * 86400L)), doctorId);
@@ -108,9 +108,9 @@ public class OperationsService {
     lock.acquire(); actor.staff();
     var a = hospital.admission(id);
     HospitalService.version(a, version);
-    if (!a.status.equals("ACTIVE")) throw ApiException.conflict("ADMISSION_CLOSED", "This admission is closed.");
+    if (!a.getStatus().equals("ACTIVE")) throw ApiException.conflict("ADMISSION_CLOSED", "This admission is closed.");
     if (date != null && date.isBefore(LocalDate.now(ZoneOffset.UTC))) throw new ApiException(400, "INVALID_DATE", "Choose today or a future date.");
-    a.expectedDischargeDate = date;
+    a.setExpectedDischargeDate(date);
     admissions.saveAndFlush(a);
     auditService.log("DISCHARGE_PLANNED", "Admission", id, "UI");
     return Views.admission(a);
