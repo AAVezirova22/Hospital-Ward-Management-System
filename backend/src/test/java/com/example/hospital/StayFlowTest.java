@@ -2,7 +2,7 @@ package com.example.hospital;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.getStatus();
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -39,7 +39,7 @@ class StayFlowTest extends HospitalSupport {
             Map.of("version", moved.get("version").asLong()))
         .andExpect(status().isOk());
     assertThat(assignments.countByRoomIdAndReleasedAtIsNull(r2.get("id").asLong())).isZero();
-    assertThat(admissions.findById(id).orElseThrow().status).isEqualTo("DISCHARGED");
+    assertThat(admissions.findById(id).orElseThrow().getStatus()).isEqualTo("DISCHARGED");
     request(
             "admin",
             "POST",
