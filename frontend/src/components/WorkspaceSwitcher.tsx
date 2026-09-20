@@ -13,6 +13,11 @@ import { api, activeDepartment, setActiveDepartment } from "../api";
 import type { WorkspaceHospital, WorkspaceList } from "../api/contracts";
 import { ErrorBox, Modal } from "./workspace";
 import { currentNames } from "./workspace-names";
+import {
+  JoinForm,
+  CreateHospitalForm,
+  CreateDepartmentForm,
+} from "./workspace-forms";
 
 async function copyCode(value: string) {
   try {
@@ -360,145 +365,54 @@ export function WorkspaceSwitcher() {
             </div>
           )}
           {panel === "join" && (
-            <form
-              className="workspace-form"
-              onSubmit={(e) => {
-                e.preventDefault();
+            <JoinForm
+              joinCode={joinCode}
+              joinHint={joinHint}
+              busy={busy}
+              onCode={setJoinCode}
+              onBack={() => setPanel("list")}
+              onJoin={() =>
                 void submit(() =>
                   api("/workspaces/join", "POST", { code: joinCode }),
-                );
-              }}
-            >
-              <p>
-                A hospital code adds hospital membership. A department code
-                opens that department as medical staff, never as an
-                administrator.
-              </p>
-              {joinHint && (
-                <p className="muted" role="status">
-                  {joinHint}
-                </p>
-              )}
-              <label>
-                Join code
-                <input
-                  autoFocus
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                  placeholder="H- or D- code"
-                  autoComplete="off"
-                />
-              </label>
-              <div className="actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPanel("list")}
-                >
-                  Back
-                </button>
-                <button className="primary" disabled={busy || !joinCode.trim()}>
-                  {busy ? "Joining…" : "Join"}
-                </button>
-              </div>
-            </form>
+                )
+              }
+            />
           )}
           {panel === "hospital" && (
-            <form
-              className="workspace-form"
-              onSubmit={(e) => {
-                e.preventDefault();
+            <CreateHospitalForm
+              hospitalName={hospitalName}
+              departmentName={departmentName}
+              busy={busy}
+              onHospitalName={setHospitalName}
+              onDepartmentName={setDepartmentName}
+              onBack={() => setPanel("list")}
+              onCreate={() =>
                 void submit(() =>
                   api("/workspaces/hospitals", "POST", {
                     name: hospitalName,
                     departmentName,
                   }),
-                );
-              }}
-            >
-              <p>
-                You become the owner of the hospital and administrator of its
-                first department.
-              </p>
-              <label>
-                Hospital name
-                <input
-                  autoFocus
-                  value={hospitalName}
-                  onChange={(e) => setHospitalName(e.target.value)}
-                  maxLength={120}
-                />
-              </label>
-              <label>
-                First department
-                <input
-                  value={departmentName}
-                  onChange={(e) => setDepartmentName(e.target.value)}
-                  maxLength={120}
-                />
-              </label>
-              <div className="actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPanel("list")}
-                >
-                  Back
-                </button>
-                <button
-                  className="primary"
-                  disabled={
-                    busy || !hospitalName.trim() || !departmentName.trim()
-                  }
-                >
-                  {busy ? "Creating…" : "Create hospital"}
-                </button>
-              </div>
-            </form>
+                )
+              }
+            />
           )}
           {panel === "department" && hostHospital && (
-            <form
-              className="workspace-form"
-              onSubmit={(e) => {
-                e.preventDefault();
+            <CreateDepartmentForm
+              hostHospital={hostHospital}
+              departmentName={departmentName}
+              busy={busy}
+              onDepartmentName={setDepartmentName}
+              onBack={() => setPanel("list")}
+              onCreate={() =>
                 void submit(() =>
                   api(
                     `/workspaces/hospitals/${hostHospital.id}/departments`,
                     "POST",
                     { name: departmentName },
                   ),
-                );
-              }}
-            >
-              <p>
-                This department is added to {hostHospital.name}. You administer
-                it.
-              </p>
-              <label>
-                Department name
-                <input
-                  autoFocus
-                  value={departmentName}
-                  onChange={(e) => setDepartmentName(e.target.value)}
-                  maxLength={120}
-                />
-              </label>
-              <div className="actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPanel("list")}
-                >
-                  Back
-                </button>
-                <button
-                  className="primary"
-                  disabled={busy || !departmentName.trim()}
-                >
-                  {busy ? "Creating…" : "Create department"}
-                </button>
-              </div>
-            </form>
+                )
+              }
+            />
           )}
         </Modal>
       )}
