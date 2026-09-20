@@ -1,6 +1,6 @@
 :root {
   font-family:
-    Inter,
+    var(--font-geist),
     ui-sans-serif,
     -apple-system,
     BlinkMacSystemFont,
