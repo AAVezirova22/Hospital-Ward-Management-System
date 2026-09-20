@@ -76,14 +76,24 @@ GitHub Actions runs backend tests, TypeScript compilation, a production frontend
 | Mode | Configuration | Behavior |
 | --- | --- | --- |
 | `local` | Default | Deterministic offline command interpreter, visibly labeled in the UI. No external model or credentials required. |
-| `external` | `AI_URL`, `AI_MODEL`, optional `AI_API_KEY` | Calls a configured OpenAI-compatible chat-completions tool endpoint. Exactly one validated tool call per request. |
+| `external` | `AI_URL`, `AI_MODEL`, optional `AI_API_KEY` | Calls a configured OpenAI-compatible chat-completions tool endpoint. Up to eight sequential validated tool calls per request, including file-based workflow planning. |
 | `off` | `AI_MODE=off` | Structured assistant-unavailable response; all conventional workflows remain usable. |
 
 `AI_URL` is the complete configured endpoint, for example an organization's HTTPS `/v1/chat/completions` endpoint. It is administrator configuration, never a model-supplied URL. The adapter has a 15-second timeout, disallows redirects, sends only the user’s request plus role/route/selected ID and allowed schemas, and never gives the model direct database access. External-model deployment requires your own chosen provider and credentials. The adapter contract is tested using a local HTTP fixture; no live provider credentials are included.
 
 For Google AI Studio, use `AI_MODE=external`, `AI_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`, and `AI_MODEL=gemini-3.5-flash-lite`. Put your key in `AI_API_KEY` in the ignored root `.env` and recreate the backend. The key is passed only to the Java backend. Google HTTP 402 (`RESOURCE_EXHAUSTED`) means the project's prepaid credits need replenishing in AI Studio; HTTP 403 (`PERMISSION_DENIED`) requires resolving project access. Restarting Medcore cannot resolve either provider-side restriction. See [Google's compatibility documentation](https://ai.google.dev/gemini-api/docs/openai).
 
-Try:
+### Files on your PC and uploads
+
+Open **Operations assistant**, choose **Upload files** or **Connect folder**, then describe what you want built. For example: "Find the setup files in this folder and create a hospital with its rooms, doctors and patients" or "Use this spreadsheet to prepare the admissions, and ask me about missing fields."
+
+Connected folders use the browser's existing [File System Access API](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access). The assistant can inspect the folder you choose and its subfolders; it does not get unrestricted access to the whole PC. Browsers without the directory picker use a folder-selection fallback. Names are shared when you send a message; file contents are uploaded only when requested by the agent. Ordinary uploads work independently.
+
+Document extraction reuses [Apache Tika](https://tika.apache.org/). Supported inputs are TXT, Markdown, CSV, TSV, JSON, PDF, DOCX, XLSX, PPTX, ODT, ODS and RTF. Natural-language planning requires `AI_MODE=external`; local command mode explains this instead of pretending to interpret files.
+
+The assistant can compose supported app operations into one reviewed workflow: create a hospital and initial department, patients, doctors, rooms and procedure catalogue entries; admit, transfer or discharge patients; and record performed procedures. Steps can reference records created by earlier steps. Missing fields should prompt a follow-up. Every proposal shows fields and source names; **Confirm workflow** executes through the existing authorized business services in one transaction. Failed workflows roll back completely. Confirmation ownership, expiry, cancellation and replay checks also apply.
+
+See [file access, limits and verification](docs/assistant-files.md) for details. Try:
 
 - `Find Petrov`
 - `Rooms with two free beds`
