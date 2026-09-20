@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import {
   Activity,
@@ -21,6 +21,7 @@ import {
   Sparkles,
   Menu,
   History,
+  Presentation,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -75,10 +76,8 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
     </NextLink>
   );
 }
-const qc = new QueryClient({
-  defaultOptions: { queries: { retry: false, staleTime: 15000 } },
-});
 function App({ children }: { children: React.ReactNode }) {
+  const qc = useQueryClient();
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(true);
   const [awake, setAwake] = useState(false);
@@ -266,7 +265,7 @@ const nav = [
   ["admissions", "Admissions", ClipboardList],
   ["rooms", "Room capacity", BedDouble],
   ["planner", "Ward planner", MoveRight],
-  ["presentation", "Presentation", LayoutDashboard],
+  ["presentation", "Presentation", Presentation],
   ["doctors", "Doctors", Stethoscope],
   ["procedures", "Procedures", Activity],
   ["reports", "Reports", ChartNoAxesCombined],
@@ -382,6 +381,12 @@ function Shell({
                 </NavLink>
               </>
             )}
+            {user.accountRole === "ADMIN" && user.role !== "ADMIN" && (
+              <p className="sidebar-note">
+                Team access is in departments you administer. This department
+                role is {user.role.replaceAll("_", " ").toLowerCase()}.
+              </p>
+            )}
           </nav>
         </LayoutGroup>
         <div className="sidebar-note">
@@ -402,7 +407,12 @@ function Shell({
           </div>
           <div>
             {user.username}
-            <small>{user.role.replaceAll("_", " ").toLowerCase()}</small>
+            <small>
+              {(user.departmentRole || user.role).replaceAll("_", " ").toLowerCase()}
+              {user.accountRole && user.accountRole !== user.role
+                ? ` · account ${user.accountRole.replaceAll("_", " ").toLowerCase()}`
+                : ""}
+            </small>
           </div>
           <button className="icon" aria-label="Sign out" onClick={onLogout}>
             <LogOut size={17} />
@@ -476,8 +486,14 @@ export default function MedcoreApp({
 }: {
   children: React.ReactNode;
 }) {
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: { queries: { retry: false, staleTime: 15000 } },
+      }),
+  );
   return (
-    <QueryClientProvider client={qc}>
+    <QueryClientProvider client={client}>
       <CinematicProvider>
         <App>{children}</App>
       </CinematicProvider>
