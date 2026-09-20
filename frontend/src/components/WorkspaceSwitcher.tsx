@@ -115,6 +115,19 @@ export function WorkspaceSwitcher() {
       <Modal title="Hospitals and departments" onClose={close}>
         <ErrorBox error={error || formError} />
         {isLoading && <p>Loading workspaces…</p>}
+        {panel === "list" && (
+          <div className="workspace-list">
+            {(data?.hospitals ?? []).map((hospital) => (
+              <section key={hospital.id}>
+                <header>
+                  <Building2 size={16} />
+                  <strong>{hospital.name}</strong>
+                  {hospital.owner && <span>Owner</span>}
+                </header>
+              </section>
+            ))}
+          </div>
+        )}
       </Modal>
     )}
     </>
