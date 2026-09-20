@@ -1,4 +1,4 @@
-/* Operational components share the existing forest/mint tokens. */
+/* Workspace chrome tokens live in design.css. This file is layout-only. */
 .presentation-qr {
   display: flex;
   align-items: center;
