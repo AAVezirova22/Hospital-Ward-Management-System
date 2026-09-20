@@ -1,4 +1,25 @@
-export type Row = Record<string, any>;
+export type Row = Record<string, unknown> & {
+  id?: number;
+  admission?: any;
+  patient?: any;
+  doctor?: any;
+  rooms?: any;
+  admissions?: any;
+  assignment?: any;
+  eventType?: string;
+  entityType?: string;
+  entityId?: number;
+  userId?: number;
+  source?: string;
+  timestamp?: string;
+  metadata?: string;
+  firstName?: string;
+  lastName?: string;
+  patientIdentifier?: string;
+  roomNumber?: string;
+  availableBeds?: number;
+  status?: string;
+};
 export type User = {
   id: number;
   username: string;
@@ -10,6 +31,12 @@ export type User = {
   requestedRole?: string | null;
   emailVerified?: boolean;
 };
+export function patientHref(p: {
+  patientIdentifier?: string | null;
+  id?: number | string | null;
+}) {
+  return "/app/patients/" + encodeURIComponent(String(p.patientIdentifier || p.id || ""));
+}
 let csrf: { token: string; headerName: string } | null = null;
 let departmentId: string | null = null;
 let accountId: string | null = null;
@@ -84,7 +111,7 @@ export async function token() {
   csrf = result;
   return csrf!;
 }
-export async function api<T = any>(
+export async function api<T = unknown>(
   path: string,
   method = "GET",
   body?: unknown,

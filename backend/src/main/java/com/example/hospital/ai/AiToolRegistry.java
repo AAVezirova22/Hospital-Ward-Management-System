@@ -27,23 +27,7 @@ public class AiToolRegistry {
   public record Response(
       String responseType, String message, Object data, String sessionId, String model) {}
 
-  public static final Map<String, List<String>> SCHEMAS =
-      Map.ofEntries(
-          Map.entry("searchPatients", List.of("query")),
-          Map.entry("getPatientSummary", List.of("patientQuery")),
-          Map.entry("getAvailableRooms", List.of("minimumFreeBeds")),
-          Map.entry("getRoomOccupancy", List.of("minimumFreeBeds")),
-          Map.entry("getDoctorPatients", List.of("doctorQuery")),
-          Map.entry("getAdmission", List.of("admissionId")),
-          Map.entry("getAdmissions", List.of("from", "to")),
-          Map.entry("getProcedureStatistics", List.of("from", "to")),
-          Map.entry("getDashboardSummary", List.of()),
-          Map.entry("listWorkspaces", List.of()),
-          Map.entry("prepareAdmission", List.of("patientQuery", "doctorQuery", "roomNumber")),
-          Map.entry("prepareTransfer", List.of("patientQuery", "roomNumber")),
-          Map.entry("prepareDischarge", List.of("patientQuery")),
-          Map.entry("navigate", List.of("route")),
-          Map.entry("help", List.of()));
+  public static final Map<String, List<String>> SCHEMAS = AiToolSchemas.SCHEMAS;
 
   public List<Map<String, Object>> definitions() {
     return SCHEMAS.entrySet().stream()
@@ -130,7 +114,7 @@ public class AiToolRegistry {
           response(
               "PATIENT_LIST",
               "Matching patients within your access.",
-              Map.of("department", h.scopeLabel(), "patients", h.patients(a.getOrDefault("query", ""))));
+              Map.of("department", h.scopeLabel(), "patients", h.patients(a.getOrDefault("query", "")).stream().map(Views.PatientDirectory::of).toList()));
       case "getPatientSummary" ->
           response(
               "PATIENT_SUMMARY",
@@ -243,7 +227,7 @@ public class AiToolRegistry {
             yield response(
                 "NAVIGATION_COMMAND",
                 "Select the room and doctor in the standard admission or transfer form.",
-                Map.of("route", "/app/patients/" + p.id));
+                Map.of("route", "/app/patients/" + p.patientIdentifier));
           var rm =
               h.rooms(1).stream()
                   .filter(
@@ -261,7 +245,7 @@ public class AiToolRegistry {
             yield response(
                 "NAVIGATION_COMMAND",
                 "Select an attending doctor in the admission form.",
-                Map.of("route", "/app/patients/" + p.id));
+                Map.of("route", "/app/patients/" + p.patientIdentifier));
           doctorId = doctor(a.get("doctorQuery")).id;
           if (h.admissions().stream()
               .anyMatch(ad -> ad.patientId.equals(p.id) && ad.status.equals("ACTIVE")))

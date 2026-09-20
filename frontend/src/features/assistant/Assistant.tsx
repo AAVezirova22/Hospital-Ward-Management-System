@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, type Row, type User } from "../../api";
+import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
 import {
   Link,
   useUser,
@@ -125,7 +125,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
                   className="result-row"
                   key={p.id}
                   onClick={() => {
-                    router.push("/app/patients/" + p.id);
+                    router.push(patientHref(p));
                     onClose();
                   }}
                 >
@@ -159,7 +159,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
                 <button
                   className="secondary"
                   onClick={() => {
-                    router.push("/app/patients/" + r.data.patient.id);
+                    router.push(patientHref(r.data.patient));
                     onClose();
                   }}
                 >

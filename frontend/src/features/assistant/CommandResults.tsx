@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api, fullName, activeDepartment, type User } from "../../api";
+import { api, fullName, activeDepartment, patientHref, type User } from "../../api";
 import type { Patient, RoomCapacity, Doctor } from "../../api/contracts";
 export function CommandResults({
   query,
@@ -49,7 +49,7 @@ export function CommandResults({
     ...(patients.data ?? []).map((p) => ({
       label: fullName(p),
       detail: p.patientIdentifier,
-      href: `/app/patients/${p.id}`,
+      href: patientHref(p),
     })),
     ...(rooms.data ?? []).map((r) => ({
       label: `Room ${r.roomNumber}`,

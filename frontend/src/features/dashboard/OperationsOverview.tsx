@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import Link from "next/link";
-import { api, date, activeDepartment } from "../../api";
+import { api, date, activeDepartment, patientHref } from "../../api";
 import type {
   OperationsReport,
   RoomCapacity,
@@ -252,7 +252,7 @@ export function OperationsOverview({
                     </span>
                     <strong>
                       {v ? (
-                        <Link href={`/app/patients/${v.patient.id}`}>
+                        <Link href={patientHref(v.patient)}>
                           {v.patient.firstName} {v.patient.lastName} →
                         </Link>
                       ) : (

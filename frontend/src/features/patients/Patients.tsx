@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, type Row, type User } from "../../api";
+import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
 import {
   Link,
   useUser,
@@ -60,7 +60,7 @@ export function Patients() {
               label: "Patient",
               value: fullName,
               render: (p) => (
-                <Link className="person-link" to={"/app/patients/" + p.id}>
+                <Link className="person-link" to={patientHref(p)}>
                   <span className="avatar">
                     {p.firstName[0]}
                     {p.lastName[0]}
@@ -82,15 +82,10 @@ export function Patients() {
               render: (p) => p.dateOfBirth,
             },
             {
-              key: "phone",
-              label: "Phone",
-              render: (p) => p.phoneNumber || "Not recorded",
-            },
-            {
               key: "open",
               label: "Record",
               render: (p) => (
-                <Link to={"/app/patients/" + p.id} className="text-button">
+                <Link to={patientHref(p)} className="text-button">
                   Open dossier
                   <ArrowUpRight size={16} />
                 </Link>

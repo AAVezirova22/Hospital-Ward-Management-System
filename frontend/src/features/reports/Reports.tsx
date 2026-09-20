@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, type Row, type User } from "../../api";
+import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
 import {
   Link,
   useUser,
@@ -226,7 +226,7 @@ export function Reports() {
                       data.map((v: Row) => (
                         <tr key={v.admission.id}>
                           <td>
-                            <Link to={"/app/patients/" + v.patient.id}>
+                            <Link to={patientHref(v.patient)}>
                               {fullName(v.patient)}
                             </Link>
                           </td>
