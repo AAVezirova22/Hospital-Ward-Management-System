@@ -1,20 +1,43 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, type Row, type User } from "../../api";
-import {
-  Link,
-  useUser,
-  useData,
-  ErrorBox,
-  Empty,
-  Status,
-  Modal,
-  Title,
-} from "../../components/workspace";
+import { api, fullName, money } from "../../api";
+import type {
+  AdmissionView,
+  Doctor,
+  MedicalProcedure,
+  Patient,
+  RoomCapacity,
+} from "../../api/contracts";
+import { useUser, useData, ErrorBox, Modal } from "../../components/workspace";
 import { CheckCircle2, ArrowRight } from "lucide-react";
 import { defaultProcedureTime } from "../../workflow-time";
+/** Every field of the workflow form is edited as text and converted when it is submitted. */
+type WorkflowValues = {
+  doctorId: string;
+  roomId: string;
+  medicalProcedureId: string;
+  reason: string;
+  note: string;
+  performedAt: string;
+};
+
+const TITLES: Record<string, string> = {
+  admit: "Admit patient",
+  transfer: "Transfer patient",
+  discharge: "Discharge patient",
+  procedure: "Record procedure",
+  doctor: "Assign attending doctor",
+};
+
+const CONFIRMATIONS: Record<string, string> = {
+  admit: "admission",
+  transfer: "transfer",
+  discharge: "discharge",
+  procedure: "procedure",
+  doctor: "assignment",
+};
+
 export function Workflow({
   kind,
   patient,
@@ -22,17 +45,17 @@ export function Workflow({
   onClose,
 }: {
   kind: string;
-  patient: Row;
-  active?: Row;
+  patient: Patient;
+  active?: AdmissionView;
   onClose: () => void;
 }) {
   const user = useUser(),
     client = useQueryClient();
-  const { data: doctors } = useData("/doctors"),
-    { data: rooms } = useData("/rooms"),
-    { data: procedures } = useData("/procedures");
-  const [values, setValues] = useState<Row>({
-      doctorId: active?.doctor.id || user.doctorId || "",
+  const { data: doctors } = useData<Doctor[]>("/doctors"),
+    { data: rooms } = useData<RoomCapacity[]>("/rooms"),
+    { data: procedures } = useData<MedicalProcedure[]>("/procedures");
+  const [values, setValues] = useState<WorkflowValues>({
+      doctorId: String(active?.doctor.id ?? user.doctorId ?? ""),
       roomId: "",
       medicalProcedureId: "",
       reason: "",
@@ -42,15 +65,7 @@ export function Workflow({
     [review, setReview] = useState(kind === "discharge"),
     [error, setError] = useState<Error | null>(null),
     [busy, setBusy] = useState(false);
-  const name = (
-    {
-      admit: "Admit patient",
-      transfer: "Transfer patient",
-      discharge: "Discharge patient",
-      procedure: "Record procedure",
-      doctor: "Assign attending doctor",
-    } as Row
-  )[kind];
+  const name = TITLES[kind];
   const update =
     (key: string) =>
     (
@@ -70,6 +85,10 @@ export function Workflow({
           doctorId: Number(values.doctorId),
           roomId: Number(values.roomId),
         });
+      else if (!admission)
+        throw new Error(
+          "This admission is no longer open. Refresh the record.",
+        );
       else if (kind === "transfer")
         await api(`/admissions/${admission.id}/transfer`, "POST", {
           roomId: Number(values.roomId),
@@ -133,7 +152,7 @@ export function Workflow({
                 <strong>
                   Room{" "}
                   {Array.isArray(rooms) &&
-                    rooms.find((r: Row) => r.id === Number(values.roomId))
+                    rooms.find((r) => r.id === Number(values.roomId))
                       ?.roomNumber}
                 </strong>
               </p>
@@ -144,9 +163,7 @@ export function Workflow({
                 <strong>
                   {Array.isArray(doctors) &&
                     fullName(
-                      doctors.find(
-                        (d: Row) => d.id === Number(values.doctorId),
-                      ),
+                      doctors.find((d) => d.id === Number(values.doctorId)),
                     )}
                 </strong>
               </p>
@@ -157,7 +174,7 @@ export function Workflow({
                 <strong>
                   {Array.isArray(procedures) &&
                     procedures.find(
-                      (p: Row) => p.id === Number(values.medicalProcedureId),
+                      (p) => p.id === Number(values.medicalProcedureId),
                     )?.procedureName}
                 </strong>
               </p>
@@ -181,18 +198,7 @@ export function Workflow({
               {kind === "discharge" ? "Cancel" : "Back"}
             </button>
             <button className="primary" onClick={submit} disabled={busy}>
-              {busy
-                ? "Saving…"
-                : "Confirm " +
-                  (
-                    {
-                      admit: "admission",
-                      transfer: "transfer",
-                      discharge: "discharge",
-                      procedure: "procedure",
-                      doctor: "assignment",
-                    } as Row
-                  )[kind]}
+              {busy ? "Saving…" : "Confirm " + CONFIRMATIONS[kind]}
               <CheckCircle2 size={17} />
             </button>
           </div>
@@ -218,11 +224,11 @@ export function Workflow({
                 {Array.isArray(doctors) &&
                   doctors
                     .filter(
-                      (d: Row) =>
+                      (d) =>
                         d.active &&
                         (user.role !== "DOCTOR" || d.id === user.doctorId),
                     )
-                    .map((d: Row) => (
+                    .map((d) => (
                       <option value={d.id} key={d.id}>
                         Dr. {fullName(d)}
                       </option>
@@ -243,12 +249,12 @@ export function Workflow({
                 {Array.isArray(rooms) &&
                   rooms
                     .filter(
-                      (r: Row) =>
+                      (r) =>
                         r.active &&
                         r.availableBeds > 0 &&
                         r.id !== active?.assignment?.roomId,
                     )
-                    .map((r: Row) => (
+                    .map((r) => (
                       <option key={r.id} value={r.id}>
                         Room {r.roomNumber} · {r.availableBeds} free beds
                       </option>
@@ -280,8 +286,8 @@ export function Workflow({
                   <option value="">Select procedure…</option>
                   {Array.isArray(procedures) &&
                     procedures
-                      .filter((p: Row) => p.active)
-                      .map((p: Row) => (
+                      .filter((p) => p.active)
+                      .map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.procedureName} · {money(p.currentCost)}
                         </option>

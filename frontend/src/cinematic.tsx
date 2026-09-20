@@ -15,6 +15,7 @@ import {
   AnimatePresence,
   MotionConfig,
   useInView,
+  useIsPresent,
   useMotionValue,
   useSpring,
   useScroll,
@@ -162,6 +163,39 @@ export function Atmosphere() {
   );
 }
 
+/**
+ * One route's content. The outgoing scene stays mounted while it animates away, so it is marked
+ * inert: assistive technology, keyboard focus and role queries then only ever see the scene that
+ * the route actually points at, instead of two copies of every heading and action.
+ */
+function Scene({
+  children,
+  animated,
+}: {
+  children: ReactNode;
+  animated: boolean;
+}) {
+  const present = useIsPresent();
+  return (
+    <motion.div
+      className="scene-content"
+      style={{ originX: 0 }}
+      aria-hidden={present ? undefined : true}
+      inert={present ? undefined : true}
+      initial={animated ? { opacity: 0, x: -16, scale: 0.992 } : false}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={animated ? { opacity: 0, x: -8, scale: 0.996 } : undefined}
+      transition={
+        animated
+          ? { type: "spring", stiffness: 380, damping: 36, mass: 0.55 }
+          : { duration: 0 }
+      }
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export function SceneTransition({
   children,
   scene,
@@ -173,21 +207,9 @@ export function SceneTransition({
   return (
     <WorkspaceSceneContext.Provider value={true}>
       <AnimatePresence mode="popLayout" initial={false}>
-        <motion.div
-          key={scene}
-          className="scene-content"
-          style={{ originX: 0 }}
-          initial={enabled ? { opacity: 0, x: -16, scale: 0.992 } : false}
-          animate={{ opacity: 1, x: 0, scale: 1 }}
-          exit={enabled ? { opacity: 0, x: -8, scale: 0.996 } : undefined}
-          transition={
-            enabled
-              ? { type: "spring", stiffness: 380, damping: 36, mass: 0.55 }
-              : { duration: 0 }
-          }
-        >
+        <Scene key={scene} animated={enabled}>
           {children}
-        </motion.div>
+        </Scene>
       </AnimatePresence>
     </WorkspaceSceneContext.Provider>
   );
@@ -313,7 +335,7 @@ export function LoginScene({ children }: { children: ReactNode }) {
       <header className="login-nav">
         <a className="brand" href="/" aria-label="Medcore home">
           <span className="brandmark">
-            <Activity size={23} strokeWidth={1.5} />
+            <Activity size={23} />
           </span>
           medcore<span className="brand-dot">®</span>
         </a>
@@ -384,7 +406,7 @@ export function LoginScene({ children }: { children: ReactNode }) {
           </div>
           <Reveal className="login-visual-caption" delay={0.4}>
             <span>Built around your department.</span>
-            <Activity size={24} strokeWidth={1} />
+            <Activity size={24} />
           </Reveal>
         </section>
         <section className="login-access" id="sign-in" aria-label="Sign in">

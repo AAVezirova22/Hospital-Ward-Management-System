@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { type Row } from "../../api";
+import type { Account } from "../../api/contracts";
 import {
   useUser,
   useData,
@@ -14,8 +14,8 @@ import { useUrlState } from "../../components/useUrlState";
 import { EntityForm } from "./EntityForm";
 
 export function UserAdmin() {
-  const { data, error, isLoading } = useData("/users");
-  const [edit, setEdit] = useState<Row | null>(null);
+  const { data, error, isLoading } = useData<Account[]>("/users");
+  const [edit, setEdit] = useState<Partial<Account> | null>(null);
   const [search, setSearch] = useUrlState("q");
   const user = useUser();
   return (
@@ -56,20 +56,20 @@ export function UserAdmin() {
           <tbody>
             {Array.isArray(data) &&
               data
-                .filter((r: Row) =>
+                .filter((r) =>
                   [r.username, r.email]
                     .filter(Boolean)
                     .join(" ")
                     .toLowerCase()
                     .includes(search.toLowerCase()),
                 )
-                .map((r: Row) => (
+                .map((r) => (
                   <tr key={r.id}>
                     <td>
                       {r.username}
                       {r.email && (
                         <small className="muted">
-                          {String(r.email)} ·{" "}
+                          {r.email} ·{" "}
                           {r.emailVerified
                             ? "Email verified"
                             : "Awaiting verification"}
@@ -82,7 +82,7 @@ export function UserAdmin() {
                       )}
                     </td>
                     <td>{String(r.role).replaceAll("_", " ")}</td>
-                    <td>{(r.doctorId as number) || "Not assigned"}</td>
+                    <td>{r.doctorId || "Not assigned"}</td>
                     <td>
                       <Status value={r.enabled ? "ACTIVE" : "DISABLED"} />
                     </td>

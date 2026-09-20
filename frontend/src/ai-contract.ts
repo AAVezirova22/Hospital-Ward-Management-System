@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AdmissionView, Doctor, RoomCapacity } from "./api/contracts";
 export const safeRoute = z
   .string()
   .regex(
@@ -51,7 +52,7 @@ export const aiResponse = z.discriminatedUnion("responseType", [
               key: z.string(),
               operation: z.string(),
               source: z.string(),
-              fields: z.record(z.unknown()),
+              fields: z.record(z.string(), z.unknown()),
             }),
           )
           .min(1)
@@ -62,12 +63,12 @@ export const aiResponse = z.discriminatedUnion("responseType", [
   z.object({
     ...base,
     responseType: z.literal("TEXT"),
-    data: z.record(z.unknown()),
+    data: z.record(z.string(), z.unknown()),
   }),
   z.object({
     ...base,
     responseType: z.literal("ERROR"),
-    data: z.record(z.unknown()),
+    data: z.record(z.string(), z.unknown()),
   }),
   z.object({
     ...base,
@@ -110,7 +111,7 @@ export const aiResponse = z.discriminatedUnion("responseType", [
   z.object({
     ...base,
     responseType: z.literal("REPORT_RESULT"),
-    data: z.record(z.unknown()),
+    data: z.record(z.string(), z.unknown()),
   }),
   z.object({
     ...base,
@@ -126,6 +127,10 @@ export const aiResponse = z.discriminatedUnion("responseType", [
           })
           .passthrough(),
         patient,
+        // The card carries the authorized records the backend already validated and scoped.
+        current: z.custom<AdmissionView>().optional(),
+        destination: z.custom<RoomCapacity>().optional(),
+        doctor: z.custom<Doctor>().optional(),
       })
       .passthrough(),
   }),

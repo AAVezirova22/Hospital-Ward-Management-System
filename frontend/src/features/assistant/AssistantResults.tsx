@@ -1,8 +1,24 @@
 "use client";
-import { fullName, money, type Row } from "../../api";
+import { fullName, money } from "../../api";
+import type {
+  Admission,
+  AdmissionView,
+  DashboardReport,
+  Patient,
+  ProcedureView,
+} from "../../api/contracts";
 import { Status } from "../../components/workspace";
 
-export function AiReport({ data: d }: { data: Row }) {
+/** The assistant returns one of the authorized report payloads; each field identifies its shape. */
+type AiReportData = Partial<DashboardReport> & {
+  rows?: ProcedureView[];
+  totalCost?: number;
+  admissions?: AdmissionView[];
+  admission?: Admission;
+  patient?: Patient;
+};
+
+export function AiReport({ data: d }: { data: AiReportData }) {
   if (d.activeAdmissions !== undefined)
     return (
       <div className="ai-stats">
@@ -21,9 +37,9 @@ export function AiReport({ data: d }: { data: Row }) {
     return (
       <>
         <p>
-          {(d.rows as Row[]).length} procedures · {money(d.totalCost)}
+          {d.rows.length} procedures · {money(d.totalCost)}
         </p>
-        {(d.rows as Row[]).map((r: Row) => (
+        {d.rows.map((r) => (
           <div className="result-row" key={r.record.id}>
             <span>
               {r.procedure.procedureName}
@@ -37,7 +53,7 @@ export function AiReport({ data: d }: { data: Row }) {
   if (d.admissions)
     return (
       <>
-        {(d.admissions as Row[]).map((v: Row) => (
+        {d.admissions.map((v) => (
           <div className="result-row" key={v.admission.id}>
             <span>{fullName(v.patient)}</span>
             <Status value={v.admission.status} />

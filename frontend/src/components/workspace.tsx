@@ -6,10 +6,11 @@ import { AlertCircle, ClipboardList, X } from "lucide-react";
 import { api, activeDepartment, type Row, type User } from "../api";
 export const Auth = createContext<User>(null!);
 export const useUser = () => useContext(Auth);
-export const useData = (key: string, path = key) =>
-  useQuery<Row>({
+/** Reads one department-scoped endpoint. Pass the response contract, e.g. useData<Patient[]>. */
+export const useData = <T = Row,>(key: string, path = key) =>
+  useQuery<T>({
     queryKey: [key, activeDepartment()],
-    queryFn: () => api(path),
+    queryFn: () => api<T>(path),
   });
 export function Link({
   to,

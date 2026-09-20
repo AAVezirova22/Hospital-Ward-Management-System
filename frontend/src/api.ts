@@ -21,7 +21,6 @@ export type Row = Record<string, unknown> & {
   availableBeds?: number;
   status?: string;
 };
-export type Row = Record<string, any>;
 export type User = {
   id: number;
   username: string;
@@ -243,11 +242,11 @@ export async function logout() {
 export const fullName = (
   p: { firstName?: string; lastName?: string } | null | undefined,
 ) => (p ? `${p.firstName} ${p.lastName}` : "Not recorded");
-export const money = (n: number) =>
+export const money = (n: number | null | undefined) =>
   new Intl.NumberFormat("en", { style: "currency", currency: "EUR" }).format(
     n || 0,
   );
-export const date = (v: string) =>
+export const date = (v: string | null | undefined) =>
   v
     ? new Date(v).toLocaleString("en-GB", {
         dateStyle: "medium",

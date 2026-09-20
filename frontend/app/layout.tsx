@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
+import { LucideProvider } from "lucide-react";
 import localFont from "next/font/local";
+import { ICON_STROKE_WIDTH } from "../src/icons";
 import "../src/style.css";
 import "../src/design.css";
 import "../src/cinematic.css";
@@ -51,7 +53,11 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg" },
 };
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="en" className={geist.variable}>
@@ -71,7 +77,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           fetchPriority="high"
         />
       </head>
-      <body data-csp-nonce={nonce}>{children}</body>
+      <body data-csp-nonce={nonce}>
+        <LucideProvider strokeWidth={ICON_STROKE_WIDTH}>
+          {children}
+        </LucideProvider>
+      </body>
     </html>
   );
 }

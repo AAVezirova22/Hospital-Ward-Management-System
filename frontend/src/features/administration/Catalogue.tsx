@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { fullName, money, type Row } from "../../api";
+import type { Doctor, MedicalProcedure } from "../../api/contracts";
 import {
   useUser,
   useData,
@@ -12,9 +13,13 @@ import {
 import { Plus, ArrowUpRight } from "lucide-react";
 import { useUrlState } from "../../components/useUrlState";
 import { EntityForm, configs } from "./EntityForm";
+/** One screen serves both catalogue kinds, so a row carries either shape. */
+type CatalogueEntry = Partial<Doctor> &
+  Partial<MedicalProcedure> & { id: number };
+
 export function Catalogue({ kind }: { kind: string }) {
   const cfg = configs[kind],
-    { data, error, isLoading } = useData("/" + kind);
+    { data, error, isLoading } = useData<CatalogueEntry[]>("/" + kind);
   const [edit, setEdit] = useState<Row | null>(null);
   const [search, setSearch] = useUrlState("q");
   const user = useUser();
@@ -60,19 +65,14 @@ export function Catalogue({ kind }: { kind: string }) {
           <tbody>
             {Array.isArray(data) &&
               data
-                .filter((r: Row) =>
-                  [
-                    fullName(r),
-                    r.specialty,
-                    r.procedureName,
-                    r.procedureCode,
-                  ]
+                .filter((r) =>
+                  [fullName(r), r.specialty, r.procedureName, r.procedureCode]
                     .filter(Boolean)
                     .join(" ")
                     .toLowerCase()
                     .includes(search.toLowerCase()),
                 )
-                .map((r: Row) => (
+                .map((r) => (
                   <tr key={r.id}>
                     {kind === "doctors" ? (
                       <>

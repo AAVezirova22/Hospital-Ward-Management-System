@@ -115,13 +115,13 @@ export function MobileNavigation({ onAssistant }: { onAssistant: () => void }) {
                 pathname.includes(String(route)) ? "page" : undefined
               }
             >
-              <Glyph size={20} strokeWidth={1.5} />
+              <Glyph size={20} />
               {String(label)}
             </Link>
           );
         })}
         <button aria-label="Ask operations assistant" onClick={onAssistant}>
-          <Sparkles size={20} strokeWidth={1.5} />
+          <Sparkles size={20} />
           Assistant
         </button>
       </nav>

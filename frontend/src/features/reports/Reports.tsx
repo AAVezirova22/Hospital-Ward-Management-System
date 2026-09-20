@@ -1,8 +1,13 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
+import React from "react";
+import { fullName, money, date, patientHref } from "../../api";
+import type {
+  AdmissionView,
+  Doctor,
+  Patient,
+  ProcedureReport,
+  RoomCapacity,
+} from "../../api/contracts";
 import {
   Link,
   useUser,
@@ -24,9 +29,9 @@ export function Reports() {
     [doctorId, setDoctor] = useUrlState("doctorId"),
     [roomId, setRoom] = useUrlState("roomId"),
     [mode, setMode] = useUrlState("mode", "procedures");
-  const { data: patients } = useData("/patients"),
-    { data: doctors } = useData("/doctors"),
-    { data: rooms } = useData("/rooms");
+  const { data: patients } = useData<Patient[]>("/patients"),
+    { data: doctors } = useData<Doctor[]>("/doctors"),
+    { data: rooms } = useData<RoomCapacity[]>("/rooms");
   const params = new URLSearchParams({
     from,
     to,
@@ -43,7 +48,18 @@ export function Reports() {
             ...(doctorId ? { doctorId } : {}),
             ...(roomId ? { roomId } : {}),
           });
-  const { data, error, isLoading } = useData(path);
+  const { data, error, isLoading } = useData<
+    ProcedureReport | AdmissionView[] | RoomCapacity[]
+  >(path);
+  // The selected mode built the path above, so it also fixes the shape of the response.
+  const procedures =
+    mode === "procedures" && data && !Array.isArray(data)
+      ? (data as ProcedureReport)
+      : undefined;
+  const census =
+    mode === "census" && Array.isArray(data) ? (data as AdmissionView[]) : [];
+  const capacity =
+    mode === "capacity" && Array.isArray(data) ? (data as RoomCapacity[]) : [];
   return (
     <>
       <Title
@@ -93,7 +109,7 @@ export function Reports() {
               >
                 <option value="">All permitted patients</option>
                 {Array.isArray(patients) &&
-                  patients.map((p: Row) => (
+                  patients.map((p) => (
                     <option value={p.id} key={p.id}>
                       {fullName(p)}
                     </option>
@@ -111,7 +127,7 @@ export function Reports() {
             >
               <option value="">All doctors</option>
               {Array.isArray(doctors) &&
-                doctors.map((d: Row) => (
+                doctors.map((d) => (
                   <option value={d.id} key={d.id}>
                     {fullName(d)}
                   </option>
@@ -125,7 +141,7 @@ export function Reports() {
             <select value={roomId} onChange={(e) => setRoom(e.target.value)}>
               <option value="">All rooms</option>
               {Array.isArray(rooms) &&
-                rooms.map((r: Row) => (
+                rooms.map((r) => (
                   <option value={r.id} key={r.id}>
                     {r.roomNumber}
                   </option>
@@ -151,15 +167,12 @@ export function Reports() {
         data && (
           <>
             <div>
-              {mode === "procedures" && (
-                <ProcedureCharts
-                  report={data as import("../../api/contracts").ProcedureReport}
-                  onDoctor={setDoctor}
-                />
+              {procedures && (
+                <ProcedureCharts report={procedures} onDoctor={setDoctor} />
               )}{" "}
               {mode === "capacity" && (
                 <CapacityChart
-                  rooms={data as import("../../api/contracts").RoomCapacity[]}
+                  rooms={capacity}
                   onRoom={(id) => {
                     setRoom(id);
                     setMode("census");
@@ -171,8 +184,10 @@ export function Reports() {
               {mode === "procedures" ? (
                 <>
                   <div className="report-total">
-                    <span>{data.rows?.length || 0} performed procedures</span>
-                    <strong>{money(data.totalCost)}</strong>
+                    <span>
+                      {procedures?.rows.length || 0} performed procedures
+                    </span>
+                    <strong>{money(procedures?.totalCost)}</strong>
                   </div>
                   <table>
                     <thead>
@@ -185,7 +200,7 @@ export function Reports() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.rows?.map((v: Row) => (
+                      {procedures?.rows.map((v) => (
                         <tr key={v.record.id}>
                           <td>{fullName(v.patient)}</td>
                           <td>{v.procedure.procedureName}</td>
@@ -196,19 +211,19 @@ export function Reports() {
                       ))}
                     </tbody>
                   </table>
-                  {!data.rows?.length && (
+                  {!procedures?.rows.length && (
                     <Empty text="No procedures in this period." />
                   )}
                   <div className="report-groups">
-                    {Object.entries(data.byDoctor || {}).map(([id, total]) => (
-                      <span key={id}>
-                        {Array.isArray(doctors) &&
-                          fullName(
-                            doctors.find((d: Row) => String(d.id) === id),
-                          )}
-                        <strong>{money(Number(total))}</strong>
-                      </span>
-                    ))}
+                    {Object.entries(procedures?.byDoctor || {}).map(
+                      ([id, total]) => (
+                        <span key={id}>
+                          {Array.isArray(doctors) &&
+                            fullName(doctors.find((d) => String(d.id) === id))}
+                          <strong>{money(Number(total))}</strong>
+                        </span>
+                      ),
+                    )}
                   </div>
                 </>
               ) : mode === "census" ? (
@@ -222,24 +237,23 @@ export function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {Array.isArray(data) &&
-                      data.map((v: Row) => (
-                        <tr key={v.admission.id}>
-                          <td>
-                            <Link to={patientHref(v.patient)}>
-                              {fullName(v.patient)}
-                            </Link>
-                          </td>
-                          <td>{fullName(v.doctor)}</td>
-                          <td>
-                            {
-                              v.rooms.find((r: Row) => !r.assignment.releasedAt)
-                                ?.room.roomNumber
-                            }
-                          </td>
-                          <td>{date(v.admission.admissionDateTime)}</td>
-                        </tr>
-                      ))}
+                    {census.map((v) => (
+                      <tr key={v.admission.id}>
+                        <td>
+                          <Link to={patientHref(v.patient)}>
+                            {fullName(v.patient)}
+                          </Link>
+                        </td>
+                        <td>{fullName(v.doctor)}</td>
+                        <td>
+                          {
+                            v.rooms.find((r) => !r.assignment.releasedAt)?.room
+                              .roomNumber
+                          }
+                        </td>
+                        <td>{date(v.admission.admissionDateTime)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               ) : (
@@ -254,16 +268,15 @@ export function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {Array.isArray(data) &&
-                      data.map((r: Row) => (
-                        <tr key={r.id}>
-                          <td>{r.roomNumber}</td>
-                          <td>{r.bedCount}</td>
-                          <td>{r.occupiedBeds}</td>
-                          <td>{r.availableBeds}</td>
-                          <td>{r.active ? "Active" : "Inactive"}</td>
-                        </tr>
-                      ))}
+                    {capacity.map((r) => (
+                      <tr key={r.id}>
+                        <td>{r.roomNumber}</td>
+                        <td>{r.bedCount}</td>
+                        <td>{r.occupiedBeds}</td>
+                        <td>{r.availableBeds}</td>
+                        <td>{r.active ? "Active" : "Inactive"}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               )}

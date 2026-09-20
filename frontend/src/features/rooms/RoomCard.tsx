@@ -1,25 +1,13 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, type Row, type User } from "../../api";
-import {
-  Link,
-  useUser,
-  useData,
-  ErrorBox,
-  Empty,
-  Status,
-  Modal,
-  Title,
-} from "../../components/workspace";
+import React from "react";
+import type { RoomCapacity } from "../../api/contracts";
 import { BedDouble, ArrowUpRight } from "lucide-react";
 export function RoomCard({
   room: r,
   compact = false,
   onEdit,
 }: {
-  room: Row;
+  room: RoomCapacity;
   compact?: boolean;
   onEdit?: () => void;
 }) {

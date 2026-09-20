@@ -13,12 +13,18 @@ import {
 } from "../../api";
 import { useUser, ErrorBox, Status, Modal } from "../../components/workspace";
 import { Sparkles, X, ArrowUpRight, ArrowRight, Activity } from "lucide-react";
-import { aiResponse, safeRoute } from "../../ai-contract";
+import { aiResponse, safeRoute, type AiResponse } from "../../ai-contract";
 import { CommandResults } from "./CommandResults";
 import { ProposalPreview } from "./ProposalPreview";
 import { AssistantSources, useAssistantSources } from "./AssistantSources";
 import { WorkflowProposal } from "./WorkflowProposal";
 import { AiReport } from "./AssistantResults";
+/** One rendered turn: the authorized response plus the question that produced it. */
+type AiResult = Exclude<AiResponse, { responseType: "FILE_REQUEST" }> & {
+  query: string;
+  done?: string;
+};
+
 export function Assistant({ onClose }: { onClose: () => void }) {
   const user = useUser();
   const router = useRouter(),
@@ -26,7 +32,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     client = useQueryClient();
   const [message, setMessage] = useState(""),
     [session, setSession] = useState<string | null>(null),
-    [results, setResults] = useState<Row[]>([]),
+    [results, setResults] = useState<AiResult[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<Error | null>(null);
   const sources = useAssistantSources();
@@ -104,7 +110,10 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const completed = await api<Row>(`/ai-actions/${id}/${op}`, "POST");
+      const completed = await api<{ departmentId?: number }>(
+        `/ai-actions/${id}/${op}`,
+        "POST",
+      );
       setResults((r) =>
         r.map((v, i) =>
           i === index
@@ -172,7 +181,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
               · Backend-authorized results
             </small>
             {r.responseType === "PATIENT_LIST" &&
-              r.data.patients.map((p: Row) => (
+              r.data.patients.map((p) => (
                 <button
                   className="result-row"
                   key={p.id}
@@ -189,7 +198,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
                 </button>
               ))}
             {r.responseType === "ROOM_LIST" &&
-              r.data.rooms.map((room: Row) => (
+              r.data.rooms.map((room) => (
                 <div className="result-row" key={room.id}>
                   <span>Room {room.roomNumber}</span>
                   <strong>{room.availableBeds} free</strong>
@@ -199,7 +208,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
               <>
                 <h3>{fullName(r.data.patient)}</h3>
                 <p>{r.data.admissions.length} recorded hospitalizations.</p>
-                {r.data.admissions.map((v: Row) => (
+                {r.data.admissions.map((v) => (
                   <div className="result-row" key={v.admission.id}>
                     <span>
                       {v.admission.admissionNumber}
@@ -258,9 +267,8 @@ export function Assistant({ onClose }: { onClose: () => void }) {
                   <p>
                     Current room:{" "}
                     {
-                      r.data.current.rooms.find(
-                        (x: Row) => !x.assignment.releasedAt,
-                      )?.room.roomNumber
+                      r.data.current.rooms.find((x) => !x.assignment.releasedAt)
+                        ?.room.roomNumber
                     }
                   </p>
                 )}

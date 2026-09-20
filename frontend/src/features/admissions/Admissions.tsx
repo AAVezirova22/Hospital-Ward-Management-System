@@ -1,8 +1,7 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
+import React, { useState } from "react";
+import { fullName, date, patientHref } from "../../api";
+import type { AdmissionView } from "../../api/contracts";
 import {
   Link,
   useUser,
@@ -15,7 +14,7 @@ import {
 } from "../../components/workspace";
 import { ArrowUpRight, ClipboardList } from "lucide-react";
 export function Admissions() {
-  const { data, error, isLoading } = useData("/admissions");
+  const { data, error, isLoading } = useData<AdmissionView[]>("/admissions");
   const [active, setActive] = useState(true);
   return (
     <>
@@ -51,8 +50,8 @@ export function Admissions() {
           <tbody>
             {Array.isArray(data) &&
               data
-                .filter((v: Row) => !active || v.admission.status === "ACTIVE")
-                .map((v: Row) => (
+                .filter((v) => !active || v.admission.status === "ACTIVE")
+                .map((v) => (
                   <tr key={v.admission.id}>
                     <td>
                       <Link to={patientHref(v.patient)}>
@@ -68,7 +67,7 @@ export function Admissions() {
                     </td>
                     <td>Dr. {fullName(v.doctor)}</td>
                     <td>
-                      {v.rooms.find((r: Row) => !r.assignment.releasedAt)?.room
+                      {v.rooms.find((r) => !r.assignment.releasedAt)?.room
                         .roomNumber || "Not assigned"}
                     </td>
                     <td>
@@ -80,7 +79,7 @@ export function Admissions() {
         </table>
         {isLoading && <div className="skeleton">Loading admissions…</div>}
         {Array.isArray(data) &&
-          data.filter((v: Row) => !active || v.admission.status === "ACTIVE")
+          data.filter((v) => !active || v.admission.status === "ACTIVE")
             .length === 0 && <Empty />}
       </div>
     </>

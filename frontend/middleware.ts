@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// React's development build evaluates code at runtime and reports "eval() is not supported in this
+// environment" under a policy without 'unsafe-eval'; the dev client also opens a hot-reload
+// websocket. Both relaxations are development-only, so the deployed policy is unchanged.
+const development = process.env.NODE_ENV !== "production";
+
 function csp(nonce: string) {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
-    "connect-src 'self'",
+    development ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
     "font-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
@@ -28,7 +33,8 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|webp|avif)$).*)",
+      source:
+        "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|webp|avif)$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
