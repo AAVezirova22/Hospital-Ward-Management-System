@@ -1,6 +1,6 @@
 "use client";
-import React, { useState } from "react";
-import { fullName, money, type Row } from "../../api";
+import { useState } from "react";
+import { type Row } from "../../api";
 import {
   useUser,
   useData,
@@ -11,35 +11,31 @@ import {
 } from "../../components/workspace";
 import { Plus, ArrowUpRight } from "lucide-react";
 import { useUrlState } from "../../components/useUrlState";
-import { EntityForm, configs } from "./EntityForm";
-export function Catalogue({ kind }: { kind: string }) {
-  const cfg = configs[kind],
-    { data, error, isLoading } = useData("/" + kind);
+import { EntityForm } from "./EntityForm";
+
+export function UserAdmin() {
+  const { data, error, isLoading } = useData("/users");
   const [edit, setEdit] = useState<Row | null>(null);
   const [search, setSearch] = useUrlState("q");
   const user = useUser();
-  const columns =
-    kind === "doctors"
-      ? ["Doctor", "Specialty", "Status"]
-      : ["Procedure", "Code", "Current cost", "Status"];
   return (
     <>
       <Title
-        eyebrow="DEPARTMENT DIRECTORY"
-        title={cfg.title}
-        description={cfg.description}
+        eyebrow="TEAM ACCESS"
+        title="Access with accountability."
+        description="Manage staff accounts, physician links and role-based permissions."
       >
         {user.role === "ADMIN" && (
           <button className="primary" onClick={() => setEdit({})}>
             <Plus size={18} />
-            Add {cfg.singular}
+            Add user
           </button>
         )}
       </Title>
       <ErrorBox error={error} />
       <section className="panel table-panel">
         <label className="toolbar">
-          Search {kind}
+          Search users
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -49,7 +45,7 @@ export function Catalogue({ kind }: { kind: string }) {
         <table>
           <thead>
             <tr>
-              {columns.map((c) => (
+              {["Username", "Role", "Doctor ID", "Status"].map((c) => (
                 <th scope="col" key={c}>
                   {c}
                 </th>
@@ -61,12 +57,7 @@ export function Catalogue({ kind }: { kind: string }) {
             {Array.isArray(data) &&
               data
                 .filter((r: Row) =>
-                  [
-                    fullName(r),
-                    r.specialty,
-                    r.procedureName,
-                    r.procedureCode,
-                  ]
+                  [r.username, r.email]
                     .filter(Boolean)
                     .join(" ")
                     .toLowerCase()
@@ -74,29 +65,27 @@ export function Catalogue({ kind }: { kind: string }) {
                 )
                 .map((r: Row) => (
                   <tr key={r.id}>
-                    {kind === "doctors" ? (
-                      <>
-                        <td>
-                          <strong>Dr. {fullName(r)}</strong>
-                          <small>{r.doctorIdentifier}</small>
-                        </td>
-                        <td>{r.specialty}</td>
-                        <td>
-                          <Status value={r.active ? "ACTIVE" : "INACTIVE"} />
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td>
-                          <strong>{r.procedureName}</strong>
-                        </td>
-                        <td className="mono">{r.procedureCode}</td>
-                        <td>{money(r.currentCost)}</td>
-                        <td>
-                          <Status value={r.active ? "ACTIVE" : "INACTIVE"} />
-                        </td>
-                      </>
-                    )}
+                    <td>
+                      {r.username}
+                      {r.email && (
+                        <small className="muted">
+                          {String(r.email)} ·{" "}
+                          {r.emailVerified
+                            ? "Email verified"
+                            : "Awaiting verification"}
+                        </small>
+                      )}
+                      {r.requestedRole === "DOCTOR" && r.role !== "DOCTOR" && (
+                        <small className="status">
+                          Doctor access requested
+                        </small>
+                      )}
+                    </td>
+                    <td>{String(r.role).replaceAll("_", " ")}</td>
+                    <td>{(r.doctorId as number) || "Not assigned"}</td>
+                    <td>
+                      <Status value={r.enabled ? "ACTIVE" : "DISABLED"} />
+                    </td>
                     {user.role === "ADMIN" && (
                       <td>
                         <button
@@ -119,7 +108,7 @@ export function Catalogue({ kind }: { kind: string }) {
         )}
       </section>
       {edit && (
-        <EntityForm kind={kind} record={edit} onClose={() => setEdit(null)} />
+        <EntityForm kind="users" record={edit} onClose={() => setEdit(null)} />
       )}
     </>
   );

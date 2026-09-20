@@ -31,11 +31,6 @@ const nextConfig: NextConfig = {
         key: "Permissions-Policy",
         value: "camera=(), microphone=(), geolocation=(), payment=()",
       },
-      {
-        key: "Content-Security-Policy",
-        value:
-          "default-src 'self'; script-src 'self' 'unsafe-inline' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
-      },
     ];
     if (
       process.env.COOKIE_SECURE === "true" ||

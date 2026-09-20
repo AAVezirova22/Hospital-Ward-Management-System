@@ -24,4 +24,8 @@ public class ReportService {
   public Map<String, Object> procedures(LocalDate from, LocalDate to, Long patientId, Long doctorId) {
     return hospital.procedureReport(from, to, patientId, doctorId);
   }
+
+  public List<Map<String, Object>> capacity() {
+    return hospital.rooms(0);
+  }
 }

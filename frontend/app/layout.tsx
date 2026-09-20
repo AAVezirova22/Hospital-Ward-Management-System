@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import localFont from "next/font/local";
 import "../src/style.css";
 import "../src/design.css";
@@ -50,7 +51,8 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg" },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="en" className={geist.variable}>
       <head>
@@ -69,7 +71,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           fetchPriority="high"
         />
       </head>
-      <body>{children}</body>
+      <body data-csp-nonce={nonce}>{children}</body>
     </html>
   );
 }

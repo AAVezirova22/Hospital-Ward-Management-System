@@ -27,15 +27,24 @@ test("seeded ward planner stages without saving and confirms through the authori
     animations: "disabled",
   });
   await page.goto("/app/planner");
-  const admissions = await (
+  const admissions = (await (
     await page.request.get("/api/v1/admissions")
-  ).json();
-  const rooms = await (await page.request.get("/api/v1/rooms")).json();
-  const view = admissions.find((v: any) => v.admission.status === "ACTIVE");
+  ).json()) as {
+    admission: { id: number; status: string };
+    assignment: { roomId: number } | null;
+  }[];
+  const rooms = (await (await page.request.get("/api/v1/rooms")).json()) as {
+    id: number;
+    active: boolean;
+    availableBeds: number;
+  }[];
+  const view = admissions.find((v) => v.admission.status === "ACTIVE");
+  if (!view?.assignment) throw new Error("expected an active admission");
   const destination = rooms.find(
-    (r: any) =>
-      r.active && r.availableBeds > 0 && r.id !== view.assignment.roomId,
+    (r) =>
+      r.active && r.availableBeds > 0 && r.id !== view.assignment?.roomId,
   );
+  if (!destination) throw new Error("expected a free destination room");
   await page
     .getByLabel("Patient", { exact: true })
     .selectOption(String(view.admission.id));
