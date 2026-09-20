@@ -45,8 +45,13 @@ class DemoOperationsIntegrationTest {
  @Test void resetRequiresAdminAndExplicitConfirmationThenRecreatesScenario() throws Exception {
   mvc.perform(post("/api/v1/demo/reset").with(user("staff")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"confirmation\":\"RESET DEMO\"}")).andExpect(status().isForbidden());
   mvc.perform(post("/api/v1/demo/reset").with(user("admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"confirmation\":\"reset\"}")).andExpect(status().isBadRequest());
+  mvc.perform(post("/api/v1/workspaces/hospitals").with(user("admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Transient Clinic\",\"departmentName\":\"Overflow\"}")).andExpect(status().isCreated());
   mvc.perform(post("/api/v1/demo/reset").with(user("admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"confirmation\":\"RESET DEMO\"}")).andExpect(status().isOk());
   mvc.perform(get("/api/v1/patients").with(user("admin"))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(28));
   mvc.perform(get("/api/v1/reports/dashboard").with(user("admin"))).andExpect(status().isOk()).andExpect(jsonPath("$.activeAdmissions").value(14));
+  var workspaces=json.readTree(mvc.perform(get("/api/v1/workspaces").with(user("admin"))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+  assertThat(workspaces.get("hospitals")).hasSize(1);
+  assertThat(workspaces.get("hospitals").get(0).get("name").asText()).isEqualTo("Medcore Hospital");
+  assertThat(workspaces.get("hospitals").get(0).get("id").asLong()).isEqualTo(1L);
  }
 }

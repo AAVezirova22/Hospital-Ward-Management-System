@@ -45,10 +45,7 @@ public class ExternalAiProviderClient implements AiModelClient {
               + " unsupported work. A workflow proposal is not an executed workflow."
               + " Do not repeat queries already answered in observations. Current role: "
               + ctx.role()
-              + "; route: "
-              + ctx.route()
-              + "; selected patient: "
-              + ctx.selectedPatientId();
+              + ".";
       var body =
           Map.of(
               "model",

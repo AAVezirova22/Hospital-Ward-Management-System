@@ -7,7 +7,7 @@ public interface AiModelClient {
 
   record Context(
       String role, String route, Long selectedPatientId, List<Map<String, Object>> tools,
-      List<Map<String, String>> sources, List<com.example.hospital.api.Inputs.ConnectedFile> connectedFiles,
+      List<Map<String, String>> sources, List<com.example.hospital.api.MessageInput.ConnectedFile> connectedFiles,
       List<Map<String, Object>> observations) {
     public Context(String role, String route, Long selectedPatientId, List<Map<String, Object>> tools) {
       this(role, route, selectedPatientId, tools, List.of(), List.of(), List.of());

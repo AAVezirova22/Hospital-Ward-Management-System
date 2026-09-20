@@ -28,7 +28,7 @@ public class ConfirmationEmailService {
       URI base = URI.create(publicUrl);
       if (!Set.of("https", "http").contains(base.getScheme()) || base.getHost() == null || base.getRawQuery() != null || base.getRawFragment() != null)
         throw new IllegalStateException("Invalid public URL configuration");
-      String url = publicUrl + "/app/dashboard#verify=" + token;
+      String url = publicUrl + "/verify?token=" + token;
       String detail = doctor ? "After email confirmation, an administrator will review your doctor access request. You can use your patient account while the request is pending." : "Your patient workspace keeps your own admissions and care history together.";
       String html;
       try (var stream = new ClassPathResource("emails/confirm-account.html").getInputStream()) {

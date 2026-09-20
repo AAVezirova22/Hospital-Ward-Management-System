@@ -133,6 +133,7 @@ test("registration explains verification and doctor review before submitting", a
   await page.getByLabel("First name", { exact: true }).fill("Maya");
   await page.getByLabel("Last name", { exact: true }).fill("Koleva");
   await page.getByLabel("Date of birth", { exact: true }).fill("1994-03-12");
+  await page.getByLabel("Hospital").selectOption({ index: 1 });
   await page.getByLabel("Email", { exact: true }).fill("maya@example.test");
   await page.getByLabel("Username", { exact: true }).fill("maya_demo");
   await page

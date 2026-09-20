@@ -19,43 +19,65 @@ public class OperationsService {
   private final WorkflowLockRepository lock;
   private final Actor actor;
   private final AuditService auditService;
+  private final org.springframework.jdbc.core.JdbcTemplate jdbc;
   private final int longStayDays;
   private final double warning, critical;
 
   public OperationsService(HospitalService hospital, AuditEventRepository audit,
       AdmissionRepository admissions, WorkflowLockRepository lock, Actor actor, AuditService auditService,
+      org.springframework.jdbc.core.JdbcTemplate jdbc,
       @Value("${app.operations.long-stay-days:7}") int longStayDays,
       @Value("${app.operations.warning-percent:75}") double warning,
       @Value("${app.operations.critical-percent:90}") double critical) {
     this.hospital = hospital; this.audit = audit; this.admissions = admissions;
-    this.lock = lock; this.actor = actor; this.auditService = auditService;
+    this.lock = lock; this.actor = actor; this.auditService = auditService; this.jdbc = jdbc;
     this.longStayDays = longStayDays; this.warning = warning; this.critical = critical;
   }
 
   public Map<String, Object> overview() {
     var now = Instant.now();
     var today = LocalDate.now(ZoneOffset.UTC);
-    var visible = hospital.admissions();
-    var active = visible.stream().filter(a -> a.status.equals("ACTIVE")).toList();
-    var ids = visible.stream().map(a -> a.id).collect(java.util.stream.Collectors.toSet());
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    Long doctorId = actor.doctor() ? actor.user().doctorId : null;
     var trends = new ArrayList<Map<String, Object>>();
     for (int i = 13; i >= 0; i--) {
       var day = today.minusDays(i);
-      var start = day.atStartOfDay().toInstant(ZoneOffset.UTC);
-      var end = i == 0 ? now : day.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).minusNanos(1);
+      var start = java.sql.Timestamp.from(day.atStartOfDay().toInstant(ZoneOffset.UTC));
+      var end = java.sql.Timestamp.from(i == 0 ? now : day.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).minusNanos(1));
+      Long admitted = doctorId == null
+          ? jdbc.queryForObject("select count(*) from admissions where department_id=? and admission_date_time>=? and admission_date_time<=?", Long.class, departmentId, start, end)
+          : jdbc.queryForObject("select count(*) from admissions where department_id=? and admission_date_time>=? and admission_date_time<=? and attending_doctor_id=?", Long.class, departmentId, start, end, doctorId);
+      Long discharged = doctorId == null
+          ? jdbc.queryForObject("select count(*) from admissions where department_id=? and discharge_date_time>=? and discharge_date_time<=?", Long.class, departmentId, start, end)
+          : jdbc.queryForObject("select count(*) from admissions where department_id=? and discharge_date_time>=? and discharge_date_time<=? and attending_doctor_id=?", Long.class, departmentId, start, end, doctorId);
+      Long occupied = doctorId == null
+          ? jdbc.queryForObject("select count(*) from admissions where department_id=? and admission_date_time<=? and (discharge_date_time is null or discharge_date_time>?)", Long.class, departmentId, end, end)
+          : jdbc.queryForObject("select count(*) from admissions where department_id=? and admission_date_time<=? and (discharge_date_time is null or discharge_date_time>?) and attending_doctor_id=?", Long.class, departmentId, end, end, doctorId);
       trends.add(Map.of("date", day.toString(),
-          "admissions", visible.stream().filter(a -> !a.admissionDateTime.isBefore(start) && !a.admissionDateTime.isAfter(end)).count(),
-          "discharges", visible.stream().filter(a -> a.dischargeDateTime != null && !a.dischargeDateTime.isBefore(start) && !a.dischargeDateTime.isAfter(end)).count(),
-          "occupied", visible.stream().filter(a -> !a.admissionDateTime.isAfter(end) && (a.dischargeDateTime == null || a.dischargeDateTime.isAfter(end))).count()));
+          "admissions", admitted == null ? 0 : admitted,
+          "discharges", discharged == null ? 0 : discharged,
+          "occupied", occupied == null ? 0 : occupied));
     }
-    var recent = audit.findAll(org.springframework.data.domain.Sort.by("timestamp").descending()).stream()
+    var ids = doctorId == null
+        ? jdbc.queryForList("select id from admissions where department_id=?", Long.class, departmentId)
+        : jdbc.queryForList("select id from admissions where department_id=? and attending_doctor_id=?", Long.class, departmentId, doctorId);
+    var recent = ids.isEmpty() ? List.of() : audit.findAll(org.springframework.data.domain.Sort.by("timestamp").descending()).stream()
         .filter(e -> "Admission".equals(e.entityType) && ids.contains(e.entityId))
         .limit(12).map(e -> Map.of("id", e.id, "eventType", e.eventType,
             "timestamp", e.timestamp, "admissionId", e.entityId, "source", e.source)).toList();
+    Long longStay = doctorId == null
+        ? jdbc.queryForObject("select count(*) from admissions where department_id=? and status='ACTIVE' and admission_date_time<?", Long.class, departmentId, java.sql.Timestamp.from(now.minusSeconds(longStayDays * 86400L)))
+        : jdbc.queryForObject("select count(*) from admissions where department_id=? and status='ACTIVE' and admission_date_time<? and attending_doctor_id=?", Long.class, departmentId, java.sql.Timestamp.from(now.minusSeconds(longStayDays * 86400L)), doctorId);
+    Double averageStay = doctorId == null
+        ? jdbc.queryForObject("select coalesce(avg(extract(epoch from (now() - admission_date_time))/86400.0),0) from admissions where department_id=? and status='ACTIVE'", Double.class, departmentId)
+        : jdbc.queryForObject("select coalesce(avg(extract(epoch from (now() - admission_date_time))/86400.0),0) from admissions where department_id=? and status='ACTIVE' and attending_doctor_id=?", Double.class, departmentId, doctorId);
+    Long expected = doctorId == null
+        ? jdbc.queryForObject("select count(*) from admissions where department_id=? and status='ACTIVE' and expected_discharge_date=?", Long.class, departmentId, today)
+        : jdbc.queryForObject("select count(*) from admissions where department_id=? and status='ACTIVE' and expected_discharge_date=? and attending_doctor_id=?", Long.class, departmentId, today, doctorId);
     return Map.of("trends", trends, "activity", recent,
-        "averageStayDays", active.stream().mapToDouble(a -> Duration.between(a.admissionDateTime, now).toSeconds() / 86400.0).average().orElse(0),
-        "longStayPatients", active.stream().filter(a -> a.admissionDateTime.isBefore(now.minusSeconds(longStayDays * 86400L))).count(),
-        "expectedDischargesToday", active.stream().filter(a -> today.equals(a.expectedDischargeDate)).count(),
+        "averageStayDays", averageStay == null ? 0 : averageStay,
+        "longStayPatients", longStay == null ? 0 : longStay,
+        "expectedDischargesToday", expected == null ? 0 : expected,
         "thresholds", Map.of("longStayDays", longStayDays, "warningPercent", warning, "criticalPercent", critical),
         "scope", actor.doctor() ? "Assigned admissions" : "Department", "asOf", now);
   }

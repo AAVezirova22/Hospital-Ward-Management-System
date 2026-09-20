@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import {
   Activity,
@@ -14,33 +14,26 @@ import {
   ChartNoAxesCombined,
   ShieldCheck,
   Search,
-  ArrowRight,
   LogOut,
   MoveRight,
   CheckCircle2,
   Sparkles,
   Menu,
   History,
+  Presentation,
 } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { api, login, logout, type User } from "./api";
-import { Auth, Link, useUser, ErrorBox } from "./components/workspace";
+import { api, bindAccount, logout, type User } from "./api";
+import { Auth, Link, useUser } from "./components/workspace";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
-import { DemoAccess, DemoReset, WakeScreen } from "./features/demo/DemoAccess";
-import {
-  Registration,
-  EmailVerification,
-  ResendConfirmation,
-} from "./features/auth/Registration";
+import { DemoReset, WakeScreen } from "./features/demo/DemoAccess";
+import { Login } from "./features/auth/LoginScreen";
 import { PatientPortal } from "./features/patients/PatientPortal";
 import { Assistant } from "./features/assistant/Assistant";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { LiveOperations } from "./components/LiveOperations";
 import { MobileNavigation } from "./components/MobileNavigation";
+import { IdleTimeout } from "./components/IdleTimeout";
 import {
-  LoginScene,
   ThemeToggle,
   CinematicProvider,
   MotionToggle,
@@ -75,10 +68,8 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
     </NextLink>
   );
 }
-const qc = new QueryClient({
-  defaultOptions: { queries: { retry: false, staleTime: 15000 } },
-});
 function App({ children }: { children: React.ReactNode }) {
+  const qc = useQueryClient();
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(true);
   const [awake, setAwake] = useState(false);
@@ -86,10 +77,14 @@ function App({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!awake) return;
     api<User>("/auth/me")
-      .then(setUser)
+      .then((next) => {
+        bindAccount(next.id);
+        setUser(next);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
     const expired = () => {
+      bindAccount(null);
       setUser(null);
       qc.clear();
     };
@@ -97,6 +92,7 @@ function App({ children }: { children: React.ReactNode }) {
     const switched = () => {
       api<User>("/auth/me")
         .then((next) => {
+          bindAccount(next.id);
           setUser(next);
           void qc.invalidateQueries();
         })
@@ -144,124 +140,13 @@ function App({ children }: { children: React.ReactNode }) {
     <Login onLogin={setUser} />
   );
 }
-function Login({ onLogin }: { onLogin: (u: User) => void }) {
-  const [error, setError] = useState<Error | null>(null),
-    [busy, setBusy] = useState(false);
-  const [signup, setSignup] = useState(false),
-    [verification, setVerification] = useState("");
-  useEffect(() => {
-    const value = new URLSearchParams(window.location.hash.slice(1)).get(
-      "verify",
-    );
-    if (value) setVerification(value);
-  }, []);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(
-      z.object({ username: z.string().min(1), password: z.string().min(1) }),
-    ),
-  });
-  if (verification)
-    return (
-      <LoginScene>
-        <EmailVerification
-          token={verification}
-          onBack={() => {
-            setVerification("");
-            window.history.replaceState(null, "", window.location.pathname);
-          }}
-        />
-      </LoginScene>
-    );
-  if (signup)
-    return (
-      <LoginScene>
-        <Registration onBack={() => setSignup(false)} />
-      </LoginScene>
-    );
-  return (
-    <LoginScene>
-      <motion.form
-        className="login-form"
-        onSubmit={handleSubmit(async (data) => {
-          setBusy(true);
-          setError(null);
-          try {
-            onLogin(await login(data.username, data.password));
-          } catch (e) {
-            setError(e as Error);
-          } finally {
-            setBusy(false);
-          }
-        })}
-      >
-        <div className="access-icon">
-          <ShieldCheck size={24} strokeWidth={1.4} />
-        </div>
-        <h2>Welcome back.</h2>
-        <p className="form-intro">Sign in to your department.</p>
-        <label>
-          Username
-          <input
-            autoComplete="username"
-            placeholder="Enter your username"
-            aria-invalid={!!errors.username}
-            {...register("username")}
-          />
-        </label>
-        {errors.username && (
-          <small className="invalid">Enter your username.</small>
-        )}
-        <label>
-          Password
-          <input
-            type="password"
-            autoComplete="current-password"
-            placeholder="Enter your password"
-            aria-invalid={!!errors.password}
-            {...register("password")}
-          />
-        </label>
-        {errors.password && (
-          <small className="invalid">Enter your password.</small>
-        )}
-        <ErrorBox error={error} />
-        <motion.button
-          className="primary sign-in-button"
-          disabled={busy}
-          whileTap={{ scale: 0.98 }}
-        >
-          {busy ? "Verifying identity…" : "Sign in"}
-          <span className="button-icon">
-            <ArrowRight size={18} />
-          </span>
-        </motion.button>
-        <p className="login-note">
-          <ShieldCheck size={16} /> Access is restricted to authorized staff.
-        </p>
-        <button
-          type="button"
-          className="text-button"
-          onClick={() => setSignup(true)}
-        >
-          Create a patient account
-        </button>
-        <ResendConfirmation />
-        <DemoAccess onLogin={onLogin} />
-      </motion.form>
-    </LoginScene>
-  );
-}
 const nav = [
   ["dashboard", "Overview", LayoutDashboard],
   ["patients", "Patients", Users],
   ["admissions", "Admissions", ClipboardList],
   ["rooms", "Room capacity", BedDouble],
   ["planner", "Ward planner", MoveRight],
-  ["presentation", "Presentation", LayoutDashboard],
+  ["presentation", "Presentation", Presentation],
   ["doctors", "Doctors", Stethoscope],
   ["procedures", "Procedures", Activity],
   ["reports", "Reports", ChartNoAxesCombined],
@@ -327,15 +212,14 @@ function Shell({
     };
   }, []);
   useEffect(() => setMobile(false), [pathname]);
+  const presentation = pathname === "/app/presentation";
   return (
-    <div
-      className={
-        "app " + (pathname === "/app/presentation" ? "presentation-mode" : "")
-      }
-    >
-      <a className="skip-link" href="#workspace-content">
-        Skip to workspace
-      </a>
+    <div className={"app " + (presentation ? "presentation-mode" : "")}>
+      {!presentation && (
+        <a className="skip-link" href="#workspace-content">
+          Skip to workspace
+        </a>
+      )}
       {mobile && (
         <button
           className="mobile-scrim"
@@ -343,7 +227,12 @@ function Shell({
           onClick={() => setMobile(false)}
         />
       )}
-      <aside className={"sidebar " + (mobile ? "mobile-open" : "")}>
+      <aside
+        className={"sidebar " + (mobile ? "mobile-open" : "")}
+        inert={presentation ? true : undefined}
+        aria-hidden={presentation}
+        hidden={presentation}
+      >
         <Link to="/app/dashboard" className="brand">
           <span className="brandmark">
             <Activity size={21} />
@@ -373,6 +262,12 @@ function Shell({
                 </NavLink>
               </>
             )}
+            {user.accountRole === "ADMIN" && user.role !== "ADMIN" && (
+              <p className="sidebar-note">
+                Team access is in departments you administer. This department
+                role is {user.role.replaceAll("_", " ").toLowerCase()}.
+              </p>
+            )}
           </nav>
         </LayoutGroup>
         <div className="sidebar-note">
@@ -393,7 +288,12 @@ function Shell({
           </div>
           <div>
             {user.username}
-            <small>{user.role.replaceAll("_", " ").toLowerCase()}</small>
+            <small>
+              {(user.departmentRole || user.role).replaceAll("_", " ").toLowerCase()}
+              {user.accountRole && user.accountRole !== user.role
+                ? ` · account ${user.accountRole.replaceAll("_", " ").toLowerCase()}`
+                : ""}
+            </small>
           </div>
           <button className="icon" aria-label="Sign out" onClick={onLogout}>
             <LogOut size={17} />
@@ -401,7 +301,12 @@ function Shell({
         </div>
       </aside>
       <div className="workspace">
-        <header className="topbar">
+        <header
+          className="topbar"
+          inert={presentation ? true : undefined}
+          aria-hidden={presentation}
+          hidden={presentation}
+        >
           <div>
             <button
               className="icon mobile-menu"
@@ -449,6 +354,7 @@ function Shell({
         </footer>
       </div>
       <SavedNotice />
+      <IdleTimeout />
       {pathname !== "/app/presentation" && (
         <MobileNavigation onAssistant={() => setAssistant(true)} />
       )}
@@ -462,8 +368,14 @@ export default function MedcoreApp({
 }: {
   children: React.ReactNode;
 }) {
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: { queries: { retry: false, staleTime: 15000 } },
+      }),
+  );
   return (
-    <QueryClientProvider client={qc}>
+    <QueryClientProvider client={client}>
       <CinematicProvider>
         <App>{children}</App>
       </CinematicProvider>

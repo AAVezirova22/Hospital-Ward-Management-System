@@ -5,29 +5,20 @@ import { useRouter, usePathname } from "next/navigation";
 import {
   api,
   fullName,
-  money,
   date,
+  patientHref,
   activeDepartment,
   setActiveDepartment,
   type Row,
-  type User,
 } from "../../api";
-import {
-  Link,
-  useUser,
-  useData,
-  ErrorBox,
-  Empty,
-  Status,
-  Modal,
-  Title,
-} from "../../components/workspace";
+import { useUser, ErrorBox, Status, Modal } from "../../components/workspace";
 import { Sparkles, X, ArrowUpRight, ArrowRight, Activity } from "lucide-react";
-import { aiResponse } from "../../ai-contract";
+import { aiResponse, safeRoute } from "../../ai-contract";
 import { CommandResults } from "./CommandResults";
 import { ProposalPreview } from "./ProposalPreview";
 import { AssistantSources, useAssistantSources } from "./AssistantSources";
 import { WorkflowProposal } from "./WorkflowProposal";
+import { AiReport } from "./AssistantResults";
 export function Assistant({ onClose }: { onClose: () => void }) {
   const user = useUser();
   const router = useRouter(),
@@ -38,7 +29,6 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     [results, setResults] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<Error | null>(null);
-  const ref = useRef<HTMLDialogElement>(null);
   const sources = useAssistantSources();
   const mounted = useRef(true);
   const lastResult = useRef<HTMLDivElement>(null);
@@ -47,7 +37,6 @@ export function Assistant({ onClose }: { onClose: () => void }) {
   }, [results.length]);
   useEffect(() => {
     mounted.current = true;
-    ref.current?.showModal();
     let department = activeDepartment();
     const close = () => {
       const next = activeDepartment();
@@ -57,10 +46,9 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     window.addEventListener("workspace-changed", close);
     return () => {
       mounted.current = false;
-      ref.current?.close();
       window.removeEventListener("workspace-changed", close);
     };
-  }, []);
+  }, [onClose]);
   async function fileAction(action: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
@@ -116,7 +104,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const completed = await api(`/ai-actions/${id}/${op}`, "POST");
+      const completed = await api<Row>(`/ai-actions/${id}/${op}`, "POST");
       setResults((r) =>
         r.map((v, i) =>
           i === index
@@ -135,7 +123,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     }
   }
   return (
-    <dialog className="assistant-dialog" ref={ref} onCancel={onClose}>
+    <Modal title="Operations assistant" onClose={onClose}>
       <div className="assistant-head">
         <div>
           <Sparkles size={22} />
@@ -189,7 +177,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
                   className="result-row"
                   key={p.id}
                   onClick={() => {
-                    router.push("/app/patients/" + p.id);
+                    router.push(patientHref(p));
                     onClose();
                   }}
                 >
@@ -223,7 +211,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
                 <button
                   className="secondary"
                   onClick={() => {
-                    router.push("/app/patients/" + r.data.patient.id);
+                    router.push(patientHref(r.data.patient));
                     onClose();
                   }}
                 >
@@ -244,11 +232,7 @@ export function Assistant({ onClose }: { onClose: () => void }) {
               <button
                 className="primary"
                 onClick={() => {
-                  if (
-                    /^\/app\/(dashboard|patients(?:\/\d+)?|rooms|admissions|doctors|procedures|reports|users)$/.test(
-                      r.data.route,
-                    )
-                  ) {
+                  if (safeRoute.safeParse(r.data.route).success) {
                     router.push(r.data.route);
                     onClose();
                   }
@@ -364,57 +348,6 @@ export function Assistant({ onClose }: { onClose: () => void }) {
           Clear
         </button>
       </div>
-    </dialog>
+    </Modal>
   );
-}
-export function AiReport({ data: d }: { data: Row }) {
-  if (d.activeAdmissions !== undefined)
-    return (
-      <div className="ai-stats">
-        <span>
-          <strong>{d.activeAdmissions}</strong>Active admissions
-        </span>
-        <span>
-          <strong>{d.availableBeds}</strong>Available beds
-        </span>
-        <span>
-          <strong>{d.proceduresToday}</strong>Procedures today
-        </span>
-      </div>
-    );
-  if (d.rows)
-    return (
-      <>
-        <p>
-          {d.rows.length} procedures · {money(d.totalCost)}
-        </p>
-        {d.rows.map((r: Row) => (
-          <div className="result-row" key={r.record.id}>
-            <span>
-              {r.procedure.procedureName}
-              <small>{fullName(r.patient)}</small>
-            </span>
-            <strong>{money(r.record.priceAtExecution)}</strong>
-          </div>
-        ))}
-      </>
-    );
-  if (d.admissions)
-    return (
-      <>
-        {d.admissions.map((v: Row) => (
-          <div className="result-row" key={v.admission.id}>
-            <span>{fullName(v.patient)}</span>
-            <Status value={v.admission.status} />
-          </div>
-        ))}
-      </>
-    );
-  if (d.admission)
-    return (
-      <p>
-        {d.admission.admissionNumber} · {fullName(d.patient)}
-      </p>
-    );
-  return <p>No matching records.</p>;
 }

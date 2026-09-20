@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { createRectCache } from "../rect-cache";
+import { createRectCache } from "../../components/rect-cache";
 
 export interface CloudsOptions {
   scale?: number;

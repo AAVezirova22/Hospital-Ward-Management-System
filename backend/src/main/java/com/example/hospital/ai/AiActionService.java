@@ -1,7 +1,6 @@
 package com.example.hospital.ai;
 
 import com.example.hospital.api.*;
-import com.example.hospital.api.Inputs.*;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;

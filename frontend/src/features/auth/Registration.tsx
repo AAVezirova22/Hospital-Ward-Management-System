@@ -1,34 +1,55 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { api } from "../../api";
+
+const signupSchema = z.object({
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  dateOfBirth: z.string().min(1),
+  hospitalId: z.coerce.number().int().positive(),
+  email: z.string().trim().email().max(254),
+  username: z.string().regex(/^[a-zA-Z0-9._-]{3,64}$/),
+  password: z.string().min(12).max(72),
+  requestedRole: z.enum(["PATIENT", "DOCTOR"]),
+});
+
+type SignupValues = z.infer<typeof signupSchema>;
 
 export function Registration({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [requestedRole, setRole] = useState("PATIENT");
+    [hospitals, setHospitals] = useState<{ id: number; name: string }[]>([]);
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { requestedRole: "PATIENT" },
+  });
+  const requestedRole = watch("requestedRole");
+  useEffect(() => {
+    api<{ id: number; name: string }[]>("/registration/hospitals")
+      .then(setHospitals)
+      .catch((e) => setError((e as Error).message));
+  }, []);
   return (
     <form
       className="login-form registration-form"
-      onSubmit={async (e) => {
-        e.preventDefault();
+      onSubmit={handleSubmit(async (values) => {
         if (busy) return;
-        const form = new FormData(e.currentTarget);
         setBusy(true);
         setError("");
         try {
           const response = await api<{ message: string }>(
             "/registration/signup",
             "POST",
-            {
-              username: form.get("username"),
-              email: form.get("email"),
-              password: form.get("password"),
-              firstName: form.get("firstName"),
-              lastName: form.get("lastName"),
-              dateOfBirth: form.get("dateOfBirth"),
-              requestedRole,
-            },
+            values,
           );
           setNotice(response.message);
         } catch (e) {
@@ -36,7 +57,7 @@ export function Registration({ onBack }: { onBack: () => void }) {
         } finally {
           setBusy(false);
         }
-      }}
+      })}
     >
       <span className="eyebrow">YOUR MEDCORE ACCOUNT</span>
       <h2>Your care, connected.</h2>
@@ -56,73 +77,56 @@ export function Registration({ onBack }: { onBack: () => void }) {
           <div className="registration-names">
             <label>
               First name
-              <input
-                name="firstName"
-                autoComplete="given-name"
-                maxLength={100}
-                required
-              />
+              <input autoComplete="given-name" maxLength={100} {...register("firstName")} />
             </label>
             <label>
               Last name
-              <input
-                name="lastName"
-                autoComplete="family-name"
-                maxLength={100}
-                required
-              />
+              <input autoComplete="family-name" maxLength={100} {...register("lastName")} />
             </label>
           </div>
           <label>
             Date of birth
             <input
               type="date"
-              name="dateOfBirth"
               max={new Date(Date.now() - 86400000).toISOString().slice(0, 10)}
               autoComplete="bday"
-              required
+              {...register("dateOfBirth")}
             />
           </label>
           <label>
+            Hospital
+            <select {...register("hospitalId")} defaultValue="">
+              <option value="" disabled>
+                Select your hospital
+              </option>
+              {hospitals.map((hospital) => (
+                <option key={hospital.id} value={hospital.id}>
+                  {hospital.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             Email
-            <input
-              type="email"
-              name="email"
-              autoComplete="email"
-              maxLength={254}
-              required
-            />
+            <input type="email" autoComplete="email" maxLength={254} {...register("email")} />
           </label>
           <label>
             Username
             <input
-              name="username"
               autoComplete="username"
-              pattern="[a-zA-Z0-9._-]{3,64}"
-              minLength={3}
               maxLength={64}
               title="3–64 letters, numbers, dots, underscores or hyphens"
-              required
+              {...register("username")}
             />
           </label>
           <label>
             Password
-            <input
-              type="password"
-              name="password"
-              autoComplete="new-password"
-              minLength={12}
-              maxLength={72}
-              required
-            />
+            <input type="password" autoComplete="new-password" {...register("password")} />
           </label>
           <small>At least 12 characters, at most 72 UTF-8 bytes.</small>
           <label>
             Account request
-            <select
-              value={requestedRole}
-              onChange={(e) => setRole(e.target.value)}
-            >
+            <select {...register("requestedRole")}>
               <option value="PATIENT">Patient account</option>
               <option value="DOCTOR">
                 Patient account + doctor access request
@@ -135,12 +139,12 @@ export function Registration({ onBack }: { onBack: () => void }) {
               and links approved accounts to a doctor profile.
             </p>
           )}
-          {error && (
+          {(error || errors.firstName || errors.username || errors.password || errors.email) && (
             <p className="error" role="alert">
-              {error}
+              {error || "Check the highlighted fields and try again."}
             </p>
           )}
-          <button className="primary" disabled={busy}>
+          <button className="primary" disabled={busy || hospitals.length === 0}>
             {busy ? "Sending confirmation…" : "Create account"}
           </button>
           <button
@@ -253,3 +257,4 @@ export function ResendConfirmation() {
     </details>
   );
 }
+

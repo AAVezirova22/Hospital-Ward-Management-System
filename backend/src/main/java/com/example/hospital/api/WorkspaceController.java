@@ -2,6 +2,7 @@ package com.example.hospital.api;
 
 import com.example.hospital.security.DepartmentContext;
 import com.example.hospital.service.WorkspaceService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.util.Map;
@@ -16,6 +17,9 @@ public class WorkspaceController {
   public record HospitalInput(@NotBlank @Size(max=120) String name, @NotBlank @Size(max=120) String departmentName) {}
   public record DepartmentInput(@NotBlank @Size(max=120) String name) {}
   public record JoinInput(@NotBlank @Size(max=40) String code) {}
+  public record OwnerInput(@NotNull Long userId) {}
+  public record RotateInput(Integer expiresInHours, Boolean singleUse) {}
+  public record RoleInput(@NotNull Long userId, @NotBlank @Size(max=30) String role, Long doctorId) {}
 
   @GetMapping
   public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "hospitals", workspaces.list()); }
@@ -25,12 +29,51 @@ public class WorkspaceController {
   }
   @PostMapping("/hospitals/{id}/departments") @ResponseStatus(HttpStatus.CREATED)
   public Object department(@PathVariable long id, @Valid @RequestBody DepartmentInput input) {
-    return Map.of("hospitalId", id, "departmentId", workspaces.createDepartment(id, input.name()));
+    var created = workspaces.createDepartment(id, input.name());
+    return Map.of("hospitalId", id, "departmentId", created.get("departmentId"), "joinCode", created.get("joinCode"));
   }
   @PostMapping("/join")
-  public Object join(@Valid @RequestBody JoinInput input) { return workspaces.join(input.code()); }
+  public Object join(@Valid @RequestBody JoinInput input, HttpServletRequest request) {
+    return workspaces.join(input.code(), request.getRemoteAddr());
+  }
+  @GetMapping("/hospitals/{id}/code")
+  public Object revealHospital(@PathVariable long id) {
+    return Map.of("code", workspaces.reveal(true, id));
+  }
+  @GetMapping("/departments/{id}/code")
+  public Object revealDepartment(@PathVariable long id) {
+    return Map.of("code", workspaces.reveal(false, id));
+  }
   @PostMapping("/hospitals/{id}/code")
-  public Object hospitalCode(@PathVariable long id) { return Map.of("code", workspaces.rotate(true, id)); }
+  public Object hospitalCode(@PathVariable long id, @RequestBody(required = false) RotateInput input) {
+    return Map.of("code", workspaces.rotate(true, id, hours(input), singleUse(input)));
+  }
   @PostMapping("/departments/{id}/code")
-  public Object departmentCode(@PathVariable long id) { return Map.of("code", workspaces.rotate(false, id)); }
+  public Object departmentCode(@PathVariable long id, @RequestBody(required = false) RotateInput input) {
+    return Map.of("code", workspaces.rotate(false, id, hours(input), singleUse(input)));
+  }
+  @PostMapping("/hospitals/{id}/leave")
+  public void leaveHospital(@PathVariable long id) { workspaces.leaveHospital(id); }
+  @PostMapping("/departments/{id}/leave")
+  public void leaveDepartment(@PathVariable long id) { workspaces.leaveDepartment(id); }
+  @DeleteMapping("/hospitals/{id}/members/{userId}")
+  public void revokeHospital(@PathVariable long id, @PathVariable long userId) { workspaces.revokeHospital(id, userId); }
+  @DeleteMapping("/departments/{id}/members/{userId}")
+  public void revokeDepartment(@PathVariable long id, @PathVariable long userId) { workspaces.revokeDepartment(id, userId); }
+  @PostMapping("/hospitals/{id}/owners")
+  public void grantOwner(@PathVariable long id, @Valid @RequestBody OwnerInput input) {
+    workspaces.grantOwner(id, input.userId());
+  }
+  @PostMapping("/departments/{id}/roles")
+  public Object grantRole(@PathVariable long id, @Valid @RequestBody RoleInput input) {
+    return workspaces.grantRole(id, input.userId(), input.role(), input.doctorId());
+  }
+
+  private static Integer hours(RotateInput input) {
+    return input == null ? null : input.expiresInHours();
+  }
+
+  private static boolean singleUse(RotateInput input) {
+    return input != null && Boolean.TRUE.equals(input.singleUse());
+  }
 }

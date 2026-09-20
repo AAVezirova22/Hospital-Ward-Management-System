@@ -31,7 +31,7 @@ class RegistrationIntegrationTest {
  @BeforeEach void setup(){when(email.configured()).thenReturn(true);}
  String signup(String requestedRole) throws Exception {
    String name="signup_"+UUID.randomUUID().toString().substring(0,8);
-   var body=Map.of("username",name,"email",name+"@example.test","password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole",requestedRole);
+   var body=Map.of("username",name,"email",name+"@example.test","password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole",requestedRole,"hospitalId",1);
    mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isOk());
    return name;
  }
@@ -60,7 +60,20 @@ class RegistrationIntegrationTest {
  @Test void deliveryFailureRollsBackNewAccount() throws Exception {
    doThrow(new com.example.hospital.api.ApiException(503,"EMAIL_UNAVAILABLE","Delivery unavailable")).when(email).send(anyString(),anyString(),anyString(),anyBoolean(),anyInt());
    String name="failure_"+UUID.randomUUID().toString().substring(0,8);
-   mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("username",name,"email",name+"@example.test","password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole","PATIENT")))).andExpect(status().isServiceUnavailable());
+   mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("username",name,"email",name+"@example.test","password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole","PATIENT","hospitalId",1)))).andExpect(status().isServiceUnavailable());
    assertThat(users.findByUsername(name)).isEmpty();
+ }
+ @Test void signupAttachesThePatientToTheChosenHospital() throws Exception {
+   var created=json.readTree(mvc.perform(post("/api/v1/workspaces/hospitals").with(user("admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Signup Clinic\",\"departmentName\":\"Intake\"}")).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+   long hospitalId=created.get("hospitalId").asLong();
+   long departmentId=created.get("departmentId").asLong();
+   String name="hosp_"+UUID.randomUUID().toString().substring(0,8);
+   var body=new java.util.LinkedHashMap<String,Object>();
+   body.put("username",name); body.put("email",name+"@example.test"); body.put("password","RegistrationPassword123!");
+   body.put("firstName","Maya"); body.put("lastName","Koleva"); body.put("dateOfBirth","1994-03-12");
+   body.put("requestedRole","PATIENT"); body.put("hospitalId",hospitalId);
+   mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isOk());
+   Long patientId=users.findByUsername(name).orElseThrow().patientId;
+   assertThat(jdbc.queryForObject("select department_id from patients where id=?", Long.class, patientId)).isEqualTo(departmentId);
  }
 }

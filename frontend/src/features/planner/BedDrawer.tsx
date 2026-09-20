@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { X, ArrowRight } from "lucide-react";
-import { date, fullName } from "../../api";
+import { date, fullName, patientHref } from "../../api";
 import type { AdmissionView } from "../../api/contracts";
 import { useUser } from "../../components/workspace";
 import { Workflow } from "../admissions/Workflow";
@@ -58,7 +58,7 @@ export function BedDrawer({
         </dl>
         <Link
           className="secondary"
-          href={`/app/patients/${admission.patient.id}`}
+          href={patientHref(admission.patient)}
         >
           View patient timeline <ArrowRight size={16} />
         </Link>

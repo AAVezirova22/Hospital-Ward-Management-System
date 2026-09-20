@@ -5,6 +5,7 @@ import com.example.hospital.domain.*;
 import com.example.hospital.security.Actor;
 import com.example.hospital.service.*;
 import java.time.*;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -14,32 +15,19 @@ public class AiToolRegistry {
   private final HospitalService h;
   private final AiActionService actions;
   private final Actor actor;
+  private final WorkspaceService workspaces;
 
-  public AiToolRegistry(HospitalService h, AiActionService a, Actor actor) {
+  public AiToolRegistry(HospitalService h, AiActionService a, Actor actor, WorkspaceService workspaces) {
     this.h = h;
     actions = a;
     this.actor = actor;
+    this.workspaces = workspaces;
   }
 
   public record Response(
       String responseType, String message, Object data, String sessionId, String model) {}
 
-  public static final Map<String, List<String>> SCHEMAS =
-      Map.ofEntries(
-          Map.entry("searchPatients", List.of("query")),
-          Map.entry("getPatientSummary", List.of("patientQuery")),
-          Map.entry("getAvailableRooms", List.of("minimumFreeBeds")),
-          Map.entry("getRoomOccupancy", List.of("minimumFreeBeds")),
-          Map.entry("getDoctorPatients", List.of("doctorQuery")),
-          Map.entry("getAdmission", List.of("admissionId")),
-          Map.entry("getAdmissions", List.of("from", "to")),
-          Map.entry("getProcedureStatistics", List.of("from", "to")),
-          Map.entry("getDashboardSummary", List.of()),
-          Map.entry("prepareAdmission", List.of("patientQuery", "doctorQuery", "roomNumber")),
-          Map.entry("prepareTransfer", List.of("patientQuery", "roomNumber")),
-          Map.entry("prepareDischarge", List.of("patientQuery")),
-          Map.entry("navigate", List.of("route")),
-          Map.entry("help", List.of()));
+  public static final Map<String, List<String>> SCHEMAS = AiToolSchemas.SCHEMAS;
 
   public List<Map<String, Object>> agentDefinitions() {
     var definitions = new ArrayList<>(definitions());
@@ -152,19 +140,21 @@ public class AiToolRegistry {
     if (actor.doctor() && call.name().startsWith("prepare"))
       throw new AccessDeniedException("Doctors cannot prepare admission changes");
     var a = call.arguments();
-    return switch (call.name()) {
+    try {
+      return switch (call.name()) {
       case "help" ->
           response(
               "TEXT",
-              "I can find patients, show room capacity, summarize records, report procedures and"
-                  + " prepare admissions, transfers or discharges. I cannot make clinical decisions"
-                  + " or change permissions.",
+              "I can find patients, show room capacity, summarize records, report procedures, list"
+                  + " your hospitals and prepare admissions, transfers or discharges. Tools stay"
+                  + " inside the open department unless you ask for listWorkspaces. I cannot make"
+                  + " clinical decisions or change permissions.",
               Map.of());
       case "searchPatients" ->
           response(
               "PATIENT_LIST",
               "Matching patients within your access.",
-              Map.of("patients", h.patients(a.getOrDefault("query", ""))));
+              Map.of("department", h.scopeLabel(), "patients", h.patients(a.getOrDefault("query", "")).stream().map(Views.PatientDirectory::of).toList()));
       case "getPatientSummary" ->
           response(
               "PATIENT_SUMMARY",
@@ -218,6 +208,35 @@ public class AiToolRegistry {
                   null));
       case "getDashboardSummary" ->
           response("REPORT_RESULT", "Current department operations.", h.dashboard());
+      case "listWorkspaces" ->
+          response(
+              "REPORT_RESULT",
+              "Hospitals and departments you can open. Clinical tools stay in the current department.",
+              Map.of(
+                  "activeDepartmentId",
+                  com.example.hospital.security.DepartmentContext.id(),
+                  "hospitals",
+                  workspaces.list().stream()
+                      .map(
+                          hospital ->
+                              Map.of(
+                                  "id",
+                                  hospital.id(),
+                                  "name",
+                                  hospital.name(),
+                                  "departments",
+                                  hospital.departments().stream()
+                                      .map(
+                                          department ->
+                                              Map.of(
+                                                  "id",
+                                                  department.id(),
+                                                  "name",
+                                                  department.name(),
+                                                  "role",
+                                                  department.role()))
+                                      .toList()))
+                      .toList()));
       case "navigate" -> {
         var route = a.getOrDefault("route", "");
         if (!Set.of(
@@ -228,9 +247,13 @@ public class AiToolRegistry {
                     "/app/doctors",
                     "/app/reports",
                     "/app/procedures",
-                    "/app/users")
+                    "/app/users",
+                    "/app/planner",
+                    "/app/audit",
+                    "/app/presentation")
                 .contains(route)
-            || !actor.user().role.equals("ADMIN") && route.equals("/app/users"))
+            && !route.matches("^/app/patients/.+")
+            || !actor.user().role.equals("ADMIN") && (route.equals("/app/users") || route.equals("/app/audit")))
           throw new AccessDeniedException("Route not available");
         yield response("NAVIGATION_COMMAND", "Open requested view.", Map.of("route", route));
       }
@@ -244,7 +267,7 @@ public class AiToolRegistry {
             yield response(
                 "NAVIGATION_COMMAND",
                 "Select the room and doctor in the standard admission or transfer form.",
-                Map.of("route", "/app/patients/" + p.id));
+                Map.of("route", "/app/patients/" + p.patientIdentifier));
           var rm =
               h.rooms(1).stream()
                   .filter(
@@ -262,7 +285,7 @@ public class AiToolRegistry {
             yield response(
                 "NAVIGATION_COMMAND",
                 "Select an attending doctor in the admission form.",
-                Map.of("route", "/app/patients/" + p.id));
+                Map.of("route", "/app/patients/" + p.patientIdentifier));
           doctorId = doctor(a.get("doctorQuery")).id;
           if (h.admissions().stream()
               .anyMatch(ad -> ad.patientId.equals(p.id) && ad.status.equals("ACTIVE")))
@@ -288,6 +311,10 @@ public class AiToolRegistry {
                     p.id, admissionId, roomId, doctorId, version, "User-requested AI transfer")));
       }
       default -> throw new IllegalArgumentException();
-    };
+      };
+    } catch (NumberFormatException | DateTimeParseException | IllegalArgumentException e) {
+      throw new ApiException(
+          400, "INVALID_TOOL_CALL", "The assistant returned an invalid tool request.");
+    }
   }
 }

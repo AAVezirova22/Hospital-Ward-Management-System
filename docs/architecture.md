@@ -38,17 +38,17 @@ erDiagram
 
 JPA models use scalar foreign-key identifiers to avoid accidental recursive entity serialization; PostgreSQL foreign keys enforce the relationships. All domain records have identity, creation/update timestamps and an optimistic `version`. Historical records cannot silently lose referenced catalogue entries. Catalogue entities and accounts are deactivated through validated updates rather than hard-deleted.
 
-Hospitals own departments. Staff join a hospital or a department with a rotating code. Hospital membership alone does not open clinical records; a department code grants medical staff access without administrator rights. Clinical tables carry `department_id` and Hibernate filters every load, including lookups by primary key.
+Hospitals own departments. Staff join a hospital or a department with a rotating code. Hospital membership alone does not open clinical records; a department code grants medical staff access without administrator rights. Codes can expire and can be issued as single-use invites; joining with a single-use code rotates it immediately. Clinical tables carry `department_id` and Hibernate filters every load, including lookups by primary key.
 
 Partial unique indexes enforce one active admission per patient and one unreleased room assignment per admission. Bed availability derives from unreleased assignments; it is not a separate stored counter. Procedure prices are copied into `priceAtExecution` at recording time.
 
 ## Transactions and concurrency
 
-`WorkflowLockRepository.acquire()` takes a pessimistic write lock on one pre-created database row. Admission, transfer, discharge, doctor reassignment, procedure recording, room capacity edits, doctor deactivation and account administration acquire this lock before checking current state. The lock persists until transaction completion. It serializes department-level writes and avoids lock-order deadlocks across source/destination rooms; ordinary reads remain concurrent.
+`WorkflowLockRepository.acquire()` takes a pessimistic write lock on the **current department's** pre-created `workflow_lock` row (id = `department_id`). Admission, transfer, discharge, doctor reassignment, procedure recording, room capacity edits, doctor deactivation and account administration acquire this lock before checking current state. The lock persists until transaction completion. It serializes department-level writes and avoids lock-order deadlocks across source/destination rooms; ordinary reads remain concurrent. Cross-department operations (demo reset) call `acquireAll()` and lock every row in id order, including the global sentinel (`id = 0`). New departments insert a matching lock row in the same transaction.
 
 A transfer releases the previous assignment, flushes it, inserts the next assignment, increments the admission version and writes an audit event in one transaction. Failure rolls the entire operation back. Discharge updates status, closes the assignment and releases the bed in one transaction. Existing-record edits require the version last displayed to the user.
 
-For a large multi-department deployment, the global row should become a department-scoped lock or a consistently ordered per-room locking strategy, accompanied by native PostgreSQL load tests. Clinical records are already isolated per department; the write lock is still process-wide.
+Clinical records are isolated per department, and the write lock is now department-scoped so an admission in Hospital A no longer blocks transfers in Hospital B.
 
 ## Access policy
 
@@ -76,7 +76,7 @@ The model returns a single `ToolCall`, never executable HTML or SQL. An explicit
 
 The default local command model requires no network. The external adapter implements the chat-completions function-tool envelope. It sends no bulk database dump and does not run a second generative pass over clinical notes. Summaries and report cards describe returned records directly. This keeps calculated totals authoritative and treats notes as display data, not instructions.
 
-The default limit is 20 requests per user per minute and one in-flight request per user per application process. The limiter is isolated from CRUD APIs. In a multi-instance deployment it must be backed by a shared rate limiter; this single-instance implementation uses expiring in-memory counters.
+The default limit is 20 requests per user per minute and one in-flight request per user per application process. The limiter is isolated from CRUD APIs. In a multi-instance deployment it must be backed by a shared rate limiter; this single-instance implementation uses expiring in-memory counters. Registration confirmation emails use the same process-local map: a restart or a second backend instance resets the window, so production multi-instance deployments must back both limiters with Redis or Postgres.
 
 Pending actions persist a server-built immutable payload, owner, creation time, expiry and status. The model cannot call confirmation. The confirmation endpoint checks current role, ownership, pending state, expiry, admission version, active status and current capacity. The confirmation and hospital mutation share one transaction. Expired proposals are persisted as expired while returning `409 ACTION_EXPIRED`; ordinary workflow errors retain their specific conflict response and roll back. Successful proposals become `EXECUTED`; replay is rejected. Cancellation is owner-only.
 

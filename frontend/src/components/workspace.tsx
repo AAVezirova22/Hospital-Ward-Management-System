@@ -27,13 +27,15 @@ export function Link({
   );
 }
 
-export function ErrorBox({ error }: { error: any }) {
-  return error ? (
+export function ErrorBox({ error }: { error: unknown }) {
+  if (!error) return null;
+  const message = error instanceof Error ? error.message : String(error);
+  return (
     <div className="error" role="alert">
       <AlertCircle size={17} />
-      {error.message || String(error)}
+      {message}
     </div>
-  ) : null;
+  );
 }
 export function Empty({ text = "No records found." }: { text?: string }) {
   return (
@@ -64,9 +66,17 @@ export function Modal({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
   useEffect(() => {
+    opener.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     ref.current?.showModal();
-    return () => ref.current?.close();
+    return () => {
+      ref.current?.close();
+      opener.current?.focus();
+    };
   }, []);
   return (
     <dialog
@@ -92,7 +102,7 @@ export function Title({
   description,
   children,
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description: string;
   children?: React.ReactNode;
@@ -100,7 +110,7 @@ export function Title({
   return (
     <div className="page-heading">
       <div>
-        <span className="eyebrow">{eyebrow}</span>
+        {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
         <h1>{title}</h1>
         <p>{description}</p>
       </div>

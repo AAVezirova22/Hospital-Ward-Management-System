@@ -14,7 +14,7 @@ import {
   Title,
 } from "../../components/workspace";
 import { Plus, MoveRight, ArrowRight } from "lucide-react";
-import { EntityForm } from "../administration/Catalogue";
+import { EntityForm } from "../administration/EntityForm";
 import { Workflow } from "../admissions/Workflow";
 import { CareTimeline } from "./CareTimeline";
 export function PatientDetail({ id }: { id: string }) {

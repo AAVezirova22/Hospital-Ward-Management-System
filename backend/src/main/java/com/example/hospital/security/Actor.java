@@ -31,6 +31,8 @@ public class Actor {
     view.emailVerified = user.emailVerified; view.requestedRole = user.requestedRole;
     view.enabled = user.enabled; view.lastLoginAt = user.lastLoginAt;
     view.createdAt = user.createdAt; view.updatedAt = user.updatedAt;
+    view.accountRole = user.role;
+    view.departmentRole = scope.role();
     return view;
   }
 

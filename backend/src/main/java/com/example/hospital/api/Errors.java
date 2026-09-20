@@ -73,13 +73,43 @@ public class Errors {
     CannotAcquireLockException.class
   })
   ResponseEntity<?> conflict(Exception e, HttpServletRequest r) {
-    return ResponseEntity.status(409)
-        .body(
-            body(
-                409,
-                "DATA_CONFLICT",
-                "The record conflicts with existing or recently changed data. Refresh and try"
-                    + " again.",
-                r.getRequestURI()));
+    String detail = detail(e).toLowerCase();
+    String code = "DATA_CONFLICT";
+    String message =
+        "The record conflicts with existing or recently changed data. Refresh and try again.";
+    if (detail.contains("patient_identifier") || detail.contains("patients_department_id_patient_identifier")) {
+      code = "PATIENT_IDENTIFIER_TAKEN";
+      message = "A patient with this identifier already exists in the department.";
+    } else if (detail.contains("username") || detail.contains("app_users_username")) {
+      code = "USERNAME_TAKEN";
+      message = "That username is already in use.";
+    } else if (detail.contains("join_code") || detail.contains("hospitals_join") || detail.contains("departments_join")) {
+      code = "JOIN_CODE_TAKEN";
+      message = "That join code is already in use. Rotate and try again.";
+    } else if (detail.contains("hospitals_name_unique") || detail.contains("hospitals_name")) {
+      code = "HOSPITAL_NAME_TAKEN";
+      message = "A hospital with this name already exists.";
+    } else if (detail.contains("doctor_identifier")) {
+      code = "DOCTOR_IDENTIFIER_TAKEN";
+      message = "A doctor with this identifier already exists in the department.";
+    } else if (detail.contains("room_number")) {
+      code = "ROOM_NUMBER_TAKEN";
+      message = "A room with this number already exists in the department.";
+    } else if (detail.contains("procedure_code")) {
+      code = "PROCEDURE_CODE_TAKEN";
+      message = "A procedure with this code already exists in the department.";
+    } else if (detail.contains("one_active_admission")) {
+      code = "ALREADY_ADMITTED";
+      message = "This patient already has an active admission.";
+    }
+    return ResponseEntity.status(409).body(body(409, code, message, r.getRequestURI()));
+  }
+
+  private static String detail(Throwable e) {
+    var text = new StringBuilder();
+    for (Throwable t = e; t != null; t = t.getCause()) {
+      if (t.getMessage() != null) text.append(t.getMessage()).append(' ');
+    }
+    return text.toString();
   }
 }

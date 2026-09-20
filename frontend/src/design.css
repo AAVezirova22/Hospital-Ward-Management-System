@@ -1289,3 +1289,6 @@ footer .live-dot {
     background: #071310ed;
   }
 }
+.expected-discharge small {
+  color: var(--gold);
+}

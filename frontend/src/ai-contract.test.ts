@@ -34,6 +34,7 @@ describe("assistant response boundaries", () => {
   });
   it("accepts only known internal routes", () => {
     expect(safeRoute.parse("/app/patients/42")).toBe("/app/patients/42");
+    expect(safeRoute.parse("/app/patients/PAT-0001")).toBe("/app/patients/PAT-0001");
     expect(safeRoute.parse("/app/reports")).toBe("/app/reports");
   });
   it("rejects unknown response types", () => {

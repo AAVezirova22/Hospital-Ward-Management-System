@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, login, setActiveDepartment, token } from "./api";
+import {
+  api,
+  bindAccount,
+  login,
+  logout,
+  setActiveDepartment,
+  token,
+} from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("secure-session failures", () => {
@@ -92,5 +99,51 @@ describe("department scope", () => {
       "X-CSRF-TOKEN": "upload-csrf",
     });
     expect(fetchMock.mock.calls[1][1].credentials).toBe("include");
+  });
+  it("clears the remembered department on logout", async () => {
+    setActiveDepartment(12);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json({ token: "t", headerName: "X-CSRF-TOKEN" }),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 204 })),
+    );
+    await logout();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json([], { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api("/patients");
+    expect(
+      fetchMock.mock.calls[0][1].headers["X-Department-Id"],
+    ).toBeUndefined();
+  });
+  it("stores the selected department per account", async () => {
+    const store: Record<string, string> = {};
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+    });
+    bindAccount(1);
+    setActiveDepartment(12);
+    bindAccount(2);
+    setActiveDepartment(34);
+    bindAccount(1);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json([], { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api("/patients");
+    expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBe("12");
+    bindAccount(null);
+    setActiveDepartment(null);
   });
 });

@@ -1,7 +1,6 @@
 package com.example.hospital.service;
 
 import com.example.hospital.api.*;
-import com.example.hospital.api.Inputs.*;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
@@ -25,6 +24,7 @@ public class HospitalService {
   private final WorkflowLockRepository lock;
   private final Actor actor;
   private final AuditService audit;
+  private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
   public HospitalService(
       PatientRepository p,
@@ -36,7 +36,8 @@ public class HospitalService {
       PerformedProcedureRepository pp,
       WorkflowLockRepository l,
       Actor actor,
-      AuditService audit) {
+      AuditService audit,
+      org.springframework.jdbc.core.JdbcTemplate jdbc) {
     patients = p;
     doctors = d;
     rooms = r;
@@ -47,6 +48,7 @@ public class HospitalService {
     lock = l;
     this.actor = actor;
     this.audit = audit;
+    this.jdbc = jdbc;
   }
 
   public void accessible(Long patientId) {
@@ -84,6 +86,22 @@ public class HospitalService {
         .toList();
   }
 
+  public Patient patientByRef(String ref) {
+    if (ref == null || ref.isBlank()) throw ApiException.missing();
+    if (ref.chars().allMatch(Character::isDigit)) return patient(Long.parseLong(ref));
+    var found =
+        patients.findAll().stream()
+            .filter(p -> p.patientIdentifier.equals(ref))
+            .findFirst()
+            .orElseThrow(ApiException::missing);
+    accessible(found.id);
+    return found;
+  }
+
+  public Map<String, Object> summary(String ref) {
+    return summary(patientByRef(ref).id);
+  }
+
   public List<Doctor> doctors() {
     return doctors.findAll();
   }
@@ -111,6 +129,16 @@ public class HospitalService {
 
   public long occupied(Long id) {
     return assignments.countByRoomIdAndReleasedAtIsNull(id);
+  }
+
+  public String scopeLabel() {
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    var rows =
+        jdbc.queryForList(
+            "select h.name as hospital, d.name as department from departments d join hospitals h on h.id=d.hospital_id where d.id=?",
+            departmentId);
+    if (rows.isEmpty()) return "Department " + departmentId;
+    return rows.getFirst().get("hospital") + " / " + rows.getFirst().get("department");
   }
 
   public List<Map<String, Object>> rooms(int minFree) {
@@ -192,7 +220,7 @@ public class HospitalService {
     p.lastName = in.lastName().trim();
     p.dateOfBirth = in.dateOfBirth();
     p.address = in.address();
-    p.phoneNumber = in.phoneNumber();
+    p.phoneNumber = in.phoneNumber() == null || in.phoneNumber().isBlank() ? null : in.phoneNumber().trim();
     patients.saveAndFlush(p);
     audit.log(id == null ? "PATIENT_CREATED" : "PATIENT_UPDATED", "Patient", p.id, "UI");
     return p;
@@ -386,26 +414,75 @@ public class HospitalService {
   }
 
   public Map<String, Object> dashboard() {
-    var all = admissions();
-    var rms = rooms(0);
-    var today = LocalDate.now(ZoneOffset.UTC);
-    var ps = procedureReport(today, today, null, null);
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    Long doctorId = actor.doctor() ? actor.user().doctorId : null;
+    Long activeAdmissions =
+        doctorId == null
+            ? jdbc.queryForObject(
+                "select count(*) from admissions where department_id=? and status='ACTIVE'",
+                Long.class,
+                departmentId)
+            : jdbc.queryForObject(
+                "select count(*) from admissions where department_id=? and status='ACTIVE' and attending_doctor_id=?",
+                Long.class,
+                departmentId,
+                doctorId);
+    Long occupiedBeds =
+        jdbc.queryForObject(
+            "select count(*) from room_assignments ra join rooms r on r.id=ra.room_id where r.department_id=? and ra.released_at is null",
+            Long.class,
+            departmentId);
+    Long totalBeds =
+        jdbc.queryForObject(
+            "select coalesce(sum(bed_count),0) from rooms where department_id=? and active=true",
+            Long.class,
+            departmentId);
+    Long availableBeds =
+        jdbc.queryForObject(
+            """
+            select coalesce(sum(r.bed_count),0) - (
+              select count(*) from room_assignments ra join rooms x on x.id=ra.room_id
+              where x.department_id=? and ra.released_at is null and x.active=true)
+            from rooms r where r.department_id=? and r.active=true
+            """,
+            Long.class,
+            departmentId,
+            departmentId);
+    Long activeDoctors =
+        jdbc.queryForObject(
+            "select count(*) from doctors where department_id=? and active=true",
+            Long.class,
+            departmentId);
+    var start = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
+    var end = LocalDate.now(ZoneOffset.UTC).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+    Long proceduresToday =
+        doctorId == null
+            ? jdbc.queryForObject(
+                "select count(*) from performed_procedures where department_id=? and performed_at>=? and performed_at<?",
+                Long.class,
+                departmentId,
+                java.sql.Timestamp.from(start),
+                java.sql.Timestamp.from(end))
+            : jdbc.queryForObject(
+                "select count(*) from performed_procedures pp join admissions a on a.id=pp.admission_id where pp.department_id=? and pp.performed_at>=? and pp.performed_at<? and a.attending_doctor_id=?",
+                Long.class,
+                departmentId,
+                java.sql.Timestamp.from(start),
+                java.sql.Timestamp.from(end),
+                doctorId);
     return Map.of(
         "activeAdmissions",
-        all.stream().filter(a -> a.status.equals("ACTIVE")).count(),
+        activeAdmissions == null ? 0 : activeAdmissions,
         "occupiedBeds",
-        rms.stream().mapToLong(r -> ((Number) r.get("occupiedBeds")).longValue()).sum(),
+        occupiedBeds == null ? 0 : occupiedBeds,
         "totalBeds",
-        rms.stream()
-            .filter(r -> (boolean) r.get("active"))
-            .mapToLong(r -> ((Number) r.get("bedCount")).longValue())
-            .sum(),
+        totalBeds == null ? 0 : totalBeds,
         "availableBeds",
-        rms.stream().mapToLong(r -> ((Number) r.get("availableBeds")).longValue()).sum(),
+        availableBeds == null ? 0 : availableBeds,
         "activeDoctors",
-        doctors().stream().filter(d -> d.active).count(),
+        activeDoctors == null ? 0 : activeDoctors,
         "proceduresToday",
-        ((List<?>) ps.get("rows")).size(),
+        proceduresToday == null ? 0 : proceduresToday,
         "scope",
         actor.doctor() ? "Your assigned admissions; department bed capacity" : "Department");
   }

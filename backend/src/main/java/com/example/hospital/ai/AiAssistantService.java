@@ -1,7 +1,7 @@
 package com.example.hospital.ai;
 
 import com.example.hospital.api.*;
-import com.example.hospital.api.Inputs.MessageInput;
+import com.example.hospital.api.MessageInput;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
@@ -113,10 +113,21 @@ public class AiAssistantService {
         h.patient(in.selectedPatientId());
         s.selectedPatientId = in.selectedPatientId();
         sessions.save(s);
+      } else if (in.route() != null && in.route().startsWith("/app/patients/")) {
+        String ref = in.route().substring("/app/patients/".length()).split("[?#]")[0];
+        if (!ref.isBlank()) {
+          try {
+            s.selectedPatientId =
+                h.patientByRef(java.net.URLDecoder.decode(ref, java.nio.charset.StandardCharsets.UTF_8)).id;
+            sessions.save(s);
+          } catch (RuntimeException ignored) {
+            // Route may be the directory itself.
+          }
+        }
       }
       var sourceData = in.sourceIds() == null || in.sourceIds().isEmpty()
           ? List.<Map<String, String>>of() : sources.context(in.sourceIds());
-      var connected = in.connectedFiles() == null ? List.<Inputs.ConnectedFile>of() : in.connectedFiles();
+      var connected = in.connectedFiles() == null ? List.<MessageInput.ConnectedFile>of() : in.connectedFiles();
       boolean local = model.identifier().equals("local-command-model");
       AiToolRegistry.Response result;
       if (local && (!sourceData.isEmpty() || !connected.isEmpty())) {
@@ -138,7 +149,7 @@ public class AiAssistantService {
           if (call.name().equals("readConnectedFiles")) {
             AiToolRegistry.requireArgument(call, "ids", 700);
             var ids = Arrays.stream(call.arguments().get("ids").split(",")).map(String::strip).distinct().toList();
-            var allowed = connected.stream().map(Inputs.ConnectedFile::id).toList();
+            var allowed = connected.stream().map(MessageInput.ConnectedFile::id).toList();
             if (ids.isEmpty() || ids.size() > 10 || !allowed.containsAll(ids)) throw new IllegalArgumentException();
             result = new AiToolRegistry.Response("FILE_REQUEST", "Reading relevant files from your connected folder.",
                 Map.of("ids", ids), null, null);

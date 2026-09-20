@@ -1,4 +1,4 @@
-/* Operational components share the existing forest/mint tokens. */
+/* Workspace chrome tokens live in design.css. This file is layout-only. */
 .presentation-qr {
   display: flex;
   align-items: center;
@@ -579,8 +579,12 @@
 .presentation-mode .sidebar,
 .presentation-mode .topbar,
 .presentation-mode footer,
-.presentation-mode .demo-marker {
-  display: none;
+.presentation-mode .demo-marker,
+.presentation-mode .skip-link,
+.presentation-mode .mobile-scrim {
+  display: none !important;
+  pointer-events: none;
+  visibility: hidden;
 }
 .presentation-mode .workspace {
   margin-left: 0;
