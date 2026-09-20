@@ -1,32 +1,31 @@
-# Dedicated synthetic demo. Import this Blueprint; no secrets are stored here.
+# Blueprint for the existing hospital-ward services.
+# Keep these names and Docker settings aligned with the live Render services.
 databases:
-  - name: medcore-demo-db
-    plan: basic-256mb
-    databaseName: hospital
-    user: hospital
+  - name: hospital-ward-demo-db
+    plan: free
+    databaseName: hospital_ward_demo_db
+    user: hospital_ward_demo_db_user
     ipAllowList: []
 
 services:
   - type: web
-    name: medcore-demo-api
+    name: hospital-ward-backend
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     healthCheckPath: /api/v1/health
     envVars:
       - key: DATABASE_HOST
-        fromDatabase: { name: medcore-demo-db, property: host }
+        fromDatabase: { name: hospital-ward-demo-db, property: host }
       - key: DATABASE_PORT
-        fromDatabase: { name: medcore-demo-db, property: port }
+        fromDatabase: { name: hospital-ward-demo-db, property: port }
       - key: DATABASE_NAME
-        fromDatabase: { name: medcore-demo-db, property: database }
+        fromDatabase: { name: hospital-ward-demo-db, property: database }
       - key: DATABASE_USER
-        fromDatabase: { name: medcore-demo-db, property: user }
+        fromDatabase: { name: hospital-ward-demo-db, property: user }
       - key: DATABASE_PASSWORD
-        fromDatabase: { name: medcore-demo-db, property: password }
-      - key: BOOTSTRAP_PASSWORD
-        generateValue: true
+        fromDatabase: { name: hospital-ward-demo-db, property: password }
       - key: DEMO_SEED
         value: "true"
       - key: DEMO_MODE
@@ -35,24 +34,18 @@ services:
         value: "true"
       - key: AI_MODE
         value: local
-      - key: RESEND_API_KEY
-        sync: false
       - key: EMAIL_FROM
-        value: Medcore <onboarding@resend.dev>
-      - key: PUBLIC_APP_URL
-        sync: false
+        value: "Medcore <onboarding@resend.dev>"
   - type: web
-    name: medcore-demo-web
-    runtime: node
-    plan: starter
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    startCommand: node node_modules/next/dist/bin/next start --hostname 0.0.0.0 --port $PORT
+    name: hospital-ward-frontend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
     healthCheckPath: /manifest.webmanifest
     envVars:
-      - key: NODE_VERSION
-        value: "22"
+      # Build-time private address of the API service.
+      - key: API_INTERNAL_URL
+        value: ""
       - key: API_INTERNAL_HOSTPORT
-        fromService: { name: medcore-demo-api, type: web, property: hostport }
-      - key: PUBLIC_APP_URL
-        sync: false
+        fromService: { name: hospital-ward-backend, type: web, property: hostport }
