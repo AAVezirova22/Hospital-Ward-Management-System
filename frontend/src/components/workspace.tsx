@@ -27,13 +27,15 @@ export function Link({
   );
 }
 
-export function ErrorBox({ error }: { error: any }) {
-  return error ? (
+export function ErrorBox({ error }: { error: unknown }) {
+  if (!error) return null;
+  const message = error instanceof Error ? error.message : String(error);
+  return (
     <div className="error" role="alert">
       <AlertCircle size={17} />
-      {error.message || String(error)}
+      {message}
     </div>
-  ) : null;
+  );
 }
 export function Empty({ text = "No records found." }: { text?: string }) {
   return (
