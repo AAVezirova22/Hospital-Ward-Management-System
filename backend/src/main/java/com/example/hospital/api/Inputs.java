@@ -1,6 +1,8 @@
 package com.example.hospital.api;
 
 import jakarta.validation.constraints.*;
+import jakarta.validation.Valid;
+import java.util.List;
 import java.math.BigDecimal;
 import java.time.*;
 
@@ -65,5 +67,15 @@ public class Inputs {
       @Size(max = 64) String sessionId,
       @NotBlank @Size(max = 2000) String message,
       @Size(max = 120) String route,
-      Long selectedPatientId) {}
+      Long selectedPatientId,
+      @Size(max = 20) List<@NotBlank @Size(max = 64) String> sourceIds,
+      @Size(max = 300) List<@Valid ConnectedFile> connectedFiles) {
+    public MessageInput(String sessionId, String message, String route, Long selectedPatientId) {
+      this(sessionId, message, route, selectedPatientId, List.of(), List.of());
+    }
+  }
+
+  public record ConnectedFile(
+      @NotBlank @Size(max = 64) String id,
+      @NotBlank @Size(max = 300) String name) {}
 }
