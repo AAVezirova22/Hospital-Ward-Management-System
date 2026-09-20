@@ -420,7 +420,7 @@ button:hover .button-icon {
   left: 0;
   top: 50%;
   width: 3px;
-  height: 18px;
+  height: 22px;
   border-radius: 4px;
   background: var(--mint);
   transform: translateY(-50%);
