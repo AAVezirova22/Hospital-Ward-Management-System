@@ -38,4 +38,15 @@ class WorkspaceIsolationTest {
 
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper json;
+
+  ResultActions call(String who, String method, String path, Object body, Long department)
+      throws Exception {
+    MockHttpServletRequestBuilder request =
+        "POST".equals(method) ? post(path) : get(path);
+    request.with(user(who)).with(csrf());
+    if (department != null) request.header("X-Department-Id", department);
+    if (body != null)
+      request.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body));
+    return mvc.perform(request);
+  }
 }
