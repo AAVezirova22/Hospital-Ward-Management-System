@@ -9,6 +9,7 @@ export type User = {
   emailVerified?: boolean;
 };
 let csrf: { token: string; headerName: string } | null = null;
+let departmentId: string | null = null;
 export class ApiError extends Error {
   constructor(
     public status: number,
