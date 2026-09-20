@@ -116,6 +116,16 @@ public class HospitalService {
     return assignments.countByRoomIdAndReleasedAtIsNull(id);
   }
 
+  public String scopeLabel() {
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    var rows =
+        jdbc.queryForList(
+            "select h.name as hospital, d.name as department from departments d join hospitals h on h.id=d.hospital_id where d.id=?",
+            departmentId);
+    if (rows.isEmpty()) return "Department " + departmentId;
+    return rows.getFirst().get("hospital") + " / " + rows.getFirst().get("department");
+  }
+
   public List<Map<String, Object>> rooms(int minFree) {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
