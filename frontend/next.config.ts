@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const apiOrigin = (
-  process.env.API_INTERNAL_URL || "http://127.0.0.1:8080"
+  process.env.API_INTERNAL_URL ||
+  (process.env.API_INTERNAL_HOSTPORT
+    ? `http://${process.env.API_INTERNAL_HOSTPORT}`
+    : "http://127.0.0.1:8080")
 ).replace(/\/$/, "");
 
 const nextConfig: NextConfig = {

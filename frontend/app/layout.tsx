@@ -14,12 +14,20 @@ const geist = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: process.env.PUBLIC_APP_URL
+    ? new URL(process.env.PUBLIC_APP_URL)
+    : undefined,
   title: "Medcore | Hospital Operations",
   description: "Hospital department operations workspace",
   applicationName: "Medcore",
   appleWebApp: { capable: true, title: "Medcore", statusBarStyle: "default" },
-  openGraph: {title:"Medcore | Hospital Operations",description:"Live ward planning, clear care history, and human-confirmed operational assistance.",type:"website"},
-  twitter: {card:"summary_large_image"},
+  openGraph: {
+    title: "Medcore | Hospital Operations",
+    description:
+      "Live ward planning, clear care history, and human-confirmed operational assistance.",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image" },
   icons: { icon: "/favicon.svg" },
 };
 
