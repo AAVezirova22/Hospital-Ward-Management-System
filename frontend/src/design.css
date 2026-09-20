@@ -480,6 +480,7 @@ button:hover .button-icon {
 .workspace {
   margin-left: 274px;
   padding-right: 18px;
+  overflow-x: clip;
 }
 .topbar {
   height: 94px;
