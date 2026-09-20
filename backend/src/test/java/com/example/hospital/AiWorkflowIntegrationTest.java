@@ -186,11 +186,11 @@ class AiWorkflowIntegrationTest {
       var source = body(mvc.perform(multipart("/api/v1/assistant/sources")
           .file(new MockMultipartFile("file", "source." + extensions.get(i), "application/octet-stream", bytes.get(i)))
           .with(user("admin")).with(csrf()).header("X-Department-Id", "1")));
-      when(model.complete(anyString(), any())).thenAnswer(inv -> {
+      doAnswer(inv -> {
         AiModelClient.Context ctx = inv.getArgument(1);
         assertThat(ctx.sources().getFirst().get("text")).contains("workflow source");
         return new AiModelClient.ToolCall("respond", Map.of("message", "Read successfully."));
-      });
+      }).when(model).complete(anyString(), any());
       postJson("admin", "/assistant/messages", Map.of("message", "Read", "sourceIds", List.of(source.get("id").asText())))
           .andExpect(status().isOk());
     }
