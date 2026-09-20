@@ -213,8 +213,11 @@ public class Bootstrap implements CommandLineRunner {
 
   private void enroll(AppUser user) {
     users.flush();
-    jdbc.update("insert into hospital_memberships(hospital_id,user_id,owner) values (1,?,?) on conflict do nothing", user.id, "ADMIN".equals(user.role));
-    jdbc.update("insert into department_memberships(department_id,user_id,role,doctor_id) values (1,?,?,?) on conflict do nothing", user.id, user.role, user.doctorId);
+    Long hospitalId = jdbc.queryForObject("select id from hospitals where name=? order by id limit 1", Long.class, "Medcore Hospital");
+    if (hospitalId == null) hospitalId = jdbc.queryForObject("select id from hospitals order by id limit 1", Long.class);
+    Long departmentId = jdbc.queryForObject("select id from departments where hospital_id=? order by id limit 1", Long.class, hospitalId);
+    jdbc.update("insert into hospital_memberships(hospital_id,user_id,owner) values (?,?,?) on conflict do nothing", hospitalId, user.id, "ADMIN".equals(user.role));
+    jdbc.update("insert into department_memberships(department_id,user_id,role,doctor_id) values (?,?,?,?) on conflict do nothing", departmentId, user.id, user.role, user.doctorId);
   }
 
   private void event(Long userId, String type, Long admissionId, Instant time) {
