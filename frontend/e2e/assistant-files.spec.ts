@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
 async function openAssistant(page: Page) {
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByLabel("Username", { exact: true }).fill("admin");
   await page
     .getByLabel("Password", { exact: true })

@@ -16,8 +16,9 @@ const signupSchema = z.object({
   requestedRole: z.enum(["PATIENT", "DOCTOR"]),
 });
 
-type SignupValues = z.input<typeof signupSchema>;
 type SignupBody = z.output<typeof signupSchema>;
+type SignupValues = z.infer<typeof signupSchema>;
+type SignupInput = z.input<typeof signupSchema>;
 
 export function Registration({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false),
@@ -29,7 +30,7 @@ export function Registration({ onBack }: { onBack: () => void }) {
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<SignupValues, unknown, SignupBody>({
+  } = useForm<SignupValues, unknown, SignupBody, SignupInput>({
     resolver: zodResolver(signupSchema),
     defaultValues: { requestedRole: "PATIENT" },
   });

@@ -122,8 +122,52 @@ export function AssistantSources({
 }) {
   const upload = useRef<HTMLInputElement>(null);
   const folder = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   return (
-    <section className="assistant-sources" aria-label="Assistant files">
+    <section
+      className={`assistant-sources${dragging ? " is-dragging" : ""}`}
+      aria-label="Assistant files"
+      onDragEnter={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        dragDepth.current++;
+        if (!busy) setDragging(true);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = busy ? "none" : "copy";
+      }}
+      onDragLeave={() => {
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        if (busy) return;
+        const files = Array.from(event.dataTransfer.files);
+        if (!files.length) return;
+        run(async () => {
+          for (const file of files) await model.add(file);
+        });
+      }}
+    >
+      <button
+        type="button"
+        className="assistant-drop-target"
+        disabled={busy}
+        onClick={() => upload.current?.click()}
+      >
+        <strong>
+          {dragging
+            ? "Release to attach your files"
+            : "Drop files into your workflow"}
+        </strong>
+        <span>Documents, spreadsheets, and PDFs. Up to 5 MB per file.</span>
+      </button>
       <div className="actions">
         <button
           type="button"

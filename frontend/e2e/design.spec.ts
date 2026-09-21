@@ -4,7 +4,7 @@ test("cinematic sign-in, themes, mobile layout and service error", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
-  await page.goto("/");
+  await page.goto("/app");
   await expect(
     page.getByRole("heading", { name: "Welcome back." }),
   ).toBeVisible();
@@ -44,7 +44,7 @@ test("redesigned workspace has working navigation and both themes", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
-  await page.goto("/");
+  await page.goto("/app");
   await page.getByLabel("Username", { exact: true }).fill("admin");
   await page
     .getByLabel("Password", { exact: true })

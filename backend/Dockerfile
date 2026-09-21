@@ -3,7 +3,7 @@ WORKDIR /build
 COPY pom.xml .
 RUN mvn -B dependency:go-offline
 COPY src src
-RUN mvn -B package -DskipTests
+RUN mvn -B package -Dmaven.test.skip=true
 FROM eclipse-temurin:24-jre-alpine
 RUN addgroup -S medcore && adduser -S medcore -G medcore
 WORKDIR /app

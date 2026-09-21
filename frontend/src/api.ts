@@ -1,4 +1,7 @@
 import type { Admission, Doctor, Patient } from "./api/contracts";
+
+// Legacy pages consume several endpoint shapes that are not fully modeled yet.
+// Known fields are typed explicitly; additional fields remain allowed.
 export type Row = Record<string, unknown> & {
   id?: number;
   admission?: Admission;
@@ -116,7 +119,7 @@ export async function token() {
   csrf = result;
   return csrf!;
 }
-export async function api<T = unknown>(
+export async function api<T = any>(
   path: string,
   method = "GET",
   body?: unknown,

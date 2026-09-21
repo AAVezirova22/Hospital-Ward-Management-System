@@ -6,13 +6,19 @@ import { NextRequest, NextResponse } from "next/server";
 const development = process.env.NODE_ENV !== "production";
 
 function csp(nonce: string) {
+  const development = process.env.NODE_ENV === "development";
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${nonce}'`,
+development
+  ? "style-src 'self' 'unsafe-inline'"
+  : `style-src 'self' 'nonce-${nonce}'`,
+"style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     development ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
     "font-src 'self'",
+    "media-src 'self'",
+    "form-action 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
