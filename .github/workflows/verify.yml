@@ -43,7 +43,10 @@ jobs:
         run: mvn -B -f backend/pom.xml verify
       - name: Frontend typecheck and production build
         working-directory: frontend
-        run: npm ci && npm run test && npm run build
+        # The proxy destination is written into the build, so it is named explicitly here.
+        env:
+          API_INTERNAL_URL: http://localhost:8080
+        run: npm ci && npm run test && npm run typecheck && npm run build
       - name: Install browser
         working-directory: frontend
         run: npx playwright install --with-deps chromium

@@ -71,22 +71,29 @@ public class StayService {
     return hospital.admissionView(hospital.admission(id));
   }
 
+  // The view wrappers call the write methods on this same bean, which bypasses the proxy,
+  // so each one has to open the transaction itself.
+  @Transactional
   public Object admit(AdmissionInput in) {
     return Views.admission(create(in, "UI"));
   }
 
+  @Transactional
   public Object transfer(Long id, TransferInput in) {
     return Views.admission(move(id, in, "UI"));
   }
 
+  @Transactional
   public Object discharge(Long id, DischargeInput in) {
     return Views.admission(close(id, in.version(), "UI"));
   }
 
+  @Transactional
   public Object changeDoctor(Long id, Long doctorId, Long version) {
     return Views.admission(reassign(id, doctorId, version));
   }
 
+  @Transactional
   public Object recordProcedure(Long id, RecordProcedureInput in) {
     return Views.performed(record(id, in));
   }

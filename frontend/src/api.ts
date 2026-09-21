@@ -1,6 +1,29 @@
-// These pages still consume several endpoint shapes that are not modeled yet.
-// Keep the shared legacy row type permissive; typed endpoints use api/contracts.
-export type Row = any;
+import type { Admission, Doctor, Patient } from "./api/contracts";
+
+// Legacy pages consume several endpoint shapes that are not fully modeled yet.
+// Known fields are typed explicitly; additional fields remain allowed.
+export type Row = Record<string, unknown> & {
+  id?: number;
+  admission?: Admission;
+  patient?: Patient;
+  doctor?: Doctor;
+  rooms?: unknown;
+  admissions?: unknown;
+  assignment?: unknown;
+  eventType?: string;
+  entityType?: string;
+  entityId?: number;
+  userId?: number;
+  source?: string;
+  timestamp?: string;
+  metadata?: string;
+  firstName?: string;
+  lastName?: string;
+  patientIdentifier?: string;
+  roomNumber?: string;
+  availableBeds?: number;
+  status?: string;
+};
 export type User = {
   id: number;
   username: string;
@@ -222,11 +245,11 @@ export async function logout() {
 export const fullName = (
   p: { firstName?: string; lastName?: string } | null | undefined,
 ) => (p ? `${p.firstName} ${p.lastName}` : "Not recorded");
-export const money = (n: number) =>
+export const money = (n: number | null | undefined) =>
   new Intl.NumberFormat("en", { style: "currency", currency: "EUR" }).format(
     n || 0,
   );
-export const date = (v: string) =>
+export const date = (v: string | null | undefined) =>
   v
     ? new Date(v).toLocaleString("en-GB", {
         dateStyle: "medium",

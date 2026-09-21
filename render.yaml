@@ -1,3 +1,13 @@
+# Dedicated synthetic demo. Import this Blueprint; no secrets are stored here.
+#
+# The service names below must match the services that actually serve the deployment
+# (https://hospital-ward-frontend.onrender.com), otherwise a Blueprint sync creates a second set
+# of services and leaves the live ones wired by hand. Rename here to match, or rename in Render.
+#
+# The web service reaches the API over Render's private network, so both services must stay in the
+# same region. API_INTERNAL_HOSTPORT is read while the web service is BUILT, not when it starts:
+# Next writes the proxy destination into the build output. Changing the address therefore requires
+# a rebuild ("Clear build cache & deploy"), not a restart.
 # Blueprint for the existing hospital-ward services.
 # Keep these names and Docker settings aligned with the live Render services.
 databases:
@@ -38,14 +48,16 @@ services:
         value: "Medcore <onboarding@resend.dev>"
   - type: web
     name: hospital-ward-frontend
-    runtime: docker
-    plan: free
-    dockerfilePath: ./frontend/Dockerfile
-    dockerContext: ./frontend
-    healthCheckPath: /manifest.webmanifest
-    envVars:
-      # Build-time private address of the API service.
-      - key: API_INTERNAL_URL
-        value: ""
-      - key: API_INTERNAL_HOSTPORT
-        fromService: { name: hospital-ward-backend, type: web, property: hostport }
+runtime: docker
+plan: free
+dockerfilePath: ./frontend/Dockerfile
+dockerContext: ./frontend
+healthCheckPath: /manifest.webmanifest
+envVars:
+  - key: API_INTERNAL_URL
+    value: ""
+  - key: API_INTERNAL_HOSTPORT
+    fromService:
+      name: hospital-ward-backend
+      type: web
+      property: hostport

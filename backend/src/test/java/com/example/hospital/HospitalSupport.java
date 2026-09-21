@@ -10,13 +10,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.hospital.repository.AdmissionRepository;
 import com.example.hospital.repository.AppUserRepository;
 import com.example.hospital.repository.RoomAssignmentRepository;
+import com.example.hospital.security.DepartmentContext;
+import com.example.hospital.security.WorkspaceAccess;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -62,10 +64,25 @@ abstract class HospitalSupport {
   }
 
   @Autowired MockMvc mvc;
+  @Autowired WorkspaceAccess workspaces;
   @Autowired ObjectMapper json;
   @Autowired AppUserRepository users;
   @Autowired RoomAssignmentRepository assignments;
   @Autowired AdmissionRepository admissions;
+
+  /**
+   * The scope filter clears the request scope once a request finishes, so department-filtered
+   * repository assertions on the test thread would otherwise see an empty department. Re-adopt the
+   * acting account's scope after every request, and before the first one.
+   */
+  @org.junit.jupiter.api.BeforeEach
+  void adoptDepartmentScope() {
+    scopeAs("admin");
+  }
+
+  void scopeAs(String who) {
+    users.findByUsername(who).ifPresent(u -> DepartmentContext.set(workspaces.resolve(u, null)));
+  }
 
   String unique() {
     return UUID.randomUUID().toString().substring(0, 10);
@@ -81,7 +98,11 @@ abstract class HospitalSupport {
     b.with(user(who)).with(csrf());
     if (body != null)
       b.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body));
-    return mvc.perform(b);
+    try {
+      return mvc.perform(b);
+    } finally {
+      scopeAs(who);
+    }
   }
 
   JsonNode result(ResultActions r, int status) throws Exception {

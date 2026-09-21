@@ -36,6 +36,11 @@ public class AiAssistantService {
   private final ConcurrentHashMap<String, Conversation> conversations = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Long, Window> windows = new ConcurrentHashMap<>();
 
+  /** One in-flight assistant request per user; every read and write holds the instance monitor. */
+  private static final class Window {
+    private boolean busy;
+  }
+
 
 
   public AiAssistantService(

@@ -16,6 +16,7 @@ const signupSchema = z.object({
   requestedRole: z.enum(["PATIENT", "DOCTOR"]),
 });
 
+type SignupBody = z.output<typeof signupSchema>;
 type SignupValues = z.infer<typeof signupSchema>;
 type SignupInput = z.input<typeof signupSchema>;
 
@@ -29,7 +30,7 @@ export function Registration({ onBack }: { onBack: () => void }) {
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<SignupInput, unknown, SignupValues>({
+  } = useForm<SignupValues, unknown, SignupBody, SignupInput>({
     resolver: zodResolver(signupSchema),
     defaultValues: { requestedRole: "PATIENT" },
   });
@@ -78,11 +79,19 @@ export function Registration({ onBack }: { onBack: () => void }) {
           <div className="registration-names">
             <label>
               First name
-              <input autoComplete="given-name" maxLength={100} {...register("firstName")} />
+              <input
+                autoComplete="given-name"
+                maxLength={100}
+                {...register("firstName")}
+              />
             </label>
             <label>
               Last name
-              <input autoComplete="family-name" maxLength={100} {...register("lastName")} />
+              <input
+                autoComplete="family-name"
+                maxLength={100}
+                {...register("lastName")}
+              />
             </label>
           </div>
           <label>
@@ -109,7 +118,12 @@ export function Registration({ onBack }: { onBack: () => void }) {
           </label>
           <label>
             Email
-            <input type="email" autoComplete="email" maxLength={254} {...register("email")} />
+            <input
+              type="email"
+              autoComplete="email"
+              maxLength={254}
+              {...register("email")}
+            />
           </label>
           <label>
             Username
@@ -122,7 +136,11 @@ export function Registration({ onBack }: { onBack: () => void }) {
           </label>
           <label>
             Password
-            <input type="password" autoComplete="new-password" {...register("password")} />
+            <input
+              type="password"
+              autoComplete="new-password"
+              {...register("password")}
+            />
           </label>
           <small>At least 12 characters, at most 72 UTF-8 bytes.</small>
           <label>
@@ -140,7 +158,11 @@ export function Registration({ onBack }: { onBack: () => void }) {
               and links approved accounts to a doctor profile.
             </p>
           )}
-          {(error || errors.firstName || errors.username || errors.password || errors.email) && (
+          {(error ||
+            errors.firstName ||
+            errors.username ||
+            errors.password ||
+            errors.email) && (
             <p className="error" role="alert">
               {error || "Check the highlighted fields and try again."}
             </p>
@@ -258,4 +280,3 @@ export function ResendConfirmation() {
     </details>
   );
 }
-

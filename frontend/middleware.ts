@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// React's development build evaluates code at runtime and reports "eval() is not supported in this
+// environment" under a policy without 'unsafe-eval'; the dev client also opens a hot-reload
+// websocket. Both relaxations are development-only, so the deployed policy is unchanged.
+const development = process.env.NODE_ENV !== "production";
+
 function csp(nonce: string) {
   const development = process.env.NODE_ENV === "development";
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
-    development
-      ? "style-src 'self' 'unsafe-inline'"
-      : `style-src 'self' 'nonce-${nonce}'`,
-    // React, next/image, Motion and GSAP write element style attributes.
-    "style-src-attr 'unsafe-inline'",
+development
+  ? "style-src 'self' 'unsafe-inline'"
+  : `style-src 'self' 'nonce-${nonce}'`,
+"style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     development ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
     "font-src 'self'",

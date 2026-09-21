@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AdmissionView, Doctor, RoomCapacity } from "./api/contracts";
 export const safeRoute = z
   .string()
   .regex(
@@ -126,6 +127,10 @@ export const aiResponse = z.discriminatedUnion("responseType", [
           })
           .passthrough(),
         patient,
+        // The card carries the authorized records the backend already validated and scoped.
+        current: z.custom<AdmissionView>().optional(),
+        destination: z.custom<RoomCapacity>().optional(),
+        doctor: z.custom<Doctor>().optional(),
       })
       .passthrough(),
   }),

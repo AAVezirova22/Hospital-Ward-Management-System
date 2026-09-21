@@ -41,6 +41,8 @@ public class WorkspaceService {
         }, user.getId());
   }
 
+  /** Revealing a join code is itself an audited action, so this runs read-write. */
+  @Transactional
   public String reveal(boolean hospital, long id) {
     if (hospital) owner(id);
     else departmentAdmin(id);

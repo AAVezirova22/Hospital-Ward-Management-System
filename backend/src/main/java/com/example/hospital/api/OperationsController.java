@@ -14,6 +14,10 @@ public class OperationsController {
   public OperationsController(OperationsService operations, com.example.hospital.service.OperationsStream stream) { this.operations = operations; this.stream = stream; }
   @GetMapping(value="/operations/stream", produces="text/event-stream")
   public org.springframework.web.servlet.mvc.method.annotation.SseEmitter stream(jakarta.servlet.http.HttpServletResponse response) {
+    // A proxy that compresses this response holds each event in its compression buffer, so the
+    // browser opens the stream and then waits forever. no-transform tells any proxy in front of
+    // the API to pass the bytes through; X-Accel-Buffering asks nginx not to buffer them either.
+    response.setHeader("Cache-Control", "no-store, no-transform");
     response.setHeader("X-Accel-Buffering", "no");
     return stream.connect();
   }

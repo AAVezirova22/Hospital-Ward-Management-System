@@ -17,6 +17,12 @@ spring:
     deserialization:
       fail-on-unknown-properties: true
       accept-float-as-int: false
+  # The HTTP stack is Jackson 3 (spring.jackson); the application's own mapper is Jackson 2.
+  # Both parse request-shaped payloads, so both reject unknown and lossy fields.
+  jackson2:
+    deserialization:
+      fail-on-unknown-properties: true
+      accept-float-as-int: false
 server:
   port: ${PORT:8080}
   servlet:

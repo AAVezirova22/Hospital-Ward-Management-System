@@ -41,8 +41,7 @@ test("seeded ward planner stages without saving and confirms through the authori
   const view = admissions.find((v) => v.admission.status === "ACTIVE");
   if (!view?.assignment) throw new Error("expected an active admission");
   const destination = rooms.find(
-    (r) =>
-      r.active && r.availableBeds > 0 && r.id !== view.assignment?.roomId,
+    (r) => r.active && r.availableBeds > 0 && r.id !== view.assignment?.roomId,
   );
   if (!destination) throw new Error("expected a free destination room");
   await page

@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface WorkflowLockRepository extends JpaRepository<WorkflowLock, Long> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
-  @Query("select w from WorkflowLock w where w.id = :id")
+  @Query("select w from WorkflowLock w where w.id=:id")
   WorkflowLock lockById(@Param("id") Long id);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)

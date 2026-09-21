@@ -1,8 +1,7 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, type Row, type User } from "../../api";
+import React, { useState } from "react";
+import { fullName, money, date } from "../../api";
+import type { PatientDossier } from "../../api/contracts";
 import {
   Link,
   useUser,
@@ -18,7 +17,7 @@ import { EntityForm } from "../administration/EntityForm";
 import { Workflow } from "../admissions/Workflow";
 import { CareTimeline } from "./CareTimeline";
 export function PatientDetail({ id }: { id: string }) {
-  const { data, error, isLoading } = useData("/patients/" + id);
+  const { data, error, isLoading } = useData<PatientDossier>("/patients/" + id);
   const [edit, setEdit] = useState(false),
     [flow, setFlow] = useState<string | null>(null);
   const user = useUser();
@@ -27,7 +26,7 @@ export function PatientDetail({ id }: { id: string }) {
   if (error) return <ErrorBox error={error} />;
   if (!data) return null;
   const p = data.patient,
-    active = data.admissions.find((v: Row) => v.admission.status === "ACTIVE");
+    active = data.admissions.find((v) => v.admission.status === "ACTIVE");
   return (
     <>
       <Link className="back" to="/app/patients">
@@ -85,7 +84,7 @@ export function PatientDetail({ id }: { id: string }) {
             <h2>
               Room{" "}
               {
-                active.rooms.find((r: Row) => !r.assignment.releasedAt)?.room
+                active.rooms.find((r) => !r.assignment.releasedAt)?.room
                   .roomNumber
               }
             </h2>
@@ -134,7 +133,7 @@ export function PatientDetail({ id }: { id: string }) {
         {data.admissions.length === 0 ? (
           <Empty text="No hospitalizations recorded for this patient." />
         ) : (
-          data.admissions.map((v: Row) => (
+          data.admissions.map((v) => (
             <section className="panel stay" key={v.admission.id}>
               <div className="section-heading">
                 <div>
@@ -152,7 +151,7 @@ export function PatientDetail({ id }: { id: string }) {
                 <div>
                   <span className="eyebrow">Room movements</span>
                   <ol className="timeline">
-                    {v.rooms.map((r: Row) => (
+                    {v.rooms.map((r) => (
                       <li key={r.assignment.id}>
                         <span>Room {r.room.roomNumber}</span>
                         <small>
@@ -174,7 +173,7 @@ export function PatientDetail({ id }: { id: string }) {
                   {v.procedures.length === 0 ? (
                     <p className="muted">No procedures recorded.</p>
                   ) : (
-                    v.procedures.map((r: Row) => (
+                    v.procedures.map((r) => (
                       <div className="procedure-record" key={r.record.id}>
                         <strong>{r.procedure.procedureName}</strong>
                         <span>{money(r.record.priceAtExecution)}</span>

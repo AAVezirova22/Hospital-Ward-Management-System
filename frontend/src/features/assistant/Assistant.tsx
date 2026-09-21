@@ -10,10 +10,16 @@ import {
 } from "../../api";
 import { ErrorBox, Modal } from "../../components/workspace";
 import { Sparkles, X, ArrowUpRight, ArrowRight, Activity } from "../../icons";
-import { aiResponse } from "../../ai-contract";
+import { aiResponse, type AiResponse } from "../../ai-contract";
 import { AssistantSources, useAssistantSources } from "./AssistantSources";
 import { WorkflowProposal } from "./WorkflowProposal";
 import { AssistantTurn } from "./AssistantResults";
+
+/** The confirmed shape of a workflow proposal turn, as validated by the response contract. */
+type WorkflowProposalData = Extract<
+  AiResponse,
+  { responseType: "WORKFLOW_PROPOSAL" }
+>["data"];
 export function Assistant({ onClose }: { onClose: () => void }) {
   const pathname = usePathname(),
     client = useQueryClient();
@@ -97,7 +103,10 @@ export function Assistant({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const completed = await api<Row>(`/ai-actions/${id}/${op}`, "POST");
+      const completed = await api<{ departmentId?: number }>(
+        `/ai-actions/${id}/${op}`,
+        "POST",
+      );
       setResults((r) =>
         r.map((v, i) =>
           i === index
@@ -150,17 +159,14 @@ export function Assistant({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         {results.map((r, i) => (
-          <div
-            key={i}
-            ref={i === results.length - 1 ? lastResult : undefined}
-          >
+          <div key={i} ref={i === results.length - 1 ? lastResult : undefined}>
             {r.responseType === "WORKFLOW_PROPOSAL" ? (
               <WorkflowProposal
-                data={r.data}
-                done={r.done}
+                data={r.data as WorkflowProposalData}
+                done={r.done as string | undefined}
                 busy={busy}
                 onAction={(op) =>
-                  action(Number((r.data as Row).action.id), op, i)
+                  action((r.data as WorkflowProposalData).action.id, op, i)
                 }
               />
             ) : (

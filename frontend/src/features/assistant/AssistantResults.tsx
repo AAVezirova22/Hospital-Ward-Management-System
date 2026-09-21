@@ -5,7 +5,14 @@ import { Status } from "../../components/workspace";
 import { ArrowUpRight, ArrowRight } from "../../icons";
 import { safeRoute } from "../../ai-contract";
 import { ProposalPreview } from "./ProposalPreview";
-import type { AdmissionView, RoomCapacity } from "../../api/contracts";
+import type {
+  Admission,
+  AdmissionView,
+  DashboardReport,
+  Patient,
+  ProcedureView,
+  RoomCapacity,
+} from "../../api/contracts";
 
 function asRow(value: unknown): Row {
   return (value && typeof value === "object" ? value : {}) as Row;
@@ -14,7 +21,16 @@ function asRows(value: unknown): Row[] {
   return Array.isArray(value) ? (value as Row[]) : [];
 }
 
-export function AiReport({ data: d }: { data: Row }) {
+/** The assistant returns one of the authorized report payloads; each field identifies its shape. */
+type AiReportData = Partial<DashboardReport> & {
+  rows?: ProcedureView[];
+  totalCost?: number;
+  admissions?: AdmissionView[];
+  admission?: Admission;
+  patient?: Patient;
+};
+
+export function AiReport({ data: d }: { data: AiReportData }) {
   if (d.activeAdmissions !== undefined)
     return (
       <div className="ai-stats">
@@ -33,9 +49,9 @@ export function AiReport({ data: d }: { data: Row }) {
     return (
       <>
         <p>
-          {(d.rows as Row[]).length} procedures · {money(d.totalCost)}
+          {d.rows.length} procedures · {money(d.totalCost)}
         </p>
-        {(d.rows as Row[]).map((r: Row) => (
+        {d.rows.map((r) => (
           <div className="result-row" key={r.record.id}>
             <span>
               {r.procedure.procedureName}
@@ -49,7 +65,7 @@ export function AiReport({ data: d }: { data: Row }) {
   if (d.admissions)
     return (
       <>
-        {(d.admissions as Row[]).map((v: Row) => (
+        {d.admissions.map((v) => (
           <div className="result-row" key={v.admission.id}>
             <span>{fullName(v.patient)}</span>
             <Status value={v.admission.status} />
@@ -121,10 +137,7 @@ export function AssistantTurn({
       {r.responseType === "PATIENT_SUMMARY" && (
         <>
           <h3>{fullName(asRow(d.patient))}</h3>
-          <p>
-            {asRows(d.admissions).length} recorded
-            hospitalizations.
-          </p>
+          <p>{asRows(d.admissions).length} recorded hospitalizations.</p>
           {asRows(d.admissions).map((v: Row) => (
             <div className="result-row" key={asRow(v.admission).id}>
               <span>
@@ -146,7 +159,7 @@ export function AssistantTurn({
         </>
       )}
       {r.responseType === "REPORT_RESULT" && (
-        <AiReport data={d} />
+        <AiReport data={d as AiReportData} />
       )}
       {r.responseType === "NAVIGATION_COMMAND" && (
         <button
@@ -183,9 +196,7 @@ export function AssistantTurn({
               }
             </p>
           )}
-          {destination && (
-            <p>Destination: Room {destination.roomNumber}</p>
-          )}
+          {destination && <p>Destination: Room {destination.roomNumber}</p>}
           {d.doctor && <p>Doctor: {fullName(asRow(d.doctor))}</p>}
           <p>Expires {date(String(action.expiresAt ?? ""))}</p>
           {r.done ? (
@@ -202,7 +213,8 @@ export function AssistantTurn({
               <button
                 className="primary"
                 disabled={
-                  busy || Date.parse(String(action.expiresAt ?? "")) <= Date.now()
+                  busy ||
+                  Date.parse(String(action.expiresAt ?? "")) <= Date.now()
                 }
                 onClick={() => onAction(Number(action.id), "confirm", i)}
               >
@@ -215,4 +227,3 @@ export function AssistantTurn({
     </div>
   );
 }
-

@@ -1,32 +1,32 @@
-export interface Entity {
+export type Entity = {
   id: number;
   version: number;
   createdAt: string;
   updatedAt: string;
-}
-export interface Patient extends Entity {
+};
+export type Patient = Entity & {
   patientIdentifier: string;
   firstName: string;
   lastName: string;
   dateOfBirth: string;
   address: string | null;
   phoneNumber: string | null;
-}
-export interface Doctor extends Entity {
+};
+export type Doctor = Entity & {
   doctorIdentifier: string;
   firstName: string;
   lastName: string;
   specialty: string;
   active: boolean;
-}
-export interface RoomCapacity extends Entity {
+};
+export type RoomCapacity = Entity & {
   roomNumber: string;
   bedCount: number;
   active: boolean;
   occupiedBeds: number;
   availableBeds: number;
-}
-export interface Admission extends Entity {
+};
+export type Admission = Entity & {
   admissionNumber: string;
   patientId: number;
   attendingDoctorId: number;
@@ -34,35 +34,35 @@ export interface Admission extends Entity {
   dischargeDateTime: string | null;
   expectedDischargeDate: string | null;
   status: "ACTIVE" | "DISCHARGED" | "CANCELLED";
-}
-export interface RoomAssignment extends Entity {
+};
+export type RoomAssignment = Entity & {
   admissionId: number;
   roomId: number;
   assignedAt: string;
   releasedAt: string | null;
   reason: string;
-}
-export interface MedicalProcedure extends Entity {
+};
+export type MedicalProcedure = Entity & {
   procedureCode: string;
   procedureName: string;
   currentCost: number;
   active: boolean;
-}
-export interface ProcedureRecord extends Entity {
+};
+export type ProcedureRecord = Entity & {
   admissionId: number;
   medicalProcedureId: number;
   performedByDoctorId: number;
   performedAt: string;
   note: string | null;
   priceAtExecution: number;
-}
-export interface ProcedureView {
+};
+export type ProcedureView = {
   record: ProcedureRecord;
   procedure: MedicalProcedure;
   doctor: Doctor;
   patient?: Patient;
-}
-export interface AdmissionView {
+};
+export type AdmissionView = {
   admission: Admission;
   patient: Patient;
   doctor: Doctor;
@@ -70,8 +70,8 @@ export interface AdmissionView {
   rooms: { assignment: RoomAssignment; room: RoomCapacity }[];
   procedures: ProcedureView[];
   totalCost: number;
-}
-export interface DashboardReport {
+};
+export type DashboardReport = {
   activeAdmissions: number;
   occupiedBeds: number;
   totalBeds: number;
@@ -79,15 +79,15 @@ export interface DashboardReport {
   activeDoctors: number;
   proceduresToday: number;
   scope: string;
-}
-export interface OperationalActivity {
+};
+export type OperationalActivity = {
   id: number;
   eventType: string;
   timestamp: string;
   admissionId: number;
   source: string;
-}
-export interface OperationsReport {
+};
+export type OperationsReport = {
   trends: {
     date: string;
     admissions: number;
@@ -105,33 +105,51 @@ export interface OperationsReport {
   };
   scope: string;
   asOf: string;
-}
-export interface ArrivalPlan {
+};
+export type ArrivalPlan = {
   arrivals: number;
   placements: { arrival: number; roomId: number; roomNumber: string }[];
   unplaced: number;
-}
-export interface ProcedureReport {
+};
+export type ProcedureReport = {
   rows: ProcedureView[];
   totalCost: number;
   byDoctor: Record<string, number>;
   from: string;
   to: string;
-}
-export interface WorkspaceDepartment {
+};
+export type WorkspaceDepartment = {
   id: number;
   name: string;
   role: string;
   hasJoinCode: boolean;
-}
-export interface WorkspaceHospital {
+};
+export type WorkspaceHospital = {
   id: number;
   name: string;
   owner: boolean;
   hasJoinCode: boolean;
   departments: WorkspaceDepartment[];
-}
-export interface WorkspaceList {
+};
+export type WorkspaceList = {
   activeDepartmentId: number;
   hospitals: WorkspaceHospital[];
-}
+};
+export type Account = {
+  id: number;
+  version: number;
+  username: string;
+  role: string;
+  enabled: boolean;
+  doctorId: number | null;
+  patientId: number | null;
+  email: string | null;
+  emailVerified: boolean;
+  requestedRole: string | null;
+  accountRole: string | null;
+  departmentRole: string | null;
+};
+export type PatientDossier = {
+  patient: Patient;
+  admissions: AdmissionView[];
+};

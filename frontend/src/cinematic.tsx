@@ -15,6 +15,7 @@ import {
   AnimatePresence,
   MotionConfig,
   useInView,
+  useIsPresent,
 } from "motion/react";
 import { Activity, ArrowUpRight, Moon, Sun, Pause, Play } from "./icons";
 
@@ -158,6 +159,38 @@ export function Atmosphere() {
   );
 }
 
+/**
+ * One route's content. The outgoing scene stays mounted while it animates away, so it is marked
+ * inert: assistive technology, keyboard focus and role queries then only ever see the scene that
+ * the route actually points at, instead of two copies of every heading and action.
+ */
+function Scene({
+  children,
+  animated,
+}: {
+  children: ReactNode;
+  animated: boolean;
+}) {
+  const present = useIsPresent();
+  return (
+    <motion.div
+      className="scene-content"
+      aria-hidden={present ? undefined : true}
+      inert={present ? undefined : true}
+      initial={false}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={animated ? { opacity: 0, x: -8, scale: 0.996 } : undefined}
+      transition={
+        animated
+          ? { type: "spring", stiffness: 380, damping: 36, mass: 0.55 }
+          : { duration: 0 }
+      }
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export function SceneTransition({
   children,
   scene,
@@ -169,20 +202,9 @@ export function SceneTransition({
   return (
     <WorkspaceSceneContext.Provider value={true}>
       <AnimatePresence mode="popLayout" initial={false}>
-        <motion.div
-          key={scene}
-          className="scene-content"
-          initial={false}
-          animate={{ opacity: 1, x: 0, scale: 1 }}
-          exit={enabled ? { opacity: 0, x: -8, scale: 0.996 } : undefined}
-          transition={
-            enabled
-              ? { type: "spring", stiffness: 380, damping: 36, mass: 0.55 }
-              : { duration: 0 }
-          }
-        >
+        <Scene key={scene} animated={enabled}>
           {children}
-        </motion.div>
+        </Scene>
       </AnimatePresence>
     </WorkspaceSceneContext.Provider>
   );
@@ -283,4 +305,3 @@ export function MagneticButton({
     </button>
   );
 }
-

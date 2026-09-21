@@ -18,7 +18,9 @@ flowchart TD
   H --> A
 ```
 
-The diagram shows policy boundaries; assistant requests themselves also pass through Spring Security before reaching the controller. The registry does not call repositories: it calls `HospitalService` and `AiActionService`.
+The diagram shows policy boundaries; assistant requests themselves also pass through Spring Security before reaching the controller. The registry does not call repositories: it calls the business services and `AiActionService`.
+
+Each business service owns one area and holds the real method bodies for it: `StayService` the admission lifecycle (admission, transfer, discharge, attending doctor, recorded procedures) and the admission dossier, `ReportService` the dashboard, census, capacity and procedure reporting, `PatientService` patient records and their dossiers, `CatalogueService` doctors, rooms and procedures, and `WorkspaceService` hospitals, departments and membership. `HospitalService` is the shared layer underneath them: department-scoped access checks (`accessible`, `visible`) and the entity lookups the others build on. Controllers and the assistant call the owning service, never a pass-through.
 
 ## Relational model
 
@@ -36,7 +38,7 @@ erDiagram
   AiSession ||--o{ AiInteraction : groups
 ```
 
-JPA models use scalar foreign-key identifiers to avoid accidental recursive entity serialization; PostgreSQL foreign keys enforce the relationships. All domain records have identity, creation/update timestamps and an optimistic `version`. Historical records cannot silently lose referenced catalogue entries. Catalogue entities and accounts are deactivated through validated updates rather than hard-deleted.
+JPA models use scalar foreign-key identifiers to avoid accidental recursive entity serialization; PostgreSQL foreign keys enforce the relationships. Entity state is private and reached through accessors, so persistence and JSON mapping stay on a declared surface instead of open fields. All domain records have identity, creation/update timestamps and an optimistic `version`. Historical records cannot silently lose referenced catalogue entries. Catalogue entities and accounts are deactivated through validated updates rather than hard-deleted.
 
 Hospitals own departments. Staff join a hospital or a department with a rotating code. Hospital membership alone does not open clinical records; a department code grants medical staff access without administrator rights. Codes can expire and can be issued as single-use invites; joining with a single-use code rotates it immediately. Clinical tables carry `department_id` and Hibernate filters every load, including lookups by primary key.
 

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, type Row, type User } from "../../api";
+import type { RoomCapacity } from "../../api/contracts";
 import {
   Link,
   useUser,
@@ -19,9 +19,9 @@ import { RoomCard } from "./RoomCard";
 import { EntityForm } from "../administration/EntityForm";
 import { useUrlState } from "../../components/useUrlState";
 export function Rooms() {
-  const [edit, setEdit] = useState<Row | null>(null),
+  const [edit, setEdit] = useState<Partial<RoomCapacity> | null>(null),
     [free, setFree] = useState(false);
-  const { data, error, isLoading } = useData("/rooms");
+  const { data, error, isLoading } = useData<RoomCapacity[]>("/rooms");
   const user = useUser();
   const [selectedRoom, setSelectedRoom] = useUrlState("room");
   return (
@@ -62,11 +62,9 @@ export function Rooms() {
         <motion.div layout className="room-grid">
           {Array.isArray(data) &&
             data
-              .filter((r: Row) => !free || r.availableBeds > 0)
-              .filter(
-                (r: Row) => !selectedRoom || String(r.id) === selectedRoom,
-              )
-              .map((r: Row) => (
+              .filter((r) => !free || r.availableBeds > 0)
+              .filter((r) => !selectedRoom || String(r.id) === selectedRoom)
+              .map((r) => (
                 <motion.div layout key={r.id}>
                   <RoomCard
                     room={r}
