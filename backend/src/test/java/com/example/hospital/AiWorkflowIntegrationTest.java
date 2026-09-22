@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.*;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -24,7 +24,7 @@ import org.springframework.test.web.servlet.*;
 @AutoConfigureMockMvc
 class AiWorkflowIntegrationTest {
   @DynamicPropertySource
-  static void database(DynamicPropertyRegistry r) { HospitalIntegrationTest.database(r); }
+  static void database(DynamicPropertyRegistry r) { HospitalSupport.database(r); }
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper json;
   @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
