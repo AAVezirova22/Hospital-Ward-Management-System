@@ -24,6 +24,13 @@
   margin-left: auto;
   font-size: 10px;
 }
+.room-requirement-warning {
+  border-left: 2px solid var(--gold);
+  color: var(--gold);
+  font-size: 12px;
+  margin: 8px 0;
+  padding-left: 9px;
+}
 .ward-patient.vacant {
   background: transparent;
   border: 1px dashed var(--line);

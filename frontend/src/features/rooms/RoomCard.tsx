@@ -23,6 +23,7 @@ export function RoomCard({
   compact?: boolean;
   onEdit?: () => void;
 }) {
+  const capabilities = Array.isArray(r.capabilities) ? r.capabilities : [];
   return (
     <div className={"room-card " + (!r.availableBeds ? "full" : "")}>
       <div className="room-card-top">
@@ -57,6 +58,13 @@ export function RoomCard({
           {r.occupiedBeds} / {r.bedCount}
         </small>
       </div>
+      {capabilities.length > 0 && (
+        <ul className="room-capabilities" aria-label="Room capabilities">
+          {capabilities.map((capability: string) => (
+            <li key={capability}>{capability}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

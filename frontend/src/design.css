@@ -865,6 +865,21 @@ kbd {
   color: var(--mint);
   border-color: color-mix(in srgb, var(--mint) 30%, transparent);
 }
+.room-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.room-capabilities li {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 4px 8px;
+}
 .available {
   color: var(--mint);
 }

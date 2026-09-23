@@ -23,6 +23,7 @@ export interface RoomCapacity extends Entity {
   roomNumber: string;
   bedCount: number;
   active: boolean;
+  capabilities: string[];
   occupiedBeds: number;
   availableBeds: number;
 }
@@ -33,6 +34,7 @@ export interface Admission extends Entity {
   admissionDateTime: string;
   dischargeDateTime: string | null;
   expectedDischargeDate: string | null;
+  requiredRoomCapabilities: string[];
   status: "ACTIVE" | "DISCHARGED" | "CANCELLED";
 }
 export interface RoomAssignment extends Entity {
