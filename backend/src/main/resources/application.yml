@@ -39,6 +39,10 @@ app:
   email:
     resend-key: ${RESEND_API_KEY:}
     from: ${EMAIL_FROM:}
+    outbox:
+      poll-interval-ms: ${EMAIL_OUTBOX_POLL_INTERVAL_MS:5000}
+      initial-delay-ms: ${EMAIL_OUTBOX_INITIAL_DELAY_MS:5000}
+      batch-size: ${EMAIL_OUTBOX_BATCH_SIZE:10}
   discharge-reminders:
     enabled: ${DISCHARGE_REMINDERS_ENABLED:false}
     windows: ${DISCHARGE_REMINDER_WINDOWS:7,3,1}

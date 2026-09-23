@@ -8,12 +8,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.service.ConfirmationEmailService;
+import com.example.hospital.service.EmailOutboxDispatcher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -23,14 +23,15 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties={"app.seed=true","app.bootstrap-password=IntegrationPassword123!","app.registration.enabled=true","server.servlet.session.cookie.secure=false"})
+@SpringBootTest(properties={"app.seed=true","app.bootstrap-password=IntegrationPassword123!","app.registration.enabled=true","server.servlet.session.cookie.secure=false","app.email.outbox.poll-interval-ms=3600000","app.email.outbox.initial-delay-ms=3600000"})
 @AutoConfigureMockMvc
 class RegistrationIntegrationTest {
- private static final String RECOVERY_MESSAGE="If the registration can be recovered, a fresh confirmation email has been sent.";
+ private static final String RECOVERY_MESSAGE="If the registration can be recovered, a fresh confirmation email will be sent.";
  @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalSupport.database(r);}
- @Autowired MockMvc mvc; @Autowired ObjectMapper json; @Autowired AppUserRepository users; @Autowired JdbcTemplate jdbc;
+ @Autowired MockMvc mvc; @Autowired ObjectMapper json; @Autowired AppUserRepository users; @Autowired JdbcTemplate jdbc; @Autowired EmailOutboxDispatcher dispatcher;
  @MockitoBean ConfirmationEmailService email;
- @BeforeEach void setup(){when(email.configured()).thenReturn(true);}
+ @MockitoBean WorkflowLockRepository workflowLocks;
+ @BeforeEach void setup(){jdbc.update("delete from email_outbox");when(email.configured()).thenReturn(true);}
  String signup(String requestedRole) throws Exception {
    String name="signup_"+UUID.randomUUID().toString().substring(0,8);
    signup(name,name+"@example.test",requestedRole);
@@ -39,6 +40,7 @@ class RegistrationIntegrationTest {
  void signup(String name,String address,String requestedRole) throws Exception {
    var body=Map.of("username",name,"email",address,"password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole",requestedRole,"hospitalId",1);
    mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isOk());
+   dispatcher.dispatchDue();
  }
  String capturedToken(){var token=ArgumentCaptor.forClass(String.class);verify(email).send(anyString(),anyString(),token.capture(),anyBoolean(),anyInt());return token.getValue();}
  org.springframework.test.web.servlet.ResultActions recover(String username,String password,String address,String remoteAddress) throws Exception {
@@ -46,7 +48,9 @@ class RegistrationIntegrationTest {
  }
  org.springframework.test.web.servlet.ResultActions recover(String username,String password,String address,String remoteAddress,String forwardedFor) throws Exception {
    var body=Map.of("username",username,"password",password,"email",address);
-   return mvc.perform(post("/api/v1/registration/recover").with(csrf()).with(r->{r.setRemoteAddr(remoteAddress);if(forwardedFor!=null)r.addHeader("X-Forwarded-For",forwardedFor);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)));
+   var result=mvc.perform(post("/api/v1/registration/recover").with(csrf()).with(r->{r.setRemoteAddr(remoteAddress);if(forwardedFor!=null)r.addHeader("X-Forwarded-For",forwardedFor);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)));
+   dispatcher.dispatchDue();
+   return result;
  }
  void assertRecoveryMessage(String username,String password,String address,String remoteAddress) throws Exception {
    recover(username,password,address,remoteAddress).andExpect(status().isOk()).andExpect(jsonPath("$.message").value(RECOVERY_MESSAGE));
@@ -65,6 +69,21 @@ class RegistrationIntegrationTest {
    mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token",token)))).andExpect(status().isOk());
    var u=users.findByUsername(name).orElseThrow();assertThat(u.isEmailVerified()).isTrue();assertThat(u.getRole()).isEqualTo("PATIENT");assertThat(u.getRequestedRole()).isEqualTo("DOCTOR");assertThat(u.getDoctorId()).isNull();
  }
+ @Test void verificationBeforeDeliveryCancelsAndClearsTheQueuedSecret() throws Exception {
+   String name="queued_"+UUID.randomUUID().toString().substring(0,8);
+   var body=Map.of("username",name,"email",name+"@example.test","password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole","PATIENT","hospitalId",1);
+   mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isOk());
+   var account=users.findByUsername(name).orElseThrow();
+   assertThat(jdbc.queryForObject("select status from email_outbox where user_id=?",String.class,account.getId())).isEqualTo("PENDING");
+   String token=jdbc.queryForObject("select confirmation_token from email_outbox where user_id=?",String.class,account.getId());
+
+   mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token",token)))).andExpect(status().isOk());
+
+   assertThat(jdbc.queryForObject("select status from email_outbox where user_id=?",String.class,account.getId())).isEqualTo("CANCELLED");
+   assertThat(jdbc.queryForObject("select confirmation_token is null and recipient is null and first_name is null from email_outbox where user_id=?",Boolean.class,account.getId())).isTrue();
+   dispatcher.dispatchDue();
+   verify(email,never()).send(anyString(),anyString(),anyString(),anyBoolean(),anyInt());
+ }
  @Test void expiredAndMissingCsrfLinksCannotActivateAccount() throws Exception {
    String name=signup("PATIENT"),token=capturedToken();jdbc.update("update email_verifications set expires_at=now()-interval '1 minute' where user_id=?",users.findByUsername(name).orElseThrow().getId());
    String body=json.writeValueAsString(Map.of("token",token));
@@ -72,11 +91,31 @@ class RegistrationIntegrationTest {
    mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
    assertThat(users.findByUsername(name).orElseThrow().isEnabled()).isFalse();
  }
- @Test void deliveryFailureRollsBackNewAccount() throws Exception {
-   doThrow(new com.example.hospital.api.ApiException(503,"EMAIL_UNAVAILABLE","Delivery unavailable")).when(email).send(anyString(),anyString(),anyString(),anyBoolean(),anyInt());
+ @Test void deliveryFailureKeepsAccountAndRetriesTheSameConfirmationToken() throws Exception {
+   doThrow(new com.example.hospital.api.ApiException(503,"EMAIL_UNAVAILABLE","Delivery unavailable"))
+       .doNothing().when(email).send(anyString(),anyString(),anyString(),anyBoolean(),anyInt());
    String name="failure_"+UUID.randomUUID().toString().substring(0,8);
-   mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("username",name,"email",name+"@example.test","password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole","PATIENT","hospitalId",1)))).andExpect(status().isServiceUnavailable());
-   assertThat(users.findByUsername(name)).isEmpty();
+   mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("username",name,"email",name+"@example.test","password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole","PATIENT","hospitalId",1)))).andExpect(status().isOk());
+   var account=users.findByUsername(name).orElseThrow();
+   assertThat(account.isEnabled()).isFalse();
+   verify(email,never()).send(anyString(),anyString(),anyString(),anyBoolean(),anyInt());
+   assertThat(jdbc.queryForObject("select status from email_outbox where user_id=?",String.class,account.getId())).isEqualTo("PENDING");
+   assertThat(jdbc.queryForObject("select attempts from email_outbox where user_id=?",Integer.class,account.getId())).isZero();
+
+   dispatcher.dispatchDue();
+   String retryToken=jdbc.queryForObject("select confirmation_token from email_outbox where user_id=?",String.class,account.getId());
+   assertThat(jdbc.queryForObject("select status from email_outbox where user_id=?",String.class,account.getId())).isEqualTo("PENDING");
+   assertThat(jdbc.queryForObject("select attempts from email_outbox where user_id=?",Integer.class,account.getId())).isEqualTo(1);
+   assertThat(jdbc.queryForObject("select last_error from email_outbox where user_id=?",String.class,account.getId())).isEqualTo("EMAIL_UNAVAILABLE");
+
+   jdbc.update("update email_outbox set next_attempt_at=now()-interval '1 second' where user_id=?",account.getId());
+   dispatcher.dispatchDue();
+   assertThat(jdbc.queryForObject("select status from email_outbox where user_id=?",String.class,account.getId())).isEqualTo("SENT");
+   assertThat(jdbc.queryForObject("select confirmation_token is null and recipient is null from email_outbox where user_id=?",Boolean.class,account.getId())).isTrue();
+   assertThat(users.findByUsername(name).orElseThrow().isEnabled()).isFalse();
+   var sentTokens=ArgumentCaptor.forClass(String.class);
+   verify(email,times(2)).send(anyString(),anyString(),sentTokens.capture(),anyBoolean(),anyInt());
+   assertThat(sentTokens.getAllValues()).containsExactly(retryToken,retryToken);
  }
  @Test void signupAttachesThePatientToTheChosenHospital() throws Exception {
    var created=json.readTree(mvc.perform(post("/api/v1/workspaces/hospitals").with(user("admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Signup Clinic\",\"departmentName\":\"Intake\"}")).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
@@ -88,6 +127,7 @@ class RegistrationIntegrationTest {
    body.put("firstName","Maya"); body.put("lastName","Koleva"); body.put("dateOfBirth","1994-03-12");
    body.put("requestedRole","PATIENT"); body.put("hospitalId",hospitalId);
    mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isOk());
+   dispatcher.dispatchDue();
    Long patientId=users.findByUsername(name).orElseThrow().getPatientId();
    assertThat(jdbc.queryForObject("select department_id from patients where id=?", Long.class, patientId)).isEqualTo(departmentId);
  }

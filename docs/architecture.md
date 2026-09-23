@@ -33,6 +33,7 @@ erDiagram
   Doctor ||--o{ PerformedProcedure : performs
   AppUser ||--o{ AiPendingAction : owns
   AppUser ||--o{ AiSession : owns
+  AppUser ||--o{ EmailOutbox : receives
   AiSession ||--o{ AiInteraction : groups
 ```
 
@@ -77,6 +78,8 @@ The model returns a single `ToolCall`, never executable HTML or SQL. An explicit
 The default local command model requires no network. The external adapter implements the chat-completions function-tool envelope. It sends no bulk database dump and does not run a second generative pass over clinical notes. Summaries and report cards describe returned records directly. This keeps calculated totals authoritative and treats notes as display data, not instructions.
 
 The default limit is 20 requests per user per minute and one in-flight request per user per application process. The limiter is isolated from CRUD APIs. Counters for both the assistant and registration confirmation emails persist in the `rate_windows` Postgres table so a restart or a second backend instance keeps the same window.
+
+Registration writes its verification hash and an `email_outbox` row in the same transaction as the account. Workers claim due rows using PostgreSQL `FOR UPDATE SKIP LOCKED`, commit the lease before calling the provider, and retry failures with bounded exponential backoff. Retries reuse the same confirmation token and provider idempotency key. The outbox retains recipient, name and raw token only while the link can be delivered; success, replacement, verification and expiry clear them. Terminal delivery records are pruned after 30 days.
 
 Pending actions persist a server-built immutable payload, owner, creation time, expiry and status. The model cannot call confirmation. The confirmation endpoint checks current role, ownership, pending state, expiry, admission version, active status and current capacity. The confirmation and hospital mutation share one transaction. Expired proposals are persisted as expired while returning `409 ACTION_EXPIRED`; ordinary workflow errors retain their specific conflict response and roll back. Successful proposals become `EXECUTED`; replay is rejected. Cancellation is owner-only.
 
