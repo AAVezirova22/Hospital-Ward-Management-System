@@ -1,4 +1,11 @@
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: ${SHUTDOWN_GRACE_PERIOD:20s}
+  task:
+    scheduling:
+      shutdown:
+        await-termination: true
+        await-termination-period: 10s
   servlet:
     multipart:
       max-file-size: 5MB
@@ -19,6 +26,9 @@ spring:
       accept-float-as-int: false
 server:
   port: ${PORT:8080}
+  # Finish in-flight requests on SIGTERM; work still running after the grace period is aborted
+  # and its open transaction rolls back when the connection closes.
+  shutdown: graceful
   servlet:
     session:
       timeout: 30m
