@@ -106,10 +106,12 @@ class LoginBackoffTest {
         extendedThreshold,
         Duration.ofMinutes(5),
         Duration.ofMinutes(10));
+  }
+
   @Test
   void accountLockIsSourceScopedAndDoesNotRearmFromOneFailureAfterExpiry() {
     var clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
-    var backoff = new LoginBackoff(clock);
+    var backoff = new LoginBackoff(settings(10_000, 5, 8), clock);
     String username = "  Victim  ";
     String attacker = "203.0.113.10";
     String victim = "198.51.100.20";
@@ -139,7 +141,7 @@ class LoginBackoffTest {
   @Test
   void sourceLimitCountsFailuresAcrossAccountsAndExpires() {
     var clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
-    var backoff = new LoginBackoff(clock);
+    var backoff = new LoginBackoff(settings(10_000, 5, 8), clock);
     String attacker = "203.0.113.10";
 
     for (int attempt = 0; attempt < 29; attempt++)

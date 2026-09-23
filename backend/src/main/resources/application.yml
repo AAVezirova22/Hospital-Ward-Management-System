@@ -57,6 +57,10 @@ app:
     timeout-seconds: 15
     rate-limit: 20
     action-ttl-seconds: 300
+    context-max-turns: ${AI_CONTEXT_MAX_TURNS:6}
+    context-max-chars: ${AI_CONTEXT_MAX_CHARS:40000}
+    context-ttl: ${AI_CONTEXT_TTL:30m}
+    context-cleanup-interval: ${AI_CONTEXT_CLEANUP_INTERVAL:1m}
   security:
     login-backoff:
       max-entries: ${LOGIN_BACKOFF_MAX_ENTRIES:10000}

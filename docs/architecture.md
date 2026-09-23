@@ -80,7 +80,7 @@ The default limit is 20 requests per user per minute and one in-flight request p
 
 Pending actions persist a server-built immutable payload, owner, creation time, expiry and status. The model cannot call confirmation. The confirmation endpoint checks current role, ownership, pending state, expiry, admission version, active status and current capacity. The confirmation and hospital mutation share one transaction. Expired proposals are persisted as expired while returning `409 ACTION_EXPIRED`; ordinary workflow errors retain their specific conflict response and roll back. Successful proposals become `EXECUTED`; replay is rejected. Cancellation is owner-only.
 
-Only AI operational metadata is retained: tool, model, duration, owner, session and outcome. User prompt text and full AI context are not stored. Clearing a session clears selected-patient context and the transient UI conversation; existing audit metadata is retained. No raw notes, passwords, session cookies or prompts are emitted in audit metadata.
+AI interaction records retain operational metadata: tool, model, duration, owner, session and outcome. Each owner- and department-scoped assistant session also stores at most six recent user/assistant text pairs for 30 minutes so requests can reach another backend instance without losing conversational continuity. The context is size-bounded, excluded from history and audit responses, and erased by clear or expiry. Uploaded source text and tool-result payloads are not stored. No raw notes, passwords, session cookies or prompts are emitted in audit metadata.
 
 ## Interface and failure behavior
 
