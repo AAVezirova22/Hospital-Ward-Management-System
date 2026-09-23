@@ -49,6 +49,16 @@ app:
     timeout-seconds: 15
     rate-limit: 20
     action-ttl-seconds: 300
+  security:
+    login-backoff:
+      max-entries: ${LOGIN_BACKOFF_MAX_ENTRIES:10000}
+      max-username-length: ${LOGIN_BACKOFF_MAX_USERNAME_LENGTH:64}
+      first-lock-threshold: ${LOGIN_BACKOFF_FIRST_LOCK_THRESHOLD:5}
+      first-lock-duration: ${LOGIN_BACKOFF_FIRST_LOCK_DURATION:30s}
+      extended-lock-threshold: ${LOGIN_BACKOFF_EXTENDED_LOCK_THRESHOLD:8}
+      extended-lock-duration: ${LOGIN_BACKOFF_EXTENDED_LOCK_DURATION:5m}
+      idle-ttl: ${LOGIN_BACKOFF_IDLE_TTL:24h}
+      cleanup-interval: ${LOGIN_BACKOFF_CLEANUP_INTERVAL:1m}
 
 logging:
   level:
