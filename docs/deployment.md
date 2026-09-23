@@ -39,6 +39,27 @@ Keep the platform's kill timeout above the grace period. Compose sets `stop_grac
 
 A cancelled statement or expired transaction rolls back and returns `503` with code `DATABASE_TIMEOUT` and `Retry-After: 5`; nothing from that request is saved. An unreachable database or exhausted pool returns `503` with `DATABASE_UNAVAILABLE`. Flyway migrations share the statement timeout, so raise `DATABASE_STATEMENT_TIMEOUT_MS` for the release that runs a long data migration. The external AI adapter keeps its own `app.ai.timeout-seconds`.
 
+## Connection-pool sizing
+
+Each backend instance opens at most `DATABASE_POOL_SIZE` connections (default `10`, keeping `DATABASE_POOL_MIN_IDLE`, default `2`, open when idle). Size it so that:
+
+```
+instances × DATABASE_POOL_SIZE + migration/admin headroom (≈5) ≤ PostgreSQL max_connections
+```
+
+For example, a database allowing 97 connections (a common small managed plan) fits up to 9 instances at the default size. Two instances on a 25-connection plan should use `DATABASE_POOL_SIZE=10` at most. A larger pool rarely helps: requests are short transactions, so raise instances before pool size and keep the pool near `2 × CPU cores` of the database.
+
+Watch saturation through the administrator-only metrics endpoint (pool tag `hospital-db`):
+
+| Metric | Meaning | Act when |
+| --- | --- | --- |
+| `/api/v1/management/metrics/hikaricp.connections.active` | Connections in use | Close to `hikaricp.connections.max` for minutes |
+| `/api/v1/management/metrics/hikaricp.connections.pending` | Requests waiting for a connection | Above zero for more than brief bursts |
+| `/api/v1/management/metrics/hikaricp.connections.timeout` | Waits that failed (`DATABASE_UNAVAILABLE`) | Any increase |
+| `/api/v1/management/metrics/hikaricp.connections.acquire` | Time to obtain a connection | Rising percentiles |
+
+Sustained pending connections mean too many instances for the database or slow statements; check slow queries before enlarging the pool.
+
 ## Demo scenario and reset
 
 An empty database is seeded once with 28 synthetic patients, 14 active and 12 discharged admissions, rooms with varied occupancy, one inactive room, procedure history, transfer history, expected discharge dates and audit events. Dates are relative to the seed/reset instant. Persistent databases keep their dates and user changes across restarts. To refresh the story for a presentation, use **Reset demonstration**, enter `RESET DEMO`, and sign in again.
