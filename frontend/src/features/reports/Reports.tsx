@@ -2,11 +2,20 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
+import {
+  api,
+  fullName,
+  money,
+  date,
+  patientHref,
+  type Row,
+  type User,
+} from "../../api";
 import {
   Link,
   useUser,
   useData,
+  useAllPages,
   ErrorBox,
   Empty,
   Status,
@@ -25,8 +34,8 @@ export function Reports() {
     [roomId, setRoom] = useUrlState("roomId"),
     [mode, setMode] = useUrlState("mode", "procedures");
   const { data: patients } = useData("/patients"),
-    { data: doctors } = useData("/doctors"),
-    { data: rooms } = useData("/rooms");
+    { data: doctors } = useAllPages<Row>("/doctors"),
+    { data: rooms } = useAllPages<Row>("/rooms");
   const params = new URLSearchParams({
     from,
     to,

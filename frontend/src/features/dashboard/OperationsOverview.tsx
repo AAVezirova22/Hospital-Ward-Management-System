@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import Link from "next/link";
-import { api, date, activeDepartment, patientHref } from "../../api";
+import { api, allPages, date, activeDepartment, patientHref } from "../../api";
 import type {
   OperationsReport,
   RoomCapacity,
@@ -59,7 +59,7 @@ export function OperationsOverview({
   });
   const roomQuery = useQuery({
     queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => api<RoomCapacity[]>("/rooms"),
+    queryFn: () => allPages<RoomCapacity>("/rooms"),
     refetchInterval: 15000,
   });
   const admissionQuery = useQuery({
@@ -195,9 +195,9 @@ export function OperationsOverview({
       {selectedAdmission &&
         admissions.find((v) => v.admission.id === selectedAdmission) && (
           <BedDrawer
-            admission={
-              admissions.find((v) => v.admission.id === selectedAdmission)!
-            }
+            admission={admissions.find(
+              (v) => v.admission.id === selectedAdmission,
+            )!}
             onClose={() => setSelectedAdmission(undefined)}
           />
         )}
