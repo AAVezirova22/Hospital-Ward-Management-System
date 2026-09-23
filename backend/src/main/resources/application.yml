@@ -54,6 +54,8 @@ server:
   error:
     include-message: never
 app:
+  # development | demo | staging | production. DEMO_MODE requires demo; production forbids demo flags.
+  environment: ${APP_ENVIRONMENT:development}
   demo: ${DEMO_MODE:false}
   demo-token: ${DEMO_TOKEN:}
   public-url: ${PUBLIC_APP_URL:}
