@@ -176,6 +176,36 @@ export async function api<T = any>(
   }
   return result;
 }
+export async function downloadFile(
+  path: string,
+  department: string | number,
+): Promise<{ blob: Blob; filename: string }> {
+  const departmentId = String(department);
+  const r = await fetch("/api/v1" + path, {
+    headers: { "X-Department-Id": departmentId },
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    if (r.status === 401) {
+      csrf = null;
+      window.dispatchEvent(new Event("session-expired"));
+    }
+    throw new ApiError(
+      r.status,
+      e.code || "REQUEST_FAILED",
+      e.message || "The download could not be completed.",
+    );
+  }
+  const disposition = r.headers.get("content-disposition") || "";
+  const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plainFilename = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  const filename = encodedFilename
+    ? decodeURIComponent(encodedFilename)
+    : plainFilename || "download";
+  return { blob: await r.blob(), filename };
+}
 export async function login(username: string, password: string): Promise<User> {
   const t = await token();
   const r = await fetch("/api/v1/auth/login", {
