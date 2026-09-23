@@ -45,6 +45,7 @@ export function HospitalSimulation() {
       roomNumber: `SIM-${i + 1}`,
       bedCount: 2,
       active: true,
+      capabilities: [],
       occupiedBeds: occupied,
       heldBeds: 0,
       activeHeldBeds: 0,

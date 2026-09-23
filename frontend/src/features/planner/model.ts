@@ -1,9 +1,12 @@
 import type { AdmissionView, RoomCapacity } from "../../api/contracts";
+import { missingCapabilities } from "../../room-capabilities";
 export interface PlannedTransfer {
   admissionId: number;
   patientName: string;
   fromRoomId: number;
   toRoomId: number;
+  toRoomVersion: number;
+  requiredRoomCapabilities: string[];
   version: number;
 }
 export function projectRooms(rooms: RoomCapacity[], plan: PlannedTransfer[]) {
@@ -29,6 +32,12 @@ export function validateTransfer(
   if (!destination?.active) return "This room is inactive.";
   if (view.assignment.roomId === destination.id)
     return "The patient is already in this room.";
+  const missing = missingCapabilities(
+    view.admission.requiredRoomCapabilities,
+    destination.capabilities,
+  );
+  if (missing.length)
+    return `${destination.roomNumber} is missing required capabilities: ${missing.join(", ")}.`;
   const projected = projectRooms(
     rooms,
     plan.filter((p) => p.admissionId !== view.admission.id),
@@ -51,7 +60,11 @@ export function executableOrder(
   while (pending.length) {
     const index = pending.findIndex((p) => {
       const r = rooms.find((r) => r.id === p.toRoomId);
-      return r?.active && (counts.get(r.id) ?? r.bedCount) < allocatableBeds(r);
+      return (
+        r?.active &&
+        missingCapabilities(p.requiredRoomCapabilities, r.capabilities).length === 0 &&
+        (counts.get(r.id) ?? r.bedCount) < allocatableBeds(r)
+      );
     });
     if (index < 0) return null;
     const [next] = pending.splice(index, 1);

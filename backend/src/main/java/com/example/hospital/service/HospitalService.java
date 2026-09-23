@@ -205,10 +205,18 @@ public class HospitalService {
     return assignments.countByRoomIdAndReleasedAtIsNull(id);
   }
 
-  public int held(Long id) {
-    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-    var holds = bedHolds.findByRoomIdAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(id, now);
-    return BedHoldCapacity.reserved(holds, now);
+public Long roomIdForAdmission(Long admissionId) {
+  return assignments.findByAdmissionIdAndReleasedAtIsNull(admissionId)
+      .map(RoomAssignment::getRoomId)
+      .orElseThrow(ApiException::missing);
+}
+
+public int held(Long id) {
+  var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+  var holds =
+      bedHolds.findByRoomIdAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(id, now);
+  return BedHoldCapacity.reserved(holds, now);
+}
   }
 
   public String scopeLabel() {
@@ -222,14 +230,22 @@ public class HospitalService {
   }
 
   public List<Map<String, Object>> rooms(int minFree) {
+    return rooms(minFree, List.of());
+  }
+
+  public List<Map<String, Object>> rooms(
+      int minFree, java.util.Collection<String> requiredCapabilities) {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
-    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-    var holdsByRoom =
-        bedHolds.findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
-            .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
+var required = RoomCapabilityMatcher.normalize(requiredCapabilities);
+
+var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+var holdsByRoom =
+    bedHolds.findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
+        .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
     return rooms.findAll().stream()
+        .filter(r -> RoomCapabilityMatcher.missing(required, r.getCapabilities()).isEmpty())
         .map(
             r -> {
               Map<String, Object> m = new LinkedHashMap<>(Views.room(r));

@@ -17,12 +17,13 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/patients/{id}` | Patient plus scoped admission/room/procedure history |
 | POST / PUT | `/patients` / `/patients/{id}` | PatientInput |
 | GET / POST / PUT | `/doctors` / `/doctors/{id}` | DoctorInput; writes admin-only |
+| GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET supports `minFree` and repeated `requiredCapabilities` tags |
 | GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET supports `minFree` |
 | POST | `/rooms/{id}/holds` | `{bedCount, reason, startsAt, endsAt}`; admin/staff; timed maintenance reservation |
 | DELETE | `/rooms/{roomId}/holds/{holdId}` | Admin/staff; cancels a reservation and returns 204 |
 | GET / POST / PUT | `/procedures` / `/procedures/{id}` | ProcedureInput; catalogue |
 | GET | `/admissions` / `/admissions/{id}` | Scoped stays with patient/doctor/room/procedure details |
-| POST | `/admissions` | `{patientId, doctorId, roomId}` |
+| POST | `/admissions` | `{patientId, doctorId, roomId, requiredRoomCapabilities?}` |
 | POST | `/admissions/{id}/transfer` | `{roomId, reason, version}` |
 | POST | `/admissions/{id}/discharge` | `{version}` |
 | POST | `/admissions/{id}/doctor` | `{doctorId, version}` |
@@ -44,6 +45,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 
+Room `capabilities` and admission `requiredRoomCapabilities` are arrays of up to 30 tags; each tag is trimmed, lowercased and limited to 64 characters. A room must support every requirement when an admission or transfer is saved. Requirements remain attached to an admission for future transfers. Room search filters on every requested tag; the assistant also returns excluded rooms with missing-tag or availability reasons. Removing a capability required by an active occupant returns `409 ROOM_CAPABILITY_IN_USE`.
 Room responses include `occupiedBeds`, `heldBeds`, `activeHeldBeds`, `availableBeds`, and current/upcoming `holds`. A hold uses a half-open `[startsAt, endsAt)` window. Upcoming holds reserve placement capacity immediately and release it automatically at `endsAt`; overlapping holds are checked against current occupancy and room capacity. `minFree`, admission, transfer, the planner, and reports all use the same reserved capacity.
 
 ## Reports
@@ -76,7 +78,7 @@ Discharge reminder outcomes include the expected date, reminder window, status, 
 
 Response types: `TEXT`, `PATIENT_LIST`, `PATIENT_SUMMARY`, `ROOM_LIST`, `REPORT_RESULT`, `NAVIGATION_COMMAND`, `CONFIRMATION_CARD`, `ERROR`. They include `message`, `data`, `sessionId`, `model`. The client validates the response envelope and renders trusted React components.
 
-Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoomOccupancy`, `getDoctorPatients`, `getAdmission`, `getAdmissions`, `getProcedureStatistics`, `getDashboardSummary`, `listWorkspaces`. Additional tools: `navigate`, `help`, `prepareAdmission`, `prepareTransfer`, `prepareDischarge`. Patient search results include the current hospital/department label. `listWorkspaces` is the only hospital-wide read; it omits join codes.
+Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoomOccupancy`, `getDoctorPatients`, `getAdmission`, `getAdmissions`, `getProcedureStatistics`, `getDashboardSummary`, `listWorkspaces`. Room search accepts comma-separated capability tags and reports excluded rooms with reasons. Admission and transfer proposals apply the saved or requested tags and recheck them on confirmation. Additional tools: `navigate`, `help`, `prepareAdmission`, `prepareTransfer`, `prepareDischarge`. Patient search results include the current hospital/department label. `listWorkspaces` is the only hospital-wide read; it omits join codes.
 
 ## Representative errors
 
@@ -93,6 +95,8 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 400 | `CODE_EXPIRED` | Join code is past its expiry |
 | 404 | `NOT_FOUND` | Requested record absent |
 | 409 | `ROOM_CAPACITY_EXCEEDED` | Destination is full or inactive |
+| 409 | `ROOM_CAPABILITY_MISMATCH` | Destination is missing one or more required room tags |
+| 409 | `ROOM_CAPABILITY_IN_USE` | An active occupant requires a capability being removed |
 | 409 | `STALE_STATE` | Version changed since review |
 | 409 | `ALREADY_ADMITTED` / `ADMISSION_CLOSED` | Invalid admission lifecycle transition |
 | 409 | `ACTION_EXPIRED` / `ACTION_CONSUMED` | Expired or previously resolved proposal |

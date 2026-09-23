@@ -7,12 +7,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Check } from "../../icons";
+import { normalizeCapabilities } from "../../room-capabilities";
 type Field = {
   key: string;
   label: string;
   type?: string;
   required?: boolean;
   placeholder?: string;
+  help?: string;
   options?: { value: string; label: string }[];
 };
 export type EntityConfig = {
@@ -63,6 +65,13 @@ export const configs: Record<string, EntityConfig> = {
     fields: [
       { key: "roomNumber", label: "Room number", required: true },
       { key: "bedCount", label: "Bed count", type: "number", required: true },
+      {
+        key: "capabilitiesText",
+        label: "Capabilities (comma-separated tags)",
+        type: "tags",
+        placeholder: "Enter capability tags",
+        help: "Use up to 30 tags, each no longer than 64 characters. Admission requirements use these tags.",
+      },
       { key: "active", label: "Active", type: "checkbox" },
     ],
   },
@@ -105,6 +114,9 @@ export function EntityForm({
     enabled: true,
     role: "MEDICAL_STAFF",
     ...record,
+    capabilitiesText: Array.isArray(record.capabilities)
+      ? record.capabilities.join(", ")
+      : "",
     password: "",
   };
   const shape: Record<string, z.ZodTypeAny> = {};
@@ -113,6 +125,15 @@ export function EntityForm({
       (shape[f.key] =
         f.type === "checkbox"
           ? z.boolean()
+          : f.type === "tags"
+            ? z.string().max(2000).superRefine((text, context) => {
+                if (!text.trim()) return;
+                const tags = text.split(",");
+                if (tags.length > 30)
+                  context.addIssue({ code: "custom", message: "Use no more than 30 capability tags." });
+                if (tags.some((tag) => !tag.trim() || tag.trim().length > 64))
+                  context.addIssue({ code: "custom", message: "Each tag must contain 1 to 64 characters." });
+              })
           : f.type === "number"
             ? f.key === "bedCount"
               ? z.coerce
@@ -141,6 +162,13 @@ export function EntityForm({
     defaultValues: defaults,
     resolver: zodResolver(z.object(shape)),
   });
+  const describedBy = (field: Field) =>
+    [
+      field.help ? `${field.key}-help` : undefined,
+      errors[field.key] ? `${field.key}-error` : undefined,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined;
   return (
     <Modal
       title={`${record.id ? "Edit" : "New"} ${cfg.singular}`}
@@ -153,6 +181,10 @@ export function EntityForm({
           setError(null);
           try {
             const body: Row = { ...values, version: record.version ?? null };
+            if (kind === "rooms") {
+              body.capabilities = normalizeCapabilities(body.capabilitiesText);
+              delete body.capabilitiesText;
+            }
             if (kind === "users") {
               body.doctorId =
                 body.role === "DOCTOR" && body.doctorId
@@ -181,7 +213,11 @@ export function EntityForm({
           >
             {f.label}
             {f.type === "select" ? (
-              <select {...register(f.key)}>
+              <select
+                {...register(f.key)}
+                aria-invalid={Boolean(errors[f.key])}
+                aria-describedby={describedBy(f)}
+              >
                 <option value="">Select...</option>
                 {(f.key === "doctorId"
                   ? Array.isArray(doctors)
@@ -201,9 +237,12 @@ export function EntityForm({
               </select>
             ) : (
               <input
-                type={f.type || "text"}
+                type={f.type === "tags" ? "text" : f.type || "text"}
                 placeholder={f.placeholder}
                 {...register(f.key)}
+                maxLength={f.type === "tags" ? 2000 : undefined}
+                aria-invalid={Boolean(errors[f.key])}
+                aria-describedby={describedBy(f)}
                 readOnly={
                   kind === "users" && f.key === "username" && Boolean(record.id)
                 }
@@ -222,8 +261,9 @@ export function EntityForm({
                 }
               />
             )}{" "}
+            {f.help && <small id={`${f.key}-help`}>{f.help}</small>}
             {errors[f.key] && (
-              <small className="invalid">
+              <small id={`${f.key}-error`} className="invalid" role="alert">
                 {String(errors[f.key]?.message)}
               </small>
             )}

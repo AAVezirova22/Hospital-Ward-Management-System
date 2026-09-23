@@ -870,11 +870,29 @@ kbd {
   color: var(--mint);
   border-color: color-mix(in srgb, var(--mint) 30%, transparent);
 }
+.room-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.room-capabilities li {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
 .beds .held {
   background: color-mix(in srgb, var(--gold) 14%, transparent);
   color: var(--gold);
   border-color: color-mix(in srgb, var(--gold) 38%, transparent);
 }
+
 .room-holds {
   border-top: 1px solid var(--line);
   margin-top: 14px;
@@ -882,23 +900,28 @@ kbd {
   color: var(--muted);
   font-size: 12px;
 }
+
 .room-holds summary {
   cursor: pointer;
 }
+
 .room-holds p {
   display: grid;
   gap: 4px;
   margin: 10px 0 0;
 }
+
 .room-holds small,
 .room-hold-list small {
   display: block;
   color: var(--muted);
   font-size: 11px;
 }
+
 .room-hold-list {
   margin-top: 24px;
 }
+
 .room-hold-list article {
   display: flex;
   align-items: center;
@@ -907,6 +930,7 @@ kbd {
   padding: 12px 0;
   border-top: 1px solid var(--line);
 }
+
 .room-hold-list article > div {
   display: grid;
   gap: 5px;

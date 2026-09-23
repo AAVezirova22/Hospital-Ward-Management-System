@@ -15,6 +15,7 @@ import {
 } from "../../components/workspace";
 import { CheckCircle2, ArrowRight } from "../../icons";
 import { defaultProcedureTime } from "../../workflow-time";
+import { missingCapabilities, normalizeCapabilities } from "../../room-capabilities";
 export function Workflow({
   kind,
   patient,
@@ -34,6 +35,7 @@ export function Workflow({
   const [values, setValues] = useState<Row>({
       doctorId: active?.doctor.id || user.doctorId || "",
       roomId: "",
+      requiredRoomCapabilitiesText: "",
       medicalProcedureId: "",
       reason: "",
       note: "",
@@ -51,6 +53,23 @@ export function Workflow({
       doctor: "Assign attending doctor",
     } as Row
   )[kind];
+  const roomRows = Array.isArray(rooms) ? (rooms as Row[]) : [];
+  const requiredRoomCapabilities =
+    kind === "admit"
+      ? normalizeCapabilities(values.requiredRoomCapabilitiesText)
+      : normalizeCapabilities(active?.admission.requiredRoomCapabilities);
+  const compatibleRooms = roomRows.filter(
+    (room) =>
+      room.active &&
+      room.availableBeds > 0 &&
+      room.id !== active?.assignment?.roomId &&
+      missingCapabilities(requiredRoomCapabilities, room.capabilities).length === 0,
+  );
+  const excludedRooms = roomRows.filter(
+    (room) =>
+      room.active &&
+      missingCapabilities(requiredRoomCapabilities, room.capabilities).length > 0,
+  );
   const update =
     (key: string) =>
     (
@@ -69,6 +88,7 @@ export function Workflow({
           patientId: patient.id,
           doctorId: Number(values.doctorId),
           roomId: Number(values.roomId),
+          requiredRoomCapabilities,
         });
       else if (kind === "transfer")
         await api(`/admissions/${admission.id}/transfer`, "POST", {
@@ -136,6 +156,11 @@ export function Workflow({
                     rooms.find((r: Row) => r.id === Number(values.roomId))
                       ?.roomNumber}
                 </strong>
+              </p>
+            )}
+            {["admit", "transfer"].includes(kind) && requiredRoomCapabilities.length > 0 && (
+              <p>
+                Required room capabilities: {requiredRoomCapabilities.join(", ")}
               </p>
             )}
             {values.doctorId && (
@@ -230,6 +255,22 @@ export function Workflow({
               </select>
             </label>
           )}
+          {kind === "admit" && (
+            <label>
+              Required room capabilities (comma-separated tags)
+              <input
+                type="text"
+                autoComplete="off"
+                maxLength={2000}
+                value={values.requiredRoomCapabilitiesText}
+                onChange={update("requiredRoomCapabilitiesText")}
+                aria-describedby="room-capability-help"
+              />
+              <small id="room-capability-help">
+                Use the capability tags configured on rooms. Every listed tag is required.
+              </small>
+            </label>
+          )}
           {["admit", "transfer"].includes(kind) && (
             <label>
               Destination room
@@ -239,22 +280,32 @@ export function Workflow({
                 value={values.roomId}
                 onChange={update("roomId")}
               >
-                <option value="">Select available room…</option>
-                {Array.isArray(rooms) &&
-                  rooms
-                    .filter(
-                      (r: Row) =>
-                        r.active &&
-                        r.availableBeds > 0 &&
-                        r.id !== active?.assignment?.roomId,
-                    )
-                    .map((r: Row) => (
-                      <option key={r.id} value={r.id}>
-                        Room {r.roomNumber} · {r.availableBeds} free beds
-                      </option>
-                    ))}
+                <option value="">
+                  {compatibleRooms.length > 0
+                    ? "Select compatible available room…"
+                    : "No compatible available rooms"}
+                </option>
+                {compatibleRooms.map((room: Row) => (
+                  <option key={room.id} value={room.id}>
+                    Room {room.roomNumber} · {room.availableBeds} free beds
+                  </option>
+                ))}
               </select>
             </label>
+          )}
+          {["admit", "transfer"].includes(kind) && requiredRoomCapabilities.length > 0 && (
+            <div className="form-full" role="status" aria-live="polite">
+              <p>Every destination must support: {requiredRoomCapabilities.join(", ")}.</p>
+              {excludedRooms.length > 0 && (
+                <ul>
+                  {excludedRooms.map((room: Row) => (
+                    <li key={room.id}>
+                      Room {room.roomNumber} excluded: missing {missingCapabilities(requiredRoomCapabilities, room.capabilities).join(", ")}.
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
           {kind === "transfer" && (
             <label>

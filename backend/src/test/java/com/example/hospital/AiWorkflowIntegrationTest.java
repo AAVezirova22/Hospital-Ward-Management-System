@@ -33,10 +33,17 @@ class AiWorkflowIntegrationTest {
   @BeforeEach void setup() { when(model.identifier()).thenReturn("workflow-fixture"); }
   String unique() { return UUID.randomUUID().toString().substring(0, 8); }
   JsonNode body(ResultActions result) throws Exception {
-    return json.readTree(result.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+    var response = result.andReturn().getResponse();
+    if (response.getStatus() != 200)
+      throw new AssertionError("Expected HTTP 200 but received " + response.getStatus() + ": " + response.getContentAsString());
+    return json.readTree(response.getContentAsString());
   }
   ResultActions postJson(String user, String path, Object data) throws Exception {
     return mvc.perform(post("/api/v1" + path).with(user(user)).with(csrf())
+        .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(data)));
+  }
+  ResultActions putJson(String user, String path, Object data) throws Exception {
+    return mvc.perform(put("/api/v1" + path).with(user(user)).with(csrf())
         .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(data)));
   }
   JsonNode upload(String user, String name, String content) throws Exception {
@@ -62,8 +69,10 @@ class AiWorkflowIntegrationTest {
         step("h", "createHospital", Map.of("name", "Import " + marker, "departmentName", "Operations")),
         step("p", "createPatient", Map.of("patientIdentifier", "P-" + marker, "firstName", "Imported", "lastName", "Person", "dateOfBirth", "1990-01-01")),
         step("d", "createDoctor", Map.of("doctorIdentifier", "D-" + marker, "firstName", "Imported", "lastName", "Doctor", "specialty", "Medicine", "active", true)),
-        step("r", "createRoom", Map.of("roomNumber", "A1", "bedCount", 2, "active", true)),
-        step("a", "admit", Map.of("patientId", "$p", "doctorId", "$d", "roomId", "$r"))));
+        step("r", "createRoom", Map.of("roomNumber", "A1", "bedCount", 2, "active", true,
+            "capabilities", List.of("oxygen"))),
+        step("a", "admit", Map.of("patientId", "$p", "doctorId", "$d", "roomId", "$r",
+            "requiredRoomCapabilities", List.of("oxygen")))));
     when(model.complete(anyString(), any())).thenAnswer(inv -> {
       AiModelClient.Context context = inv.getArgument(1);
       assertThat(context.sources().getFirst().get("text")).contains(marker);
@@ -72,6 +81,9 @@ class AiWorkflowIntegrationTest {
     var proposal = body(postJson("admin", "/assistant/messages",
         Map.of("message", "Set up the hospital from the file", "sourceIds", List.of(source.get("id").asText()))));
     assertThat(proposal.get("responseType").asText()).isEqualTo("WORKFLOW_PROPOSAL");
+    assertThat(proposal.at("/data/workflow/steps/3/fields/capabilities/0").asText())
+        .as("Workflow proposal: %s", proposal.toPrettyString()).isEqualTo("oxygen");
+    assertThat(proposal.at("/data/workflow/steps/4/fields/requiredRoomCapabilities/0").asText()).isEqualTo("oxygen");
     long action = proposal.at("/data/action/id").asLong();
     var before = body(mvc.perform(get("/api/v1/workspaces").with(user("admin"))));
     assertThat(before.toString()).doesNotContain("Import " + marker);
@@ -79,21 +91,219 @@ class AiWorkflowIntegrationTest {
     long department = result.get("departmentId").asLong();
     var patients = body(mvc.perform(get("/api/v1/patients").with(user("admin")).header("X-Department-Id", department)));
     assertThat(patients.toString()).contains("P-" + marker);
-    var admissions =
-        json.readTree(
-            mvc.perform(
-                    get("/api/v1/admissions")
-                        .with(user("admin"))
-                        .header("X-Department-Id", department))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString());
-    assertThat(admissions.get("items").size()).isEqualTo(1);
-    assertThat(admissions.get("totalElements").asLong()).isEqualTo(1);
+var admissions =
+    json.readTree(
+        mvc.perform(
+                get("/api/v1/admissions")
+                    .with(user("admin"))
+                    .header("X-Department-Id", department))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString());
+
+assertThat(admissions.get("items").size()).isEqualTo(1);
+assertThat(admissions.get("totalElements").asLong()).isEqualTo(1);
+assertThat(admissions.get("items").get(0).toString())
+    .contains("requiredRoomCapabilities")
+    .contains("oxygen");
     var home = body(mvc.perform(get("/api/v1/patients").with(user("admin")).header("X-Department-Id", "1")));
     assertThat(home.toString()).doesNotContain("P-" + marker);
     postJson("admin", "/ai-actions/" + action + "/confirm", Map.of()).andExpect(status().isConflict());
+  }
+
+  @Test void assistantRoomSearchExplainsCapabilityAndAvailabilityExclusions() throws Exception {
+    when(model.identifier()).thenReturn("local-command-model");
+    String compatibleNumber = "R-" + unique();
+    String missingNumber = "R-" + unique();
+    String inactiveNumber = "R-" + unique();
+    JsonNode compatible = createRoom(compatibleNumber, List.of("oxygen", "isolation"), true);
+    createRoom(missingNumber, List.of("oxygen"), true);
+    createRoom(inactiveNumber, List.of("oxygen", "isolation"), false);
+    when(model.complete(anyString(), any()))
+        .thenReturn(new AiModelClient.ToolCall("getAvailableRooms", Map.of(
+            "minimumFreeBeds", "1", "requiredCapabilities", " Oxygen, isolation ")));
+
+    JsonNode result = body(postJson("admin", "/assistant/messages", Map.of("message", "Find a room")));
+
+    assertThat(result.path("responseType").asText()).isEqualTo("ROOM_LIST");
+    assertThat(result.at("/data/rooms").size()).isEqualTo(1);
+    assertThat(result.at("/data/rooms/0/roomNumber").asText()).isEqualTo(compatibleNumber);
+    assertThat(result.at("/data/excludedRooms").toString()).contains(missingNumber, "isolation", inactiveNumber, "inactive");
+  }
+
+  @Test void assistantAdmissionRejectsIncompatibleRoomsAndPersistsReviewedRequirements() throws Exception {
+    String marker = unique();
+    JsonNode patient = createPatient(marker);
+    JsonNode incompatible = createRoom("R-" + unique(), List.of("oxygen"), true);
+    JsonNode compatible = createRoom("R-" + unique(), List.of("oxygen", "isolation"), true);
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("prepareAdmission", Map.of(
+        "patientQuery", patient.get("patientIdentifier").asText(),
+        "doctorQuery", "Dimitrova",
+        "roomNumber", incompatible.get("roomNumber").asText(),
+        "requiredRoomCapabilities", "oxygen, isolation")));
+    postJson("admin", "/assistant/messages", Map.of("message", "Prepare admission"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("ROOM_CAPABILITY_MISMATCH"))
+        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("isolation")));
+
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("prepareAdmission", Map.of(
+        "patientQuery", patient.get("patientIdentifier").asText(),
+        "doctorQuery", "Dimitrova",
+        "roomNumber", compatible.get("roomNumber").asText(),
+        "requiredRoomCapabilities", "oxygen, isolation")));
+    JsonNode proposal = body(postJson("admin", "/assistant/messages", Map.of("message", "Prepare admission")));
+    assertThat(proposal.path("responseType").asText()).isEqualTo("CONFIRMATION_CARD");
+    assertThat(proposal.at("/data/requiredRoomCapabilities").toString()).contains("oxygen", "isolation");
+    assertThat(proposal.at("/data/destination/capabilities").toString()).contains("oxygen", "isolation");
+    long action = proposal.at("/data/action/id").asLong();
+    postJson("admin", "/ai-actions/" + action + "/confirm", Map.of()).andExpect(status().isOk());
+    assertThat(jdbc.queryForList(
+        "select capability from admission_room_requirements r join admissions a on a.id=r.admission_id where a.patient_id=? order by capability",
+        String.class, patient.get("id").asLong())).containsExactly("isolation", "oxygen");
+  }
+
+  @Test void assistantTransferUsesTheAdmissionRequirementsForRoomSelection() throws Exception {
+    String marker = unique();
+    JsonNode patient = createPatient(marker);
+    JsonNode currentRoom = createRoom("S-" + marker, List.of("oxygen"), true);
+    JsonNode incompatible = createRoom("I-" + marker, List.of("isolation"), true);
+    JsonNode compatible = createRoom("D-" + marker, List.of("oxygen", "isolation"), true);
+    JsonNode admission = json.readTree(postJson("admin", "/admissions", Map.of(
+        "patientId", patient.get("id").asLong(), "doctorId", 1,
+        "roomId", currentRoom.get("id").asLong(),
+        "requiredRoomCapabilities", List.of("oxygen")))
+        .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("prepareTransfer", Map.of(
+        "patientQuery", patient.get("patientIdentifier").asText(),
+        "roomNumber", incompatible.get("roomNumber").asText())));
+    postJson("admin", "/assistant/messages", Map.of("message", "Prepare transfer"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("ROOM_CAPABILITY_MISMATCH"))
+        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("oxygen")));
+
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("prepareTransfer", Map.of(
+        "patientQuery", patient.get("patientIdentifier").asText(),
+        "roomNumber", compatible.get("roomNumber").asText())));
+    JsonNode proposal = body(postJson("admin", "/assistant/messages", Map.of("message", "Prepare transfer")));
+    assertThat(proposal.path("responseType").asText()).isEqualTo("CONFIRMATION_CARD");
+    assertThat(proposal.at("/data/requiredRoomCapabilities").toString()).contains("oxygen");
+    long action = proposal.at("/data/action/id").asLong();
+    postJson("admin", "/ai-actions/" + action + "/confirm", Map.of()).andExpect(status().isOk());
+
+    assertThat(jdbc.queryForList(
+        "select capability from admission_room_requirements where admission_id = ? order by capability",
+        String.class, admission.get("id").asLong())).containsExactly("oxygen");
+    assertThat(jdbc.queryForObject(
+        "select room_id from room_assignments where admission_id = ? and released_at is null",
+        Long.class, admission.get("id").asLong())).isEqualTo(compatible.get("id").asLong());
+  }
+
+  @Test void workflowProposalRejectsIncompatibleAdmissionAndTransferDestinations() throws Exception {
+    String marker = unique();
+    String invalidAdmission = plan(List.of(
+        step("p", "createPatient", Map.of("patientIdentifier", "P-" + marker, "firstName", "Test", "lastName", "Patient", "dateOfBirth", "1990-01-01")),
+        step("d", "createDoctor", Map.of("doctorIdentifier", "D-" + marker, "firstName", "Test", "lastName", "Doctor", "specialty", "Medicine", "active", true)),
+        step("r", "createRoom", Map.of("roomNumber", "A-" + marker, "bedCount", 2, "active", true, "capabilities", List.of("oxygen"))),
+        step("a", "admit", Map.of("patientId", "$p", "doctorId", "$d", "roomId", "$r", "requiredRoomCapabilities", List.of("isolation")))));
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("prepareWorkflow", Map.of("plan", invalidAdmission)));
+    postJson("admin", "/assistant/messages", Map.of("message", "Propose workflow"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("ROOM_CAPABILITY_MISMATCH"))
+        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("isolation")));
+
+    String invalidTransfer = plan(List.of(
+        step("p", "createPatient", Map.of("patientIdentifier", "P2-" + marker, "firstName", "Test", "lastName", "Patient", "dateOfBirth", "1990-01-01")),
+        step("d", "createDoctor", Map.of("doctorIdentifier", "D2-" + marker, "firstName", "Test", "lastName", "Doctor", "specialty", "Medicine", "active", true)),
+        step("r1", "createRoom", Map.of("roomNumber", "B-" + marker, "bedCount", 2, "active", true, "capabilities", List.of("oxygen"))),
+        step("r2", "createRoom", Map.of("roomNumber", "C-" + marker, "bedCount", 2, "active", true, "capabilities", List.of("isolation"))),
+        step("a", "admit", Map.of("patientId", "$p", "doctorId", "$d", "roomId", "$r1", "requiredRoomCapabilities", List.of("oxygen"))),
+        step("t", "transfer", Map.of("admissionId", "$a", "roomId", "$r2", "reason", "Test", "version", 0))));
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("prepareWorkflow", Map.of("plan", invalidTransfer)));
+    postJson("admin", "/assistant/messages", Map.of("message", "Propose workflow"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("ROOM_CAPABILITY_MISMATCH"))
+        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("oxygen")));
+  }
+
+  @Test void workflowProposalRejectsUnavailableRoomsAndPlannedOvercapacity() throws Exception {
+    String marker = unique();
+    JsonNode fullRoom = createRoom("F-" + marker, List.of(), true);
+    JsonNode existingPatient = createPatient(marker);
+    postJson("admin", "/admissions", Map.of(
+        "patientId", existingPatient.get("id").asLong(), "doctorId", 1,
+        "roomId", fullRoom.get("id").asLong())).andExpect(status().isCreated());
+
+    String fullRoomPlan = plan(List.of(
+        step("p", "createPatient", Map.of("patientIdentifier", "P-full-" + marker,
+            "firstName", "Test", "lastName", "Patient", "dateOfBirth", "1990-01-01")),
+        step("a", "admit", Map.of("patientId", "$p", "doctorId", 1,
+            "roomId", fullRoom.get("id").asLong()))));
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall(
+        "prepareWorkflow", Map.of("plan", fullRoomPlan)));
+    postJson("admin", "/assistant/messages", Map.of("message", "Propose workflow"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("ROOM_CAPACITY_EXCEEDED"));
+
+    JsonNode inactiveRoom = createRoom("X-" + marker, List.of(), false);
+    String inactiveRoomPlan = plan(List.of(
+        step("p", "createPatient", Map.of("patientIdentifier", "P-inactive-" + marker,
+            "firstName", "Test", "lastName", "Patient", "dateOfBirth", "1990-01-01")),
+        step("a", "admit", Map.of("patientId", "$p", "doctorId", 1,
+            "roomId", inactiveRoom.get("id").asLong()))));
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall(
+        "prepareWorkflow", Map.of("plan", inactiveRoomPlan)));
+    postJson("admin", "/assistant/messages", Map.of("message", "Propose workflow"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("ROOM_INACTIVE"));
+
+    String overCapacityPlan = plan(List.of(
+        step("p1", "createPatient", Map.of("patientIdentifier", "P1-plan-" + marker,
+            "firstName", "First", "lastName", "Patient", "dateOfBirth", "1990-01-01")),
+        step("p2", "createPatient", Map.of("patientIdentifier", "P2-plan-" + marker,
+            "firstName", "Second", "lastName", "Patient", "dateOfBirth", "1990-01-01")),
+        step("r", "createRoom", Map.of("roomNumber", "P-" + marker,
+            "bedCount", 1, "active", true)),
+        step("a1", "admit", Map.of("patientId", "$p1", "doctorId", 1, "roomId", "$r")),
+        step("a2", "admit", Map.of("patientId", "$p2", "doctorId", 1, "roomId", "$r"))));
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall(
+        "prepareWorkflow", Map.of("plan", overCapacityPlan)));
+    postJson("admin", "/assistant/messages", Map.of("message", "Propose workflow"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("ROOM_CAPACITY_EXCEEDED"));
+  }
+
+  @Test void workflowConfirmationRechecksRoomCapabilitiesBeforeAnyWrite() throws Exception {
+    String marker = unique();
+    JsonNode room = createRoom("V-" + marker, List.of("oxygen"), true);
+    String plan = plan(List.of(
+        step("p", "createPatient", Map.of("patientIdentifier", "P-" + marker, "firstName", "Test", "lastName", "Patient", "dateOfBirth", "1990-01-01")),
+        step("a", "admit", Map.of("patientId", "$p", "doctorId", 1, "roomId", room.get("id").asLong(), "requiredRoomCapabilities", List.of("oxygen")))));
+    JsonNode proposal = propose(plan);
+    long action = proposal.at("/data/action/id").asLong();
+    putJson("admin", "/rooms/" + room.get("id").asLong(), Map.of(
+        "roomNumber", room.get("roomNumber").asText(), "bedCount", 1, "active", true,
+        "capabilities", List.of("isolation"), "version", room.get("version").asLong()))
+        .andExpect(status().isOk());
+
+    postJson("admin", "/ai-actions/" + action + "/confirm", Map.of())
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("ROOM_CAPABILITY_MISMATCH"));
+    JsonNode patients = body(mvc.perform(get("/api/v1/patients").with(user("admin")).header("X-Department-Id", "1")));
+    assertThat(patients.toString()).doesNotContain("P-" + marker);
+  }
+
+  private JsonNode createRoom(String number, List<String> capabilities, boolean active) throws Exception {
+    return json.readTree(postJson("admin", "/rooms", Map.of(
+        "roomNumber", number, "bedCount", 1, "active", active, "capabilities", capabilities))
+        .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+  }
+
+  private JsonNode createPatient(String marker) throws Exception {
+    return json.readTree(postJson("admin", "/patients", Map.of(
+        "patientIdentifier", "P-" + marker, "firstName", "Patient", "lastName", "Capability", "dateOfBirth", "1990-01-01"))
+        .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
   }
 
   @Test void failedWorkflowRollsBackHospitalAndAllPriorSteps() throws Exception {

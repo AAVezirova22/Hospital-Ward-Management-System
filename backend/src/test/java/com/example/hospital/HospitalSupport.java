@@ -21,6 +21,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -68,6 +69,21 @@ abstract class HospitalSupport {
   @Autowired AppUserRepository users;
   @Autowired RoomAssignmentRepository assignments;
   @Autowired AdmissionRepository admissions;
+  @Autowired JdbcTemplate jdbc;
+
+  long activeAssignments(Long roomId) {
+    return jdbc.queryForObject(
+        "select count(*) from room_assignments where room_id = ? and released_at is null",
+        Long.class,
+        roomId);
+  }
+
+  long assignmentCount(Long admissionId) {
+    return jdbc.queryForObject(
+        "select count(*) from room_assignments where admission_id = ?",
+        Long.class,
+        admissionId);
+  }
 
   String unique() {
     return UUID.randomUUID().toString().substring(0, 10);

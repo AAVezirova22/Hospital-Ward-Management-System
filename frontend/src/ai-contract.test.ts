@@ -43,10 +43,22 @@ describe("assistant response boundaries", () => {
         ...base,
         responseType: "ROOM_LIST",
         data: {
-          rooms: [{ id: 1, roomNumber: "304", availableBeds: 2, bedCount: 4 }],
+          rooms: [{ id: 1, roomNumber: "304", availableBeds: 2, bedCount: 4, capabilities: ["oxygen"] }],
+          requiredCapabilities: ["oxygen"],
+          excludedRooms: [{
+            id: 2,
+            roomNumber: "305",
+            missingCapabilities: ["oxygen"],
+            reason: "Missing required capabilities: oxygen",
+          }],
         },
-      }).responseType,
-    ).toBe("ROOM_LIST");
+      }),
+    ).toMatchObject({
+      responseType: "ROOM_LIST",
+      data: {
+        excludedRooms: [{ roomNumber: "305", reason: "Missing required capabilities: oxygen" }],
+      },
+    });
   });
   it("rejects negative capacity and malformed room lists", () => {
     for (const data of [

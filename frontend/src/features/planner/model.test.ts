@@ -6,18 +6,22 @@ import {
   type PlannedTransfer,
 } from "./model";
 import type { RoomCapacity, AdmissionView } from "../../api/contracts";
+import { missingCapabilities } from "../../room-capabilities";
 const room = (
   id: number,
   occupiedBeds: number,
   bedCount = 2,
   active = true,
+  capabilities: string[] = [],
   heldBeds = 0,
 ) =>
   ({
     id,
+    version: 1,
     occupiedBeds,
     bedCount,
     active,
+    capabilities,
     heldBeds,
     roomNumber: `Ward ${id}`,
     availableBeds: bedCount - occupiedBeds - heldBeds,
@@ -27,6 +31,8 @@ const transfer = (id: number, fromRoomId: number, toRoomId: number) =>
     admissionId: id,
     fromRoomId,
     toRoomId,
+    toRoomVersion: 1,
+    requiredRoomCapabilities: [],
     version: 1,
     patientName: `Patient ${id}`,
   }) satisfies PlannedTransfer;
@@ -84,6 +90,44 @@ describe("ward planning", () => {
     );
     expect(validateTransfer(view, room(1, 1), [], [])).toMatch(/already/);
   });
+  it("explains missing required capabilities and refuses incompatible plan destinations", () => {
+    const view = {
+      admission: {
+        id: 1,
+        status: "ACTIVE",
+        requiredRoomCapabilities: ["isolation", "oxygen"],
+      },
+      assignment: { roomId: 1 },
+    } as AdmissionView;
+    const incompatible = room(2, 0, 2, true, ["oxygen"]);
+    expect(validateTransfer(view, incompatible, [room(1, 1), incompatible], [])).toContain(
+      "missing required capabilities: isolation",
+    );
+    expect(
+      executableOrder(
+        [room(1, 1), incompatible],
+        [{ ...transfer(1, 1, 2), requiredRoomCapabilities: ["isolation", "oxygen"] }],
+      ),
+    ).toBeNull();
+    expect(missingCapabilities(["oxygen"], ["oxygen", "isolation"])).toEqual([]);
+  });
+  it("checks each staged transfer against its own capability requirements", () => {
+    const oxygenRoom = room(2, 0, 2, true, ["oxygen"]);
+    const isolationRoom = room(3, 0, 2, true, ["isolation"]);
+    const oxygenTransfer = {
+      ...transfer(1, 1, 2),
+      requiredRoomCapabilities: ["oxygen"],
+    };
+    const isolationTransfer = {
+      ...transfer(2, 1, 3),
+      requiredRoomCapabilities: ["isolation"],
+    };
+    expect(
+      executableOrder(
+        [room(1, 2), oxygenRoom, isolationRoom],
+        [oxygenTransfer, isolationTransfer],
+      ),
+    ).toEqual([oxygenTransfer, isolationTransfer]);
   it("keeps held capacity unavailable during projections and transfers", () => {
     const heldRoom = room(2, 0, 2, true, 1);
     const view = {

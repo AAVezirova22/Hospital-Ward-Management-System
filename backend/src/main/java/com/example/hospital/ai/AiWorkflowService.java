@@ -43,9 +43,9 @@ public class AiWorkflowService {
       createHospital: name,departmentName (only first step; subsequent records go in its new department);
       createPatient: patientIdentifier,firstName,lastName,dateOfBirth (YYYY-MM-DD),address?,phoneNumber?;
       createDoctor: doctorIdentifier,firstName,lastName,specialty,active (boolean);
-      createRoom: roomNumber,bedCount (1..100),active (boolean);
+      createRoom: roomNumber,bedCount (1..100),active (boolean),capabilities? (array of configured room tags);
       createProcedure: procedureCode,procedureName,currentCost (number),active (boolean);
-      admit: patientId,doctorId,roomId;
+      admit: patientId,doctorId,roomId,requiredRoomCapabilities? (array of required tags);
       transfer: admissionId,roomId,reason,version;
       discharge: admissionId,version;
       recordProcedure: admissionId,medicalProcedureId,doctorId,performedAt (ISO instant),note?.
@@ -60,9 +60,9 @@ public class AiWorkflowService {
       Map.entry("createHospital", Set.of("name", "departmentName")),
       Map.entry("createPatient", Set.of("patientIdentifier", "firstName", "lastName", "dateOfBirth", "address", "phoneNumber")),
       Map.entry("createDoctor", Set.of("doctorIdentifier", "firstName", "lastName", "specialty", "active")),
-      Map.entry("createRoom", Set.of("roomNumber", "bedCount", "active")),
+      Map.entry("createRoom", Set.of("roomNumber", "bedCount", "active", "capabilities")),
       Map.entry("createProcedure", Set.of("procedureCode", "procedureName", "currentCost", "active")),
-      Map.entry("admit", Set.of("patientId", "doctorId", "roomId")),
+      Map.entry("admit", Set.of("patientId", "doctorId", "roomId", "requiredRoomCapabilities")),
       Map.entry("transfer", Set.of("admissionId", "roomId", "reason", "version")),
       Map.entry("discharge", Set.of("admissionId", "version")),
       Map.entry("recordProcedure", Set.of("admissionId", "medicalProcedureId", "doctorId", "performedAt", "note")));
@@ -86,6 +86,10 @@ public class AiWorkflowService {
     if (plan == null || plan.title() == null || plan.title().isBlank() || plan.title().length() > 200
         || plan.steps() == null || plan.steps().isEmpty() || plan.steps().size() > 50) throw invalid();
     Map<String, String> keys = new HashMap<>();
+    Map<String, PlannedRoom> plannedRooms = new HashMap<>();
+    Map<String, Set<String>> plannedAdmissionRequirements = new HashMap<>();
+    Map<String, Integer> occupancyChanges = new HashMap<>();
+    Map<String, String> plannedAdmissionRooms = new HashMap<>();
     boolean newHospital = false;
     for (var step : plan.steps()) {
       if (step == null || step.key() == null || !step.key().matches("[a-zA-Z][a-zA-Z0-9_]{0,39}")
@@ -114,9 +118,128 @@ public class AiWorkflowService {
           throw invalid();
         }
       });
-      input(step.operation(), resolved);
+      Object validated = input(step.operation(), resolved);
+      switch (step.operation()) {
+        case "createRoom" -> {
+          var room = (RoomInput) validated;
+          var capabilities = RoomCapabilityMatcher.normalize(room.capabilities());
+          plannedRooms.put(
+              step.key(),
+              new PlannedRoom(
+                  room.roomNumber(), room.bedCount(), room.active(), capabilities));
+        }
+        case "admit" -> {
+          var admission = (AdmissionInput) validated;
+          var required =
+              RoomCapabilityMatcher.normalize(admission.requiredRoomCapabilities());
+          String roomKey =
+              requireRoomPlacement(
+                  step.fields().get("roomId"), plannedRooms, occupancyChanges, required);
+          occupancyChanges.merge(roomKey, 1, Integer::sum);
+          plannedAdmissionRequirements.put(step.key(), required);
+          plannedAdmissionRooms.put("plannedAdmission:" + step.key(), roomKey);
+        }
+        case "transfer" -> {
+          JsonNode admissionReference = step.fields().get("admissionId");
+          String admissionKey = admissionStateKey(admissionReference);
+          String currentRoomKey =
+              currentRoomKey(admissionReference, admissionKey, plannedAdmissionRooms);
+          var required = requirementsForAdmission(admissionReference, plannedAdmissionRequirements);
+          String destinationRoomKey =
+              requireRoomPlacement(
+                  step.fields().get("roomId"), plannedRooms, occupancyChanges, required);
+          if (destinationRoomKey.equals(currentRoomKey))
+            throw ApiException.conflict("SAME_ROOM", "The patient is already in that room.");
+          occupancyChanges.merge(currentRoomKey, -1, Integer::sum);
+          occupancyChanges.merge(destinationRoomKey, 1, Integer::sum);
+          plannedAdmissionRooms.put(admissionKey, destinationRoomKey);
+        }
+        default -> { }
+      }
       keys.put(step.key(), step.operation());
     }
+  }
+
+  private record PlannedRoom(
+      String roomNumber, int bedCount, boolean active, Set<String> capabilities) {}
+
+  private String requireRoomPlacement(
+      JsonNode roomReference,
+      Map<String, PlannedRoom> plannedRooms,
+      Map<String, Integer> occupancyChanges,
+      Set<String> requiredCapabilities) {
+    String key = referenceKey(roomReference);
+    if (key != null) {
+      PlannedRoom room = plannedRooms.get(key);
+      if (room == null) throw invalid();
+      if (!room.active())
+        throw ApiException.conflict("ROOM_INACTIVE", "Room " + room.roomNumber() + " is inactive.");
+      RoomCapabilityMatcher.require(
+          room.roomNumber(), room.capabilities(), requiredCapabilities);
+      String roomKey = "planned:" + key;
+      if (occupancyChanges.getOrDefault(roomKey, 0) >= room.bedCount())
+        throw roomFull(room.roomNumber());
+      return roomKey;
+    }
+    if (roomReference == null || !roomReference.isIntegralNumber() || roomReference.asLong() <= 0)
+      throw invalid();
+    Room room = hospital.room(roomReference.asLong());
+    if (!room.isActive())
+      throw ApiException.conflict("ROOM_INACTIVE", "Room " + room.getRoomNumber() + " is inactive.");
+    RoomCapabilityMatcher.require(room, requiredCapabilities);
+    String roomKey = "existing:" + room.getId();
+    if (hospital.occupied(room.getId()) + occupancyChanges.getOrDefault(roomKey, 0)
+        >= room.getBedCount()) throw roomFull(room.getRoomNumber());
+    return roomKey;
+  }
+
+  private static ApiException roomFull(String roomNumber) {
+    return ApiException.conflict(
+        "ROOM_CAPACITY_EXCEEDED", "Room " + roomNumber + " has no available capacity.");
+  }
+
+  private String currentRoomKey(
+      JsonNode admissionReference,
+      String admissionKey,
+      Map<String, String> plannedAdmissionRooms) {
+    String plannedRoomKey = plannedAdmissionRooms.get(admissionKey);
+    if (plannedRoomKey != null) return plannedRoomKey;
+    if (referenceKey(admissionReference) != null) throw invalid();
+    if (admissionReference == null
+        || !admissionReference.isIntegralNumber()
+        || admissionReference.asLong() <= 0) throw invalid();
+    return "existing:" + hospital.roomIdForAdmission(admissionReference.asLong());
+  }
+
+  private static String admissionStateKey(JsonNode admissionReference) {
+    String key = referenceKey(admissionReference);
+    if (key != null) return "plannedAdmission:" + key;
+    if (admissionReference == null
+        || !admissionReference.isIntegralNumber()
+        || admissionReference.asLong() <= 0) throw invalid();
+    return "existingAdmission:" + admissionReference.asLong();
+  }
+
+  private Set<String> requirementsForAdmission(
+      JsonNode admissionReference, Map<String, Set<String>> plannedAdmissionRequirements) {
+    String key = referenceKey(admissionReference);
+    if (key != null) {
+      Set<String> required = plannedAdmissionRequirements.get(key);
+      if (required == null) throw invalid();
+      return required;
+    }
+    if (admissionReference == null
+        || !admissionReference.isIntegralNumber()
+        || admissionReference.asLong() <= 0) throw invalid();
+    Admission admission = hospital.admission(admissionReference.asLong());
+    if (!admission.getStatus().equals("ACTIVE"))
+      throw ApiException.conflict("ADMISSION_CLOSED", "This admission is already closed.");
+    return RoomCapabilityMatcher.normalize(admission.getRequiredRoomCapabilities());
+  }
+
+  private static String referenceKey(JsonNode value) {
+    if (value == null || !value.isTextual() || !value.asText().startsWith("$")) return null;
+    return value.asText().substring(1);
   }
 
   private Object input(String operation, ObjectNode fields) {

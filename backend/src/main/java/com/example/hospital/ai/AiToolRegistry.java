@@ -81,7 +81,8 @@ public class AiToolRegistry {
         .map(
             e -> {
               Map<String, Object> props = new LinkedHashMap<>();
-              e.getValue().forEach(k -> props.put(k, Map.of("type", "string", "maxLength", 500)));
+              e.getValue().forEach(
+                  k -> props.put(k, Map.of("type", "string", "maxLength", argumentLimit(k))));
               return Map.<String, Object>of(
                   "type",
                   "function",
@@ -90,9 +91,7 @@ public class AiToolRegistry {
                       "name",
                       e.getKey(),
                       "description",
-                      e.getKey().startsWith("prepare")
-                          ? "Prepare for explicit human confirmation; never executes a write"
-                          : "Authorized operational query or navigation",
+                      toolDescription(e.getKey()),
                       "parameters",
                       Map.of(
                           "type", "object", "properties", props, "additionalProperties", false)));
@@ -102,6 +101,30 @@ public class AiToolRegistry {
 
   private Response response(String type, String message, Object data) {
     return new Response(type, message, data, null, null);
+  }
+
+  private static int argumentLimit(String name) {
+    return name.toLowerCase(Locale.ROOT).contains("capabilities") ? 2000 : 500;
+  }
+
+  private static String toolDescription(String name) {
+    return switch (name) {
+      case "getAvailableRooms" ->
+          "Find active rooms with free beds. requiredCapabilities is an optional comma-separated list of tags; incompatible or unavailable rooms are returned separately with reasons.";
+      case "getRoomOccupancy" ->
+          "Show room occupancy. requiredCapabilities is an optional comma-separated list of tags; rooms missing any requested tag are excluded with reasons.";
+      case "prepareAdmission" ->
+          "Prepare an admission proposal for review. requiredRoomCapabilities is an optional comma-separated list; choose only a room that supports every requested tag.";
+      case "prepareTransfer" ->
+          "Prepare a transfer for review. The admission's saved room requirements apply; choose only a compatible room with available capacity.";
+      default -> "Read authorized hospital information or prepare a change for human review.";
+    };
+  }
+
+  private static Collection<String> roomCapabilities(Map<String, Object> room) {
+    Object capabilities = room.get("capabilities");
+    if (!(capabilities instanceof Collection<?> values)) return List.of();
+    return values.stream().filter(String.class::isInstance).map(String.class::cast).toList();
   }
 
   private Patient resolve(String q, Long selected) {
@@ -140,7 +163,8 @@ public class AiToolRegistry {
     if (keys == null
         || call.arguments() == null
         || !keys.containsAll(call.arguments().keySet())
-        || call.arguments().values().stream().anyMatch(v -> v == null || v.length() > 500))
+        || call.arguments().entrySet().stream()
+            .anyMatch(e -> e.getValue() == null || e.getValue().length() > argumentLimit(e.getKey())))
       throw new ApiException(
           400, "INVALID_TOOL_CALL", "The assistant returned an invalid tool request.");
     if (actor.doctor() && call.name().startsWith("prepare"))
@@ -179,10 +203,49 @@ public class AiToolRegistry {
       case "getAvailableRooms", "getRoomOccupancy" -> {
         int n = intArg(a.getOrDefault("minimumFreeBeds", "0"));
         if (n < 0 || n > 100) throw new IllegalArgumentException();
+        boolean placementSearch = call.name().equals("getAvailableRooms");
+        int minimumFreeBeds = placementSearch ? Math.max(1, n) : n;
+        var required = RoomCapabilityMatcher.parse(a.get("requiredCapabilities"));
+        var inventory = h.rooms(0);
+        var rooms =
+            inventory.stream()
+                .filter(
+                    room ->
+                        RoomCapabilityMatcher.missing(required, roomCapabilities(room)).isEmpty())
+                .filter(room -> !placementSearch || Boolean.TRUE.equals(room.get("active")))
+                .filter(
+                    room ->
+                        ((Number) room.get("availableBeds")).intValue() >= minimumFreeBeds)
+                .toList();
+        var excluded =
+            inventory.stream()
+                .filter(
+                    room ->
+                        rooms.stream().noneMatch(candidate -> candidate.get("id").equals(room.get("id"))))
+                .map(
+                    room -> {
+                      var missing = RoomCapabilityMatcher.missing(
+                          required, roomCapabilities(room));
+                      var reasons = new ArrayList<String>();
+                      if (!missing.isEmpty()) reasons.add("Missing required capabilities: " + String.join(", ", missing));
+                      if (placementSearch && !Boolean.TRUE.equals(room.get("active"))) reasons.add("Room is inactive.");
+                      int available = ((Number) room.get("availableBeds")).intValue();
+                      if (available < minimumFreeBeds) reasons.add("Only " + available + " beds are available; " + minimumFreeBeds + " required.");
+                      return Map.of(
+                          "id", room.get("id"),
+                          "roomNumber", room.get("roomNumber"),
+                          "missingCapabilities", missing,
+                          "reason", String.join(" ", reasons));
+                    })
+                .toList();
+        var message =
+            rooms.isEmpty()
+                ? "No room satisfies the requested availability and capability requirements. See excluded rooms for reasons."
+                : "Compatible rooms are listed. Other rooms are excluded with availability or capability reasons.";
         yield response(
             "ROOM_LIST",
-            "Current capacity; availability is checked again before placement.",
-            Map.of("rooms", h.rooms(n)));
+            message,
+            Map.of("rooms", rooms, "excludedRooms", excluded, "requiredCapabilities", required));
       }
       case "getDoctorPatients" ->
           response(
@@ -280,26 +343,9 @@ public class AiToolRegistry {
         var p = resolve(a.get("patientQuery"), selected);
         Long roomId = null, doctorId = null, admissionId = null, version = null;
         String type = call.name().substring(7).toUpperCase();
-        if (!type.equals("DISCHARGE")) {
-          String number = a.getOrDefault("roomNumber", "");
-          if (number.isBlank())
-            yield response(
-                "NAVIGATION_COMMAND",
-                "Select the room and doctor in the standard admission or transfer form.",
-                Map.of("route", "/app/patients/" + p.getPatientIdentifier()));
-          var rm =
-              h.rooms(1).stream()
-                  .filter(
-                      r ->
-                          r.get("roomNumber").equals(number)
-                              && Boolean.TRUE.equals(r.get("active")))
-                  .toList();
-          if (rm.size() != 1)
-            throw ApiException.conflict(
-                "ROOM_CAPACITY_EXCEEDED", "That room has no available capacity.");
-          roomId = ((Number) rm.get(0).get("id")).longValue();
-        }
+        Set<String> required = Set.of();
         if (type.equals("ADMISSION")) {
+          required = RoomCapabilityMatcher.parse(a.get("requiredRoomCapabilities"));
           if (a.getOrDefault("doctorQuery", "").isBlank())
             yield response(
                 "NAVIGATION_COMMAND",
@@ -309,7 +355,7 @@ public class AiToolRegistry {
           if (h.admissions().stream()
               .anyMatch(ad -> ad.getPatientId().equals(p.getId()) && ad.getStatus().equals("ACTIVE")))
             throw ApiException.conflict("ALREADY_ADMITTED", "Patient already admitted.");
-        } else {
+        } else if (type.equals("TRANSFER")) {
           var active =
               h.admissions().stream()
                   .filter(ad -> ad.getPatientId().equals(p.getId()) && ad.getStatus().equals("ACTIVE"))
@@ -320,6 +366,29 @@ public class AiToolRegistry {
                               400, "NO_ACTIVE_ADMISSION", "No active admission for this patient."));
           admissionId = active.getId();
           version = active.getVersion();
+          required = RoomCapabilityMatcher.normalize(active.getRequiredRoomCapabilities());
+        }
+        if (!type.equals("DISCHARGE")) {
+          String number = a.getOrDefault("roomNumber", "");
+          if (number.isBlank())
+            yield response(
+                "NAVIGATION_COMMAND",
+                "Select a compatible room and doctor in the standard admission or transfer form.",
+                Map.of("route", "/app/patients/" + p.getPatientIdentifier()));
+          var matches =
+              h.rooms(0).stream()
+                  .filter(r -> number.equals(r.get("roomNumber")))
+                  .toList();
+          if (matches.size() != 1)
+            throw ApiException.conflict("ROOM_CAPACITY_EXCEEDED", "That room is unavailable.");
+          roomId = ((Number) matches.getFirst().get("id")).longValue();
+          var selectedRoom = h.room(roomId);
+          if (!selectedRoom.isActive())
+            throw ApiException.conflict("ROOM_INACTIVE", "Room " + number + " is inactive.");
+          RoomCapabilityMatcher.require(selectedRoom, required);
+          if (h.occupied(roomId) >= selectedRoom.getBedCount())
+            throw ApiException.conflict(
+                "ROOM_CAPACITY_EXCEEDED", "Room " + number + " has no available capacity.");
         }
         yield response(
             "CONFIRMATION_CARD",
@@ -327,7 +396,8 @@ public class AiToolRegistry {
             actions.prepare(
                 type,
                 new AiActionService.Payload(
-                    p.getId(), admissionId, roomId, doctorId, version, "User-requested AI transfer")));
+                    p.getId(), admissionId, roomId, doctorId, version,
+                    "User-requested AI transfer", List.copyOf(required))));
       }
       default -> throw new IllegalArgumentException();
       };

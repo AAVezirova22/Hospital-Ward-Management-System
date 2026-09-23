@@ -36,6 +36,7 @@ public class CatalogueService {
   private final RoomRepository rooms;
   private final MedicalProcedureRepository catalogue;
   private final AdmissionRepository admissions;
+  private final RoomAssignmentRepository assignments;
   private final AuditService audit;
   private final RoomAssignmentRepository assignments;
 
@@ -56,6 +57,7 @@ public class CatalogueService {
     this.rooms = rooms;
     this.catalogue = catalogue;
     this.admissions = admissions;
+    this.assignments = assignments;
     this.audit = audit;
     this.assignments = assignments;
   }
@@ -65,7 +67,11 @@ public class CatalogueService {
   }
 
   public List<Map<String, Object>> rooms(int minFree) {
-    return hospital.rooms(minFree);
+    return rooms(minFree, List.of());
+  }
+
+  public List<Map<String, Object>> rooms(int minFree, List<String> requiredCapabilities) {
+    return hospital.rooms(minFree, requiredCapabilities);
   }
 
   public List<MedicalProcedure> procedures() {
@@ -192,6 +198,26 @@ public class CatalogueService {
     r.setRoomNumber(in.roomNumber().trim());
     r.setBedCount(in.bedCount());
     r.setActive(in.active());
+    var capabilities =
+        in.capabilities() == null
+            ? (id == null ? java.util.Set.<String>of() : r.getCapabilities())
+            : RoomCapabilityMatcher.normalize(in.capabilities());
+    if (id != null) {
+      var requiredInUse =
+          assignments.findByRoomIdAndReleasedAtIsNull(id).stream()
+              .map(assignment -> admissions.findById(assignment.getAdmissionId()).orElseThrow())
+              .filter(admission -> admission.getStatus().equals("ACTIVE"))
+              .flatMap(admission -> admission.getRequiredRoomCapabilities().stream())
+              .filter(capability -> !capabilities.contains(capability))
+              .collect(java.util.stream.Collectors.toCollection(java.util.TreeSet::new));
+      if (!requiredInUse.isEmpty())
+        throw ApiException.conflict(
+            "ROOM_CAPABILITY_IN_USE",
+            "Active admissions in this room require capabilities being removed: "
+                + String.join(", ", requiredInUse)
+                + ".");
+    }
+    r.setCapabilities(capabilities);
     rooms.saveAndFlush(r);
     audit.log("ROOM_SAVED", "Room", r.getId(), "UI");
     return r;

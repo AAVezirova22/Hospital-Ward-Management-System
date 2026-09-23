@@ -6,12 +6,14 @@ export function ProposalPreview({
   current,
   destination,
   actionType,
+  requiredRoomCapabilities = [],
   expiresAt,
   onExpired,
 }: {
   current?: AdmissionView;
   destination?: RoomCapacity;
   actionType: string;
+  requiredRoomCapabilities?: string[];
   expiresAt: string;
   onExpired?: () => void;
 }) {
@@ -66,6 +68,9 @@ export function ProposalPreview({
           After transfer: {destination.occupiedBeds + 1} occupied ·{" "}
           {destination.heldBeds} held of {destination.bedCount} beds.
         </p>
+      )}
+      {requiredRoomCapabilities.length > 0 && (
+        <p>Required room capabilities: {requiredRoomCapabilities.join(", ")}.</p>
       )}
       <ul className="proposal-checks">
         {destination && (

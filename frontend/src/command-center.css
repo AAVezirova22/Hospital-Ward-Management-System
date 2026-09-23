@@ -24,17 +24,28 @@
   margin-left: auto;
   font-size: 10px;
 }
+.room-requirement-warning {
+  border-left: 2px solid var(--gold);
+  color: var(--gold);
+  font-size: 12px;
+  margin: 8px 0;
+  padding-left: 9px;
+}
+
 .ward-patient.restricted {
   border: 1px solid var(--line);
   background: var(--accent-soft);
   color: var(--muted);
 }
+
 .ward-patient.restricted > span {
   display: grid;
   gap: 4px;
 }
+
 .ward-patient.restricted small {
   margin-left: 0;
+}
 }
 .ward-patient.vacant {
   background: transparent;

@@ -2,6 +2,7 @@
 import { ArrowRight } from "../../icons";
 import { api, fullName } from "../../api";
 import type { AdmissionView, ArrivalPlan, RoomCapacity } from "../../api/contracts";
+import { missingCapabilities } from "../../room-capabilities";
 
 export function PlannerControls({
   canWrite,
@@ -52,6 +53,21 @@ export function PlannerControls({
   onBusy: (value: boolean) => void;
   onError: (value: string) => void;
 }) {
+  const requiredRoomCapabilities = current?.admission.requiredRoomCapabilities ?? [];
+  const compatibleRooms = rooms.filter(
+    (room) =>
+      missingCapabilities(requiredRoomCapabilities, room.capabilities).length === 0,
+  );
+  const placeableRooms = compatibleRooms.filter(
+    (room) =>
+      room.active &&
+      room.availableBeds > 0 &&
+      room.id !== current?.assignment?.roomId,
+  );
+  const excludedRooms = rooms.filter(
+    (room) =>
+      missingCapabilities(requiredRoomCapabilities, room.capabilities).length > 0,
+  );
   return (
     <aside className="panel planner-controls">
       <h2>{canWrite ? "Plan a placement" : "Ward overview"}</h2>
@@ -97,18 +113,43 @@ export function PlannerControls({
               onChange={(e) => onDestination(e.target.value)}
             >
               <option value="">Choose a room</option>
-              {rooms.map((r) => (
-                <option
-                  key={r.id}
-                  value={r.id}
-                  disabled={!r.active || r.availableBeds <= 0}
-                >
-                  Room {r.roomNumber} ·{" "}
-                  {r.active ? `${r.availableBeds} free now` : "Inactive"}
+                  {placeableRooms.map((r) => (
+                    <option
+                      key={r.id}
+                      value={r.id}
+                      disabled={!r.active || r.availableBeds <= 0}
+                    >
+                      Room {r.roomNumber} ·{" "}
+                      {r.active ? `${r.availableBeds} free now` : "Inactive"}
+                    </option>
+                  ))}
                 </option>
               ))}
             </select>
           </label>
+          {current && placeableRooms.length === 0 && (
+            <p role="status">
+              {requiredRoomCapabilities.length > 0
+                ? "No active room with free capacity supports every required capability."
+                : "No active room has free capacity."}
+            </p>
+          )}
+          {requiredRoomCapabilities.length > 0 && (
+            <div role="status" aria-live="polite">
+              <p>Every destination must support: {requiredRoomCapabilities.join(", ")}.</p>
+              {excludedRooms.length > 0 ? (
+                <ul>
+                  {excludedRooms.map((room) => (
+                    <li key={room.id}>
+                      Room {room.roomNumber} excluded: missing {missingCapabilities(requiredRoomCapabilities, room.capabilities).join(", ")}.
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No rooms are excluded for capability requirements.</p>
+              )}
+            </div>
+          )}
           <button
             className="primary"
             disabled={!selected || !destination || busy || loadError}

@@ -184,6 +184,8 @@ export function WardPlanner({ user }: { user: User }) {
             admissions={active}
             plan={plan}
             selected={selected}
+            requiredRoomCapabilities={current?.admission.requiredRoomCapabilities ?? []}
+            currentRoomId={current?.assignment?.roomId}
             onSelect={canWrite && !busy ? setSelected : undefined}
             onDrop={canWrite && !busy ? stage : undefined}
             onVacant={
@@ -208,6 +210,7 @@ export function WardPlanner({ user }: { user: User }) {
             conflicts={conflicts}
             loadError={Boolean(roomsQuery.error || admissionsQuery.error)}
             roomName={roomName}
+            rooms={rooms}
             onRemove={(admissionId) => {
               setPlan((list) =>
                 list.filter((x) => x.admissionId !== admissionId),

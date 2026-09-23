@@ -71,6 +71,7 @@ public final class Views {
     row.put("admissionDateTime", a.getAdmissionDateTime());
     row.put("dischargeDateTime", a.getDischargeDateTime());
     row.put("expectedDischargeDate", a.getExpectedDischargeDate());
+    row.put("requiredRoomCapabilities", a.getRequiredRoomCapabilities().stream().sorted().toList());
     row.put("status", a.getStatus());
     return row;
   }
@@ -94,6 +95,7 @@ public final class Views {
     row.put("roomNumber", r.getRoomNumber());
     row.put("bedCount", r.getBedCount());
     row.put("active", r.isActive());
+    row.put("capabilities", r.getCapabilities().stream().sorted().toList());
     return row;
   }
 

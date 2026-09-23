@@ -8,6 +8,8 @@ public interface RoomAssignmentRepository extends JpaRepository<RoomAssignment, 
 
   long countByRoomIdAndReleasedAtIsNull(Long roomId);
 
+  java.util.List<RoomAssignment> findByRoomIdAndReleasedAtIsNull(Long roomId);
+
   java.util.List<RoomAssignment> findByAdmissionIdOrderByAssignedAt(Long admissionId);
 
   @Query("""

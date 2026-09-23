@@ -13,6 +13,7 @@ export function RoomCard({
   onEdit?: () => void;
   onManageHolds?: () => void;
 }) {
+  const capabilities = Array.isArray(r.capabilities) ? r.capabilities : [];
   const held = r.heldBeds ?? 0;
   const holds = Array.isArray(r.holds) ? r.holds : [];
   const now = Date.now();
@@ -60,18 +61,33 @@ export function RoomCard({
           {r.occupiedBeds} occupied · {held} held / {r.bedCount}
         </small>
       </div>
-      {holds.length > 0 && (
-        <details className="room-holds">
-          <summary>{holds.length} maintenance hold{holds.length === 1 ? "" : "s"}</summary>
-          {holds.map((hold: Row) => (
-            <p key={hold.id}>
-              <strong>{hold.bedCount} bed{hold.bedCount === 1 ? "" : "s"}: {hold.reason}</strong>
-              <small>
-                {Date.parse(hold.startsAt) <= now ? "Active" : "Scheduled"} · {date(hold.startsAt)} to {date(hold.endsAt)}
-              </small>
-            </p>
-          ))}
-        </details>
+{capabilities.length > 0 && (
+  <ul className="room-capabilities" aria-label="Room capabilities">
+    {capabilities.map((capability: string) => (
+      <li key={capability}>{capability}</li>
+    ))}
+  </ul>
+)}
+
+{holds.length > 0 && (
+  <details className="room-holds">
+    <summary>
+      {holds.length} maintenance hold{holds.length === 1 ? "" : "s"}
+    </summary>
+
+    {holds.map((hold: Row) => (
+      <p key={hold.id}>
+        <strong>
+          {hold.bedCount} bed{hold.bedCount === 1 ? "" : "s"}: {hold.reason}
+        </strong>
+        <small>
+          {Date.parse(hold.startsAt) <= now ? "Active" : "Scheduled"} ·{" "}
+          {date(hold.startsAt)} to {date(hold.endsAt)}
+        </small>
+      </p>
+    ))}
+  </details>
+)}
       )}
     </div>
   );

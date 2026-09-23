@@ -5,6 +5,7 @@ import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
 import com.example.hospital.service.*;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.*;
 import java.util.*;
@@ -53,7 +54,18 @@ public class AiActionService {
   }
 
   public record Payload(
-      Long patientId, Long admissionId, Long roomId, Long doctorId, Long version, String reason) {}
+      Long patientId,
+      Long admissionId,
+      Long roomId,
+      Long doctorId,
+      Long version,
+      String reason,
+      List<String> requiredRoomCapabilities) {
+    public Payload(
+        Long patientId, Long admissionId, Long roomId, Long doctorId, Long version, String reason) {
+      this(patientId, admissionId, roomId, doctorId, version, reason, List.of());
+    }
+  }
 
   public AiPendingAction get(Long id) {
     var a = actions.findById(id).orElseThrow(ApiException::missing);
@@ -83,7 +95,16 @@ public class AiActionService {
     Map<String, Object> m = new LinkedHashMap<>();
     m.put("action", Views.pendingAction(a));
     m.put("patient", Views.patient(h.patient(p.patientId())));
-    if (p.roomId() != null) m.put("destination", Views.room(h.room(p.roomId())));
+    if (p.roomId() != null)
+      m.put(
+          "destination",
+          h.rooms(0).stream()
+              .filter(room -> room.get("id").equals(p.roomId()))
+              .findFirst()
+              .orElseThrow(ApiException::missing));
+    m.put(
+        "requiredRoomCapabilities",
+        p.requiredRoomCapabilities() == null ? List.of() : p.requiredRoomCapabilities());
     if (p.admissionId() != null) m.put("current", h.admissionView(h.admission(p.admissionId())));
     if (p.doctorId() != null)
       m.put(
@@ -107,7 +128,23 @@ public class AiActionService {
     catch (Exception e) { throw new IllegalArgumentException(); }
     actions.saveAndFlush(a);
     audit.log("AI_ACTION_PREPARED", "AiPendingAction", a.getId(), "AI");
-    return Map.of("action", Views.pendingAction(a), "workflow", plan);
+    return Map.of("action", Views.pendingAction(a), "workflow", workflowView(plan));
+  }
+
+  private Map<String, Object> workflowView(AiWorkflowService.Plan plan) {
+    var steps =
+        plan.steps().stream()
+            .map(
+                step ->
+                    Map.of(
+                        "key", step.key(),
+                        "operation", step.operation(),
+                        "source", step.source(),
+                        "fields",
+                            json.convertValue(
+                                step.fields(), new TypeReference<Map<String, Object>>() {})))
+            .toList();
+    return Map.of("title", plan.title(), "steps", steps);
   }
 
   @Transactional(noRollbackFor = ExpiredActionException.class)
@@ -139,7 +176,10 @@ public class AiActionService {
     Object result =
         switch (a.getActionType()) {
           case "ADMISSION" ->
-              stays.create(new AdmissionInput(p.patientId(), p.doctorId(), p.roomId()), "AI");
+              stays.create(
+                  new AdmissionInput(
+                      p.patientId(), p.doctorId(), p.roomId(), p.requiredRoomCapabilities()),
+                  "AI");
           case "TRANSFER" ->
               stays.move(
                   p.admissionId(), new TransferInput(p.roomId(), p.reason(), p.version()), "AI");

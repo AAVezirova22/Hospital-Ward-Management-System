@@ -20,6 +20,7 @@ import com.example.hospital.repository.WorkflowLockRepository;
 import com.example.hospital.security.Actor;
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.util.Collection;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -169,9 +170,16 @@ public class StayService {
     return d;
   }
 
-  private Room freeRoom(Long id) {
+  private Room freeRoom(Long id, Collection<String> requiredCapabilities) {
     var r = hospital.room(id);
-    if (!r.isActive() || hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
+if (!r.isActive()) {
+  throw ApiException.conflict(
+      "ROOM_INACTIVE", "Room " + r.getRoomNumber() + " is inactive.");
+}
+
+RoomCapabilityMatcher.require(r, requiredCapabilities);
+
+if (hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
       throw ApiException.conflict(
           "ROOM_CAPACITY_EXCEEDED", "Room " + r.getRoomNumber() + " no longer has available capacity.");
     return r;
@@ -199,7 +207,8 @@ public class StayService {
     actor.staff();
     hospital.patient(in.patientId());
     activeDoctor(in.doctorId());
-    freeRoom(in.roomId());
+    var requirements = RoomCapabilityMatcher.normalize(in.requiredRoomCapabilities());
+    freeRoom(in.roomId(), requirements);
     if (admissions.findByPatientIdAndStatus(in.patientId(), "ACTIVE").isPresent())
       throw ApiException.conflict(
           "ALREADY_ADMITTED", "The patient already has an active admission.");
@@ -209,6 +218,7 @@ public class StayService {
     a.setAdmissionDateTime(Instant.now());
     a.setAdmissionNumber("ADM-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase());
     a.setCreatedBy(actor.user().getId());
+    a.setRequiredRoomCapabilities(requirements);
     admissions.saveAndFlush(a);
     assign(a, in.roomId(), "Admission", source);
     audit.log("ADMISSION_CREATED", "Admission", a.getId(), source);
@@ -226,7 +236,7 @@ public class StayService {
         assignments.findByAdmissionIdAndReleasedAtIsNull(id).orElseThrow(ApiException::missing);
     if (ra.getRoomId().equals(in.roomId()))
       throw ApiException.conflict("SAME_ROOM", "The patient is already in that room.");
-    freeRoom(in.roomId());
+    freeRoom(in.roomId(), a.getRequiredRoomCapabilities());
     ra.setReleasedAt(Instant.now());
     assignments.saveAndFlush(ra);
     assign(a, in.roomId(), in.reason(), source);
