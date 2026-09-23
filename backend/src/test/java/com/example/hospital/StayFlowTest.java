@@ -46,6 +46,7 @@ class StayFlowTest extends HospitalSupport {
         .andExpect(status().isOk());
     assertThat(activeAssignments(r2.get("id").asLong())).isZero();
     assertThat(jdbc.queryForObject("select status from admissions where id = ?", String.class, id))
+        .isEqualTo("DISCHARGED");
     assertThat(occupiedBeds(r2.get("id").asLong())).isZero();
     assertThat(result(request("admin", "GET", "/api/v1/admissions/" + id, null), 200)
             .get("admission").get("status").asText())
