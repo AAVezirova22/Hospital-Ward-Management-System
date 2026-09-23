@@ -22,7 +22,7 @@ Demo seeding is enabled by default. An empty database gets `admin`, `staff`, and
 
 The database volume survives container restarts. `docker compose down` preserves data. Next.js rewrites same-origin `/api` requests to Java over the Compose network. Database and API ports are not exposed publicly; the web interface binds to loopback.
 
-The local Compose configuration uses HTTP with `COOKIE_SECURE=false`. A deployed instance should sit behind HTTPS with `COOKIE_SECURE=true`, new credentials, an organization-approved database backup/restore process, and the organization’s data-access and retention configuration. No real patient data is bundled.
+The local Compose configuration uses HTTP with `COOKIE_SECURE=false`. A deployed instance should sit behind HTTPS with `COOKIE_SECURE=true`, new credentials, an organization-approved database backup/restore process, and the organization’s data-access and retention configuration. Follow the [database backup security and recovery runbook](docs/database-backup-security.md). No real patient data is bundled.
 
 ## Develop locally
 
