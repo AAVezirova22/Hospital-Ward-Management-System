@@ -21,18 +21,21 @@ public class DemoController {
   private final DemoService demo;
   private final AppUserRepository users;
   private final String demoToken;
+  private final String environment;
 
   public DemoController(
       DemoService demo,
       AppUserRepository users,
-      @Value("${app.demo-token:}") String demoToken) {
+      @Value("${app.demo-token:}") String demoToken,
+      @Value("${app.environment:development}") String environment) {
     this.demo = demo;
     this.users = users;
     this.demoToken = demoToken;
+    this.environment = environment;
   }
 
   @GetMapping("/status")
-  public Object status() { return Map.of("enabled", demo.enabled()); }
+  public Object status() { return Map.of("enabled", demo.enabled(), "environment", environment); }
 
   public record DemoLogin(String role) {}
 
