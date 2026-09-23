@@ -12,7 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-@SpringBootTest(properties={"app.demo=true","app.seed=true","app.bootstrap-password=IntegrationPassword123!","server.servlet.session.cookie.secure=false", "spring.flyway.default-schema=demo_verification", "spring.jpa.properties.hibernate.default_schema=demo_verification", "spring.datasource.hikari.connection-init-sql=SET search_path TO demo_verification"})
+@SpringBootTest(properties={"app.demo=true","app.environment=demo","app.seed=true","app.bootstrap-password=IntegrationPassword123!","server.servlet.session.cookie.secure=false", "spring.flyway.default-schema=demo_verification", "spring.jpa.properties.hibernate.default_schema=demo_verification", "spring.datasource.hikari.connection-init-sql=SET search_path TO demo_verification"})
 @AutoConfigureMockMvc
 class DemoOperationsIntegrationTest {
  @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalSupport.database(r);}
