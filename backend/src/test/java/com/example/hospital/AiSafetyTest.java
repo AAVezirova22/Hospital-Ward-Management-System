@@ -31,7 +31,8 @@ class AiSafetyTest {
     u.setDoctorId(1L);
     when(actor.user()).thenReturn(u);
     when(actor.doctor()).thenReturn(true);
-    registry = new AiToolRegistry(hospital, mock(ReportService.class), actions, actor, mock(WorkspaceService.class));
+    registry = new AiToolRegistry(hospital, mock(ReportService.class), actions, actor,
+        mock(WorkspaceService.class), new DepartmentTimeService(mock(org.springframework.jdbc.core.JdbcTemplate.class)));
   }
 
   @Test

@@ -8,9 +8,15 @@ public interface AiModelClient {
   record Context(
       String role, String route, Long selectedPatientId, List<Map<String, Object>> tools,
       List<Map<String, String>> sources, List<com.example.hospital.api.MessageInput.ConnectedFile> connectedFiles,
-      List<Map<String, Object>> observations) {
+      List<Map<String, Object>> observations, String timeZone) {
+    public Context(String role, String route, Long selectedPatientId, List<Map<String, Object>> tools,
+        List<Map<String, String>> sources,
+        List<com.example.hospital.api.MessageInput.ConnectedFile> connectedFiles,
+        List<Map<String, Object>> observations) {
+      this(role, route, selectedPatientId, tools, sources, connectedFiles, observations, "UTC");
+    }
     public Context(String role, String route, Long selectedPatientId, List<Map<String, Object>> tools) {
-      this(role, route, selectedPatientId, tools, List.of(), List.of(), List.of());
+      this(role, route, selectedPatientId, tools, List.of(), List.of(), List.of(), "UTC");
     }
   }
 

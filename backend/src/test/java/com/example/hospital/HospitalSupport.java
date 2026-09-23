@@ -3,6 +3,7 @@ package com.example.hospital;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -73,13 +74,19 @@ abstract class HospitalSupport {
   }
 
   ResultActions request(String who, String method, String path, Object body) throws Exception {
+    return request(who, method, path, body, null);
+  }
+
+  ResultActions request(String who, String method, String path, Object body, Long departmentId) throws Exception {
     MockHttpServletRequestBuilder b =
         switch (method) {
           case "POST" -> post(path);
           case "PUT" -> put(path);
+          case "DELETE" -> delete(path);
           default -> get(path);
         };
     b.with(user(who)).with(csrf());
+    if (departmentId != null) b.header("X-Department-Id", departmentId);
     if (body != null)
       b.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body));
     return mvc.perform(b);
@@ -116,6 +123,16 @@ abstract class HospitalSupport {
             "/api/v1/rooms",
             Map.of("roomNumber", "T-" + unique(), "bedCount", beds, "active", true)),
         201);
+  }
+
+  JsonNode roomCapacity(long roomId) throws Exception {
+    var rooms = result(request("admin", "GET", "/api/v1/rooms", null), 200);
+    for (var room : rooms) if (room.path("id").asLong() == roomId) return room;
+    throw new AssertionError("Room capacity is not visible in the current department.");
+  }
+
+  int occupiedBeds(long roomId) throws Exception {
+    return roomCapacity(roomId).path("occupiedBeds").asInt();
   }
 
   JsonNode admit(JsonNode p, JsonNode r) throws Exception {

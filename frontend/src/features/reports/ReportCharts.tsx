@@ -70,10 +70,10 @@ export function CapacityChart({
           Room {r.roomNumber}
           {!r.active && " · inactive"}
           <strong>
-            {r.occupiedBeds} / {r.bedCount}
+            {r.occupiedBeds} occupied · {r.heldBeds} held
           </strong>
           <meter
-            value={r.occupiedBeds}
+            value={r.occupiedBeds + r.heldBeds}
             max={r.bedCount}
             aria-label={`Room ${r.roomNumber} occupancy`}
           />

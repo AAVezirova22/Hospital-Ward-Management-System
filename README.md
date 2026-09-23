@@ -22,7 +22,7 @@ Demo seeding is enabled by default. An empty database gets `admin`, `staff`, and
 
 The database volume survives container restarts. `docker compose down` preserves data. Next.js rewrites same-origin `/api` requests to Java over the Compose network. Database and API ports are not exposed publicly; the web interface binds to loopback.
 
-The local Compose configuration uses HTTP with `COOKIE_SECURE=false`. A deployed instance should sit behind HTTPS with `COOKIE_SECURE=true`, new credentials, an organization-approved database backup/restore process, and the organization’s data-access and retention configuration. No real patient data is bundled.
+The local Compose configuration uses HTTP with `COOKIE_SECURE=false`. A deployed instance should sit behind HTTPS with `COOKIE_SECURE=true`, new credentials, an organization-approved database backup/restore process, and the organization’s data-access and retention configuration. Follow the [database backup security and recovery runbook](docs/database-backup-security.md). No real patient data is bundled.
 
 ## Develop locally
 
@@ -79,7 +79,7 @@ GitHub Actions runs backend tests, TypeScript compilation, a production frontend
 | `external` | `AI_URL`, `AI_MODEL`, optional `AI_API_KEY` | Calls a configured OpenAI-compatible chat-completions tool endpoint. Up to eight sequential validated tool calls per request, including file-based workflow planning. |
 | `off` | `AI_MODE=off` | Structured assistant-unavailable response; all conventional workflows remain usable. |
 
-`AI_URL` is the complete administrator-configured endpoint, such as an organization's HTTPS `/v1/chat/completions` URL; it is never a model-supplied URL. Each provider call has a 15-second timeout and disallows redirects. The model receives the user's request, role/route/selected ID, allowed schemas, attached extracted text, connected file names, authorized tool results and up to six recent conversational turns. It never gets database credentials or arbitrary API access. Source text and recent turns are held in memory for up to 30 minutes of availability; original uploads and raw conversations are not persisted to the database. External-model deployment uses your chosen provider and credentials. The adapter is tested using a local HTTP fixture; no live provider credentials are included.
+`AI_URL` is the complete administrator-configured endpoint, such as an organization's HTTPS `/v1/chat/completions` URL; it is never a model-supplied URL. Each provider call has a 15-second timeout and disallows redirects. The model receives the user's request, role/route/selected ID, allowed schemas, attached extracted text, connected file names, authorized tool results and up to six recent conversational turns. It never gets database credentials or arbitrary API access. Recent user/assistant text pairs are stored in PostgreSQL with their owner- and department-scoped assistant session, capped at six pairs and expired after 30 minutes. Treat this short-lived context as sensitive patient data; it is included in database backups. Original uploads and extracted source text remain in memory for up to 30 minutes, and full transcripts and tool-result payloads are not retained. External-model deployment uses your chosen provider and credentials. The adapter is tested using a local HTTP fixture; no live provider credentials are included.
 
 For Google AI Studio, use `AI_MODE=external`, `AI_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`, and `AI_MODEL=gemini-3.5-flash-lite`. Put your key in `AI_API_KEY` in the ignored root `.env` and recreate the backend. The key is passed only to the Java backend. Google HTTP 402 (`RESOURCE_EXHAUSTED`) means the project's prepaid credits need replenishing in AI Studio; HTTP 403 (`PERMISSION_DENIED`) requires resolving project access. Restarting Medcore cannot resolve either provider-side restriction. See [Google's compatibility documentation](https://ai.google.dev/gemini-api/docs/openai).
 
@@ -113,7 +113,7 @@ The local interpreter supports these documented command patterns and falls back 
 
 - Session login/logout, CSRF protection, password hashing, current-account revalidation and three roles.
 - Patient demographics and search; doctor, room, procedure and user administration.
-- Admission, attending-doctor assignment, room-transfer history, discharge and bed release.
+- Admission, attending-doctor assignment, room-transfer history, discharge, bed release, and scheduled maintenance holds that preserve room capacity.
 - Transactional capacity checks, active-admission uniqueness and optimistic version checks.
 - Procedure recording with immutable historical prices and operational notes.
 - Dashboard, hospitalized-patient census, room capacity, filters by doctor/room, procedure period/patient reports, grouped totals and CSV export.
@@ -143,7 +143,7 @@ The supplied specification is preserved verbatim in [docs/plan.md](docs/plan.md)
 
 ## Demo, accounts and messaging
 
-The workspace includes a staged ward planner, read-only arrival simulations, operational alerts and trends, report chart drill-downs, keyboard command search, assistant placement previews, and a projector presentation route. Patients can register and confirm their email through Resend. Doctor applicants require email verification and administrator approval; patient accounts only see their own care history.
+The workspace includes a staged ward planner, read-only arrival simulations, operational alerts and trends, report chart drill-downs, keyboard command search, assistant placement previews, configurable upcoming-discharge reminders, and a projector presentation route. Patients can register and confirm their email through Resend. Doctor applicants require email verification and administrator approval; patient accounts only see their own care history.
 
 Confirmation messages use a PostgreSQL outbox. Account creation and the delivery request commit together, so temporary provider outages leave a disabled account with a queued confirmation message. Workers retry with bounded backoff and a stable provider idempotency key. The pending outbox briefly contains the one-time confirmation token and recipient; it clears these after delivery, replacement, verification or expiry. See [email registration operations](docs/deployment.md#email-registration) for its polling settings and database handling.
 

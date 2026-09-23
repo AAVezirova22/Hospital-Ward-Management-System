@@ -5,6 +5,7 @@ import com.example.hospital.security.Actor;
 import com.example.hospital.security.DepartmentContext;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,7 +27,7 @@ public class WorkspaceService {
     this.actor = actor;
     this.audit = audit;
   }
-  public record Department(long id, String name, String role, boolean hasJoinCode) {}
+  public record Department(long id, String name, String role, boolean hasJoinCode, String timeZone) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
 
   public List<Hospital> list() {
@@ -34,9 +35,9 @@ public class WorkspaceService {
     return jdbc.query("select h.id,h.name,m.owner from hospitals h join hospital_memberships m on m.hospital_id=h.id where m.user_id=? order by h.name,h.id",
         (rs, n) -> {
           long id = rs.getLong(1); boolean owner = rs.getBoolean(3);
-          var departments = jdbc.query("select d.id,d.name,m.role from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? order by d.name,d.id",
+          var departments = jdbc.query("select d.id,d.name,m.role,d.time_zone from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? order by d.name,d.id",
               (d, i) -> new Department(d.getLong(1), d.getString(2), d.getString(3),
-                  "ADMIN".equals(d.getString(3))), id, user.getId());
+                  "ADMIN".equals(d.getString(3)), d.getString(4)), id, user.getId());
           return new Hospital(id, rs.getString(2), owner, owner, departments);
         }, user.getId());
   }
@@ -236,6 +237,18 @@ public class WorkspaceService {
     Long hospitalId = jdbc.queryForObject("select hospital_id from departments where id=?", Long.class, departmentId);
     if (hospitalId == null) throw new ApiException(404, "NOT_FOUND", "Department not found.");
     owner(hospitalId);
+  }
+
+  @Transactional
+  public Map<String, Object> setTimeZone(long departmentId, String supplied) {
+    departmentAdmin(departmentId);
+    String timeZone = supplied == null ? "" : supplied.strip();
+    if (timeZone.isEmpty() || timeZone.length() > 64
+        || !ZoneId.getAvailableZoneIds().contains(timeZone))
+      throw new ApiException(400, "INVALID_TIME_ZONE", "Choose a valid IANA time zone.");
+    jdbc.update("update departments set time_zone=? where id=?", timeZone, departmentId);
+    audit.log("DEPARTMENT_TIME_ZONE_UPDATED", "Department", departmentId, "UI");
+    return Map.of("timeZone", timeZone);
   }
 
   @Transactional

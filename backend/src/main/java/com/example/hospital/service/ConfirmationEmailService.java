@@ -21,7 +21,8 @@ public class ConfirmationEmailService {
       @Value("${app.email.endpoint:https://api.resend.com/emails}") String endpoint, ObjectMapper json) {
     this.key=key; this.from=from; this.publicUrl=publicUrl.replaceAll("/+$", ""); this.endpoint=endpoint; this.json=json;
   }
-  public boolean configured() { return !key.isBlank() && !from.isBlank() && !publicUrl.isBlank(); }
+  public boolean configured() { return remindersConfigured() && !publicUrl.isBlank(); }
+  public boolean remindersConfigured() { return !key.isBlank() && !from.isBlank(); }
   public void send(String email, String firstName, String token, boolean doctor, int expiryMinutes) {
     if (!configured()) throw new ApiException(503,"EMAIL_UNAVAILABLE","Email confirmation is not configured yet.");
     try {
@@ -38,16 +39,41 @@ public class ConfirmationEmailService {
       }
       var payload = Map.of("from",from,"to",List.of(email),"subject","Confirm your Medcore account",
           "html",html,"text","Hello " + firstName + ",\n\nConfirm your email: " + url + "\n\n" + detail + "\nThis link expires in " + expiryMinutes + " minutes. If you did not request an account, ignore this email.");
-      var request = HttpRequest.newBuilder(URI.create(endpoint)).timeout(Duration.ofSeconds(15))
-          .header("Authorization","Bearer " + key).header("Content-Type","application/json")
-          .header("Idempotency-Key","verification-" + token)
-          .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload))).build();
-      var response = client.send(request,HttpResponse.BodyHandlers.ofString());
-      if (response.statusCode() < 200 || response.statusCode() >= 300)
-        throw new ApiException(503,"EMAIL_DELIVERY_FAILED","The email provider could not deliver the confirmation. Please try again later or contact the administrator.");
+      deliver(payload, "verification-" + token);
     } catch (ApiException e) { throw e; }
     catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ApiException(503,"EMAIL_UNAVAILABLE","Email delivery was interrupted. Please retry."); }
     catch (Exception e) { throw new ApiException(503,"EMAIL_UNAVAILABLE","Email confirmation is temporarily unavailable."); }
   }
+
+  public DeliveryResult sendReminder(List<String> recipients, String subject, String text, String idempotencyKey) {
+    if (!remindersConfigured()) throw new ApiException(503, "EMAIL_UNAVAILABLE", "Email delivery is not configured yet.");
+    if (recipients.isEmpty()) throw new IllegalArgumentException("At least one verified recipient is required.");
+    var payload = Map.of("from", from, "to", List.copyOf(recipients), "subject", subject, "text", text);
+    try {
+      return deliver(payload, idempotencyKey);
+    } catch (ApiException e) { throw e; }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(503, "EMAIL_UNAVAILABLE", "Email delivery was interrupted. Please retry.");
+    } catch (Exception e) {
+      throw new ApiException(503, "EMAIL_UNAVAILABLE", "Email delivery is temporarily unavailable.");
+    }
+  }
+
+  private DeliveryResult deliver(Map<String, ?> payload, String idempotencyKey) throws Exception {
+    var request = HttpRequest.newBuilder(URI.create(endpoint)).timeout(Duration.ofSeconds(15))
+        .header("Authorization", "Bearer " + key).header("Content-Type", "application/json")
+        .header("Idempotency-Key", idempotencyKey)
+        .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload))).build();
+    var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() < 200 || response.statusCode() >= 300)
+      throw new ApiException(503, "EMAIL_DELIVERY_FAILED", "The email provider could not accept this message.");
+    String providerMessageId = null;
+    if (response.body() != null && !response.body().isBlank())
+      providerMessageId = json.readTree(response.body()).path("id").asText(null);
+    return new DeliveryResult(providerMessageId);
+  }
+
+  public record DeliveryResult(String providerMessageId) {}
   static String escape(String value) { return value.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&#39;"); }
 }

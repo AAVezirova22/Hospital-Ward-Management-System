@@ -97,6 +97,22 @@ public final class Views {
     return row;
   }
 
+  public static Map<String, Object> bedHold(BedHold hold) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", hold.getId());
+    row.put("version", hold.getVersion());
+    row.put("createdAt", hold.getCreatedAt());
+    row.put("updatedAt", hold.getUpdatedAt());
+    row.put("roomId", hold.getRoomId());
+    row.put("bedCount", hold.getBedCount());
+    row.put("reason", hold.getReason());
+    row.put("startsAt", hold.getStartsAt());
+    row.put("endsAt", hold.getEndsAt());
+    row.put("createdBy", hold.getCreatedBy());
+    row.put("cancelledAt", hold.getCancelledAt());
+    return row;
+  }
+
   public static Map<String, Object> assignment(RoomAssignment a) {
     if (a == null) return null;
     Map<String, Object> row = new LinkedHashMap<>();
