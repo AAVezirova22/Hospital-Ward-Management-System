@@ -14,6 +14,8 @@ services:
       retries: 15
   backend:
     build: ./backend
+    # Longer than SHUTDOWN_GRACE_PERIOD so in-flight requests finish before SIGKILL.
+    stop_grace_period: 30s
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/api/v1/health/ready"]
       interval: 10s
@@ -36,6 +38,7 @@ services:
       AI_URL: ${AI_URL:-}
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-}
+      SHUTDOWN_GRACE_PERIOD: ${SHUTDOWN_GRACE_PERIOD:-20s}
     depends_on:
       db:
         condition: service_healthy
