@@ -143,6 +143,6 @@ The supplied specification is preserved verbatim in [docs/plan.md](docs/plan.md)
 
 ## Demo, accounts and messaging
 
-The workspace includes a staged ward planner, read-only arrival simulations, operational alerts and trends, report chart drill-downs, keyboard command search, assistant placement previews, and a projector presentation route. Patients can register and confirm their email through Resend. Doctor applicants require email verification and administrator approval; patient accounts only see their own care history.
+The workspace includes a staged ward planner, read-only arrival simulations, operational alerts and trends, report chart drill-downs, keyboard command search, assistant placement previews, configurable upcoming-discharge reminders, and a projector presentation route. Patients can register and confirm their email through Resend. Doctor applicants require email verification and administrator approval; patient accounts only see their own care history.
 
 See [deployment and email setup](docs/deployment.md) for the seeded PostgreSQL Render Blueprint and required private environment settings. See [iMessage integration options](docs/imessage-integration.md) for existing gateways and the future account-linking design. iMessage is documented, not connected.

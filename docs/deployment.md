@@ -36,6 +36,14 @@ Configuration: `REGISTRATION_ENABLED=true`, `RESEND_API_KEY`, `EMAIL_FROM`, `PUB
 
 The requested sender is `Medcore <onboarding@resend.dev>`. Resend restricts this testing sender to the email associated with the Resend account. General public registration requires a verified sending domain and an updated `EMAIL_FROM`; see [Resend's documented restriction](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain). A rejected delivery rolls back a new registration, and the UI reports a delivery error rather than pretending an email was sent.
 
+## Upcoming discharge reminders
+
+Reminders are disabled by default. To enable them, set `DISCHARGE_REMINDERS_ENABLED=true` after configuring `RESEND_API_KEY` and a valid `EMAIL_FROM`, and make sure the department's assigned doctors and team staff have enabled accounts with verified email addresses. The reminder sender needs the Resend key and sender address; it does not require `PUBLIC_APP_URL`.
+
+`DISCHARGE_REMINDER_WINDOWS` accepts unique day counts from 1 to 365 and defaults to `7,3,1`. The polling interval defaults to five minutes. Failed provider requests retry after the configured `DISCHARGE_REMINDER_RETRY_DELAY_MS`, up to `DISCHARGE_REMINDER_MAX_ATTEMPTS` (default 5); `DISCHARGE_REMINDER_SENDING_LEASE_MS` recovers interrupted sends. `DISCHARGE_REMINDER_OUTCOMES_LIMIT` controls the maximum recent outcomes shown to department staff (default 50). These settings are also available in `.env.example` and `docker-compose.yml`.
+
+Reminders go to verified, enabled department administrators and medical staff, plus the doctor assigned to the admission. Messages contain the expected date and direct recipients to sign in to review the plan; they omit patient details. The notification panel and `GET /api/v1/reports/discharge-reminders` show outcomes, scoped to the active department and to assigned admissions for doctors. `ACCEPTED` means Resend accepted the request, not that it reached an inbox. An admission with no verified team email is recorded as `NO_RECIPIENT` and will be retried when an eligible address becomes available.
+
 All registrations begin as disabled PATIENT accounts linked to newly created patient records. Email verification activates the patient account. Doctor requests remain PATIENT until an administrator creates/selects an active doctor profile and updates the verified account's role and doctor link in Team access. Registering never claims a pre-existing patient identity by matching a name or birth date.
 
 ## Pre-presentation check
