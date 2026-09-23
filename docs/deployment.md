@@ -21,6 +21,7 @@ The backend refuses to start when deployment settings are missing or contradict 
 - `RESEND_API_KEY` requires `EMAIL_FROM` and `PUBLIC_APP_URL`. `EMAIL_FROM` alone just leaves email off.
 - `EMAIL_CONFIRMATION_MINUTES` is between 5 and 1440.
 - `AI_MODE` is `local`, `external` or `off`; `external` needs an `http(s)` `AI_URL` and an `AI_MODEL`.
+- `APP_ENVIRONMENT` is `development` (default), `demo`, `staging` or `production`. `DEMO_MODE=true` (destructive reset) is only accepted with `APP_ENVIRONMENT=demo`, and `APP_ENVIRONMENT=production` requires `DEMO_SEED=false`. The label is returned by `/api/v1/demo/status` so the interface can show which environment it is using. `render.yaml` and CI declare `demo`; a real deployment should set `production` with `DEMO_SEED=false` and `DEMO_MODE=false`.
 
 ## Health probes
 
