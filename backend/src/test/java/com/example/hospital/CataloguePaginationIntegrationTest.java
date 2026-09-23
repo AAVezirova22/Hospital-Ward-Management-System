@@ -6,8 +6,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 class CataloguePaginationIntegrationTest extends HospitalSupport {
+  @Autowired JdbcTemplate jdbc;
+
   @Test
   void doctorsAndProceduresSupportBoundedSearchAndStablePages() throws Exception {
     String marker = "catalogue-" + unique();
@@ -55,6 +59,8 @@ class CataloguePaginationIntegrationTest extends HospitalSupport {
   @Test
   void roomsRetainCapacityAndActiveFiltersWithPagedOccupancy() throws Exception {
     String marker = "capacity-" + unique();
+    JsonNode occupiedRoom = createRoom(marker + "-occupied", 2, true);
+    occupyRoom(occupiedRoom);
     JsonNode availableRoom = createRoom(marker + "-available", 2, true);
     createRoom(marker + "-inactive", 2, false);
 
@@ -63,12 +69,18 @@ class CataloguePaginationIntegrationTest extends HospitalSupport {
             request(
                 "admin",
                 "GET",
-                "/api/v1/rooms?q=" + marker + "&active=true&minFree=2&size=1",
+                "/api/v1/rooms?q=" + marker + "&active=true&minFree=1&size=20",
                 null),
             200);
-    assertThat(available.get("totalElements").asLong()).isEqualTo(1);
-    assertThat(available.get("items").get(0).get("occupiedBeds").asLong()).isZero();
-    assertThat(available.get("items").get(0).get("availableBeds").asInt()).isEqualTo(2);
+    assertThat(available.get("totalElements").asLong()).isEqualTo(2);
+    JsonNode occupiedItem =
+        findItem(available, occupiedRoom.get("id").asLong());
+    assertThat(occupiedItem.get("occupiedBeds").asLong()).isEqualTo(1);
+    assertThat(occupiedItem.get("availableBeds").asInt()).isEqualTo(1);
+    JsonNode availableItem =
+        findItem(available, availableRoom.get("id").asLong());
+    assertThat(availableItem.get("occupiedBeds").asLong()).isZero();
+    assertThat(availableItem.get("availableBeds").asInt()).isEqualTo(2);
 
     JsonNode selectedRoom =
         result(
@@ -81,6 +93,12 @@ class CataloguePaginationIntegrationTest extends HospitalSupport {
     assertThat(selectedRoom.get("items").size()).isEqualTo(1);
     assertThat(selectedRoom.get("items").get(0).get("id").asLong())
         .isEqualTo(availableRoom.get("id").asLong());
+
+    JsonNode fullCapacityFilter =
+        result(
+            request("admin", "GET", "/api/v1/rooms?q=" + marker + "&minFree=2", null),
+            200);
+    assertThat(fullCapacityFilter.get("totalElements").asLong()).isEqualTo(1);
 
     JsonNode tooFewBeds =
         result(
@@ -159,5 +177,37 @@ class CataloguePaginationIntegrationTest extends HospitalSupport {
             "/api/v1/rooms",
             Map.of("roomNumber", roomNumber, "bedCount", beds, "active", active)),
         201);
+  }
+
+  private void occupyRoom(JsonNode room) throws Exception {
+    JsonNode patient = createPatient();
+    long departmentId =
+        jdbc.queryForObject(
+            "select department_id from rooms where id=?", Long.class, room.get("id").asLong());
+    long adminId = users.findByUsername("admin").orElseThrow().getId();
+    long admissionId =
+        jdbc.queryForObject(
+            "insert into admissions (admission_number, patient_id, attending_doctor_id, "
+                + "admission_date_time, status, created_by, department_id) "
+                + "values (?, ?, 1, now(), 'ACTIVE', ?, ?) returning id",
+            Long.class,
+            "CATALOGUE-" + unique(),
+            patient.get("id").asLong(),
+            adminId,
+            departmentId);
+    jdbc.update(
+        "insert into room_assignments (admission_id, room_id, assigned_at, created_by, "
+            + "department_id) values (?, ?, now(), ?, ?)",
+        admissionId,
+        room.get("id").asLong(),
+        adminId,
+        departmentId);
+  }
+
+  private static JsonNode findItem(JsonNode page, long id) {
+    for (JsonNode item : page.get("items")) {
+      if (item.get("id").asLong() == id) return item;
+    }
+    throw new AssertionError("Room not found in page items");
   }
 }
