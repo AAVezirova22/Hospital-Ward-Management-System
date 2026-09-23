@@ -66,6 +66,9 @@ app:
     resend-key: ${RESEND_API_KEY:}
     from: ${EMAIL_FROM:}
   seed: ${DEMO_SEED:true}
+  diagnostics:
+    # Log statements at or above this many milliseconds (redacted); 0 disables the log.
+    slow-query-ms: ${SLOW_QUERY_MS:500}
   bootstrap-password: ${BOOTSTRAP_PASSWORD:}
   ai:
     mode: ${AI_MODE:local}
