@@ -15,8 +15,12 @@ public class CatalogueController {
   }
 
   @GetMapping("/doctors")
-  public Object doctors() {
-    return catalogue.doctors().stream().map(Views::doctor).toList();
+  public Object doctors(
+      @RequestParam(defaultValue = "") String q,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size,
+      @RequestParam(required = false) Boolean active) {
+    return catalogue.doctorPage(q, page, size, active);
   }
 
   @PostMapping("/doctors")
@@ -31,8 +35,13 @@ public class CatalogueController {
   }
 
   @GetMapping("/rooms")
-  public Object rooms(@RequestParam(defaultValue = "0") int minFree) {
-    return catalogue.rooms(minFree);
+  public Object rooms(
+      @RequestParam(defaultValue = "") String q,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size,
+      @RequestParam(required = false) Boolean active,
+      @RequestParam(defaultValue = "0") int minFree) {
+    return catalogue.roomPage(q, page, size, active, minFree);
   }
 
   @PostMapping("/rooms")
@@ -47,8 +56,12 @@ public class CatalogueController {
   }
 
   @GetMapping("/procedures")
-  public Object procedures() {
-    return catalogue.procedures().stream().map(Views::procedure).toList();
+  public Object procedures(
+      @RequestParam(defaultValue = "") String q,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size,
+      @RequestParam(required = false) Boolean active) {
+    return catalogue.procedurePage(q, page, size, active);
   }
 
   @PostMapping("/procedures")
