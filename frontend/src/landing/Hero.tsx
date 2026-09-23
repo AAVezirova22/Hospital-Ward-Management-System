@@ -51,7 +51,7 @@ export function Hero() {
         </h1>
         <p className="film-hero-lede">
           Hospital operations with an assistant that plans from files and
-          Messages, then waits for a human to confirm.
+          typed requests, then waits for a human to confirm.
         </p>
         <div className="film-ctas">
           <Link className="film-btn" href="/app">
@@ -67,7 +67,7 @@ export function Hero() {
         </div>
       </div>
       <div className="film-hero-floor">
-        <a href="#workflow">iMessage and files</a>
+        <a href="#workflow">Assistant workflows</a>
         <a
           className="film-hero-down"
           href="#assistant"

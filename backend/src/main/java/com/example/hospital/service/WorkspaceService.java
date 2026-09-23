@@ -106,14 +106,14 @@ public class WorkspaceService {
     guardJoinAttempts(user.getId(), remoteAddr);
     var departments = jdbc.queryForList("select id,hospital_id,join_code_expires_at,join_code_single_use from departments where join_code=?", code);
     if (!departments.isEmpty()) {
-      clearJoinAttempts(user.getId(), remoteAddr);
       var row = departments.getFirst();
       assertJoinFresh(row.get("join_code_expires_at"));
       long id = ((Number) row.get("id")).longValue();
       long hospitalId = ((Number) row.get("hospital_id")).longValue();
+      if (Boolean.TRUE.equals(row.get("join_code_single_use"))) consumeJoinCode(false, id, code);
+      clearJoinAttempts(user.getId(), remoteAddr);
       jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", hospitalId, user.getId());
       jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'MEDICAL_STAFF') on conflict do nothing", id, user.getId());
-      if (Boolean.TRUE.equals(row.get("join_code_single_use"))) consumeJoinCode(false, id);
       audit.log("WORKSPACE_JOINED", "Department", id, "UI");
       return Map.of("hospitalId", hospitalId, "departmentId", id);
     }
@@ -123,12 +123,12 @@ public class WorkspaceService {
       audit.log("JOIN_CODE_REJECTED", "Workspace", user.getId(), "UI");
       throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
     }
-    clearJoinAttempts(user.getId(), remoteAddr);
     var hospital = hospitals.getFirst();
     assertJoinFresh(hospital.get("join_code_expires_at"));
     long id = ((Number) hospital.get("id")).longValue();
+    if (Boolean.TRUE.equals(hospital.get("join_code_single_use"))) consumeJoinCode(true, id, code);
+    clearJoinAttempts(user.getId(), remoteAddr);
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", id, user.getId());
-    if (Boolean.TRUE.equals(hospital.get("join_code_single_use"))) consumeJoinCode(true, id);
     audit.log("WORKSPACE_JOINED", "Hospital", id, "UI");
     String hospitalName = jdbc.queryForObject("select name from hospitals where id=?", String.class, id);
     return Map.of("hospitalId", id, "hospitalName", hospitalName == null ? "" : hospitalName);
@@ -166,11 +166,14 @@ public class WorkspaceService {
       throw new ApiException(400, "CODE_EXPIRED", "This join code has expired. Ask the owner for a new one.");
   }
 
-  private void consumeJoinCode(boolean hospital, long id) {
+  private void consumeJoinCode(boolean hospital, long id, String consumedCode) {
     String next = code(hospital ? "H-" : "D-");
-    jdbc.update(
-        "update " + (hospital ? "hospitals" : "departments") + " set join_code=?, join_code_single_use=false, join_code_expires_at=null where id=?",
-        next, id);
+    int consumed =
+        jdbc.update(
+            "update " + (hospital ? "hospitals" : "departments") + " set join_code=?, join_code_single_use=false, join_code_expires_at=null where id=? and join_code=? and join_code_single_use=true",
+            next, id, consumedCode);
+    if (consumed != 1)
+      throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
   }
 
   @Transactional

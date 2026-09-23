@@ -12,7 +12,7 @@ import {
 } from "../icons";
 import { useUser, Modal, useData, useAllPages, ErrorBox } from "./workspace";
 import { fullName } from "../api";
-import type { Patient, AdmissionView } from "../api/contracts";
+import type { PatientDirectoryItem, PatientDirectoryPage, AdmissionView } from "../api/contracts";
 import { Workflow } from "../features/admissions/Workflow";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
@@ -21,6 +21,12 @@ function QuickTask({ kind, close }: { kind: string; close: () => void }) {
   const admissions = useAllPages<AdmissionView>("/admissions?status=ACTIVE");
   const [chosen, setChosen] = useState<Patient>();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const patients = useData(
+    `/patients?q=${encodeURIComponent(search)}&page=${page}&size=20`,
+  );
+  const admissions = useData("/admissions");
+  const directory = patients.data as PatientDirectoryPage | undefined;
   const rows = (admissions.data ?? []) as AdmissionView[];
   const active = (id: number) =>
     rows.find((v) => v.patient.id === id && v.admission.status === "ACTIVE");
@@ -40,7 +46,10 @@ function QuickTask({ kind, close }: { kind: string; close: () => void }) {
         <input
           autoFocus
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(0);
+          }}
           placeholder="Name or patient ID"
         />
       </label>
@@ -51,7 +60,7 @@ function QuickTask({ kind, close }: { kind: string; close: () => void }) {
         <div className="quick-patients">
           {!patients.error &&
             !admissions.error &&
-            ((patients.data ?? []) as Patient[])
+            (directory?.items ?? [])
               .filter(
                 (p) =>
                   (kind === "admit" ? !active(p.id) : !!active(p.id)) &&
@@ -69,6 +78,25 @@ function QuickTask({ kind, close }: { kind: string; close: () => void }) {
                   <small>{p.patientIdentifier}</small>
                 </button>
               ))}
+        </div>
+      )}
+      {directory && directory.totalPages > 1 && (
+        <div className="table-pagination">
+          <span>Page {directory.page + 1} of {directory.totalPages}</span>
+          <button
+            className="secondary"
+            disabled={directory.page === 0}
+            onClick={() => setPage(directory.page - 1)}
+          >
+            Previous
+          </button>
+          <button
+            className="secondary"
+            disabled={!directory.hasNext}
+            onClick={() => setPage(directory.nextPage ?? directory.page + 1)}
+          >
+            Next
+          </button>
         </div>
       )}
       <p className="muted">
