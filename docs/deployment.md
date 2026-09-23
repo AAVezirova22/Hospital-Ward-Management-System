@@ -28,6 +28,17 @@ On `SIGTERM` the backend stops accepting new connections, readiness switches to 
 
 Keep the platform's kill timeout above the grace period. Compose sets `stop_grace_period: 30s`; Render sends `SIGTERM` and waits 30 seconds by default, which also fits.
 
+## Request and database timeouts
+
+| Variable | Default | Bounds |
+| --- | --- | --- |
+| `DATABASE_CONNECT_TIMEOUT_SECONDS` | `10` | Opening a new TCP connection to PostgreSQL |
+| `DATABASE_POOL_TIMEOUT_MS` | `5000` | Waiting for a free pooled connection |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | `15000` | Any single SQL statement (server-side `statement_timeout`) |
+| `API_TRANSACTION_TIMEOUT` | `30s` | All database work of one API request |
+
+A cancelled statement or expired transaction rolls back and returns `503` with code `DATABASE_TIMEOUT` and `Retry-After: 5`; nothing from that request is saved. An unreachable database or exhausted pool returns `503` with `DATABASE_UNAVAILABLE`. Flyway migrations share the statement timeout, so raise `DATABASE_STATEMENT_TIMEOUT_MS` for the release that runs a long data migration. The external AI adapter keeps its own `app.ai.timeout-seconds`.
+
 ## Demo scenario and reset
 
 An empty database is seeded once with 28 synthetic patients, 14 active and 12 discharged admissions, rooms with varied occupancy, one inactive room, procedure history, transfer history, expected discharge dates and audit events. Dates are relative to the seed/reset instant. Persistent databases keep their dates and user changes across restarts. To refresh the story for a presentation, use **Reset demonstration**, enter `RESET DEMO`, and sign in again.
