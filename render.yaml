@@ -26,6 +26,9 @@ services:
         fromDatabase: { name: hospital-ward-demo-db, property: user }
       - key: DATABASE_PASSWORD
         fromDatabase: { name: hospital-ward-demo-db, property: password }
+      # Required to create the initial administrator on an empty database.
+      - key: BOOTSTRAP_PASSWORD
+        sync: false
       - key: DEMO_SEED
         value: "true"
       - key: DEMO_MODE

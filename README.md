@@ -26,7 +26,7 @@ The local Compose configuration uses HTTP with `COOKIE_SECURE=false`. A deployed
 
 ## Develop locally
 
-Requirements: JDK 21, Maven 3.9+, Node 22+, PostgreSQL 17.
+Requirements: JDK 21, Maven 3.9+, Node 22 LTS, PostgreSQL 17.
 
 ```bash
 # Point these at a local PostgreSQL database you created.
