@@ -3,6 +3,7 @@ import { BedDouble, ArrowRight, Activity } from "../../icons";
 import { Fragment } from "react";
 import type { AdmissionView, RoomCapacity } from "../../api/contracts";
 import { projectRooms, type PlannedTransfer } from "./model";
+import { missingCapabilities } from "../../room-capabilities";
 
 export function WardMap({
   rooms,
@@ -15,6 +16,8 @@ export function WardMap({
   warning = 75,
   critical = 90,
   onVacant,
+  requiredRoomCapabilities = [],
+  currentRoomId,
 }: {
   rooms: RoomCapacity[];
   admissions?: AdmissionView[];
@@ -26,6 +29,8 @@ export function WardMap({
   warning?: number;
   critical?: number;
   onVacant?: (roomId: number) => void;
+  requiredRoomCapabilities?: string[];
+  currentRoomId?: number;
 }) {
   return (
     <div className="ward-map" aria-label="Live ward capacity map">
@@ -44,6 +49,16 @@ export function WardMap({
               : percent >= warning
                 ? "warning"
                 : "safe";
+          const missing = missingCapabilities(
+            requiredRoomCapabilities,
+            room.capabilities,
+          );
+          const alreadyAssigned = room.id === currentRoomId;
+          const placementBlocked = missing.length > 0 || alreadyAssigned;
+          const exclusionReason = [
+            alreadyAssigned ? "already assigned to this room" : "",
+            missing.length > 0 ? `missing ${missing.join(", ")}` : "",
+          ].filter(Boolean).join("; ");
           const occupants = admissions.filter(
             (a) =>
               a.admission.status === "ACTIVE" &&
@@ -62,7 +77,7 @@ export function WardMap({
               <section
                 className={`ward-room ${state} ${changedRoom === room.id ? "room-changed" : ""}`}
                 onDragOver={
-                  onDrop && room.active
+                  onDrop && room.active && !placementBlocked
                     ? (e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = "move";
@@ -70,7 +85,7 @@ export function WardMap({
                     : undefined
                 }
                 onDrop={
-                  onDrop
+                  onDrop && room.active && !placementBlocked
                     ? (e) => {
                         e.preventDefault();
                         const id = Number(
@@ -95,6 +110,11 @@ export function WardMap({
                     <span className="projection">· projected</span>
                   )}
                 </p>
+                {placementBlocked && (
+                  <p className="room-requirement-warning">
+                    Excluded for this patient: {exclusionReason}.
+                  </p>
+                )}
                 {occupants.map((v) => (
                   <button
                     type="button"
@@ -140,12 +160,23 @@ export function WardMap({
                       type="button"
                       className="ward-patient vacant"
                       key={`free-${i}`}
-                      disabled={!room.active || !onVacant}
+                      disabled={!room.active || !onVacant || placementBlocked}
+                      aria-label={
+                        placementBlocked
+                          ? `Room ${room.roomNumber} cannot accept this patient; ${exclusionReason}.`
+                          : `Available bed in room ${room.roomNumber}`
+                      }
                       onClick={() => onVacant?.(room.id)}
                     >
                       <BedDouble size={18} aria-hidden="true" />
-                      {room.active ? "Available" : "Inactive"}
-                      <small>Capacity slot</small>
+                      {placementBlocked
+                        ? "Not suitable"
+                        : room.active
+                          ? "Available"
+                          : "Inactive"}
+                      <small>
+                        {placementBlocked ? exclusionReason : "Capacity slot"}
+                      </small>
                     </button>
                   ),
                 )}

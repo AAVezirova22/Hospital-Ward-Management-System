@@ -1,6 +1,8 @@
 "use client";
 import { ArrowRight } from "../../icons";
 import type { PlannedTransfer } from "./model";
+import type { RoomCapacity } from "../../api/contracts";
+import { missingCapabilities } from "../../room-capabilities";
 
 export function PlanReview({
   plan,
@@ -10,6 +12,7 @@ export function PlanReview({
   conflicts,
   loadError,
   roomName,
+  rooms,
   onRemove,
   onDiscard,
   onConfirm,
@@ -21,6 +24,7 @@ export function PlanReview({
   conflicts: boolean;
   loadError: boolean;
   roomName: (id: number) => string;
+  rooms: RoomCapacity[];
   onRemove: (admissionId: number) => void;
   onDiscard: () => void;
   onConfirm: () => void;
@@ -35,21 +39,37 @@ export function PlanReview({
       </p>
       {stale && (
         <p className="error" role="alert">
-          A staged admission changed. Remove it and prepare a new transfer.
+          A staged admission or destination room changed. Refresh and review the transfer again.
         </p>
       )}
       {conflicts && (
         <p className="error" role="alert">
-          Capacity changed. Revise the plan before confirming.
+          Capacity, room availability, or required capabilities changed. Revise the plan before confirming.
         </p>
       )}
       {plan.map((p) => (
         <div className="planned-transfer" key={p.admissionId}>
           <strong>{p.patientName}</strong>
-          <span>
-            Room {roomName(p.fromRoomId)} <ArrowRight size={16} /> Room{" "}
-            {roomName(p.toRoomId)}
-          </span>
+          <div>
+            <span>
+              Room {roomName(p.fromRoomId)} <ArrowRight size={16} /> Room{" "}
+              {roomName(p.toRoomId)}
+            </span>
+            {p.requiredRoomCapabilities.length > 0 && (
+              <small>Required capabilities: {p.requiredRoomCapabilities.join(", ")}</small>
+            )}
+            {missingCapabilities(
+              p.requiredRoomCapabilities,
+              rooms.find((room) => room.id === p.toRoomId)?.capabilities,
+            ).length > 0 && (
+              <small className="room-requirement-warning">
+                Destination missing: {missingCapabilities(
+                  p.requiredRoomCapabilities,
+                  rooms.find((room) => room.id === p.toRoomId)?.capabilities,
+                ).join(", ")}.
+              </small>
+            )}
+          </div>
           <button
             className="text-button"
             disabled={busy}

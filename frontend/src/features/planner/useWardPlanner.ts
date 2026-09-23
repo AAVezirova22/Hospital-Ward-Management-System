@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fullName, activeDepartment, type User } from "../../api";
 import type { AdmissionView, RoomCapacity, ArrivalPlan } from "../../api/contracts";
+import { missingCapabilities } from "../../room-capabilities";
 import {
   executableOrder,
   validateTransfer,
@@ -41,17 +42,24 @@ export function useWardPlanner(user: User) {
     rooms.find((r) => r.id === id)?.roomNumber ?? "Unavailable";
   const stale = plan.some((p) => {
     const v = active.find((view) => view.admission.id === p.admissionId);
+    const destination = rooms.find((room) => room.id === p.toRoomId);
     return (
       !v ||
       v.admission.version !== p.version ||
-      v.assignment?.roomId !== p.fromRoomId
+      v.assignment?.roomId !== p.fromRoomId ||
+      destination?.version !== p.toRoomVersion
     );
   });
   const conflicts = projectRooms(rooms, plan).some(
     (r) =>
       r.projectedBeds > r.bedCount ||
       r.projectedBeds < 0 ||
-      (!r.active && plan.some((p) => p.toRoomId === r.id)),
+      (!r.active && plan.some((p) => p.toRoomId === r.id)) ||
+      plan.some(
+        (p) =>
+          p.toRoomId === r.id &&
+          missingCapabilities(p.requiredRoomCapabilities, r.capabilities).length > 0,
+      ),
   );
   function stage(id: number, roomId: number) {
     if (!canWrite || busy) return;
@@ -66,6 +74,7 @@ export function useWardPlanner(user: User) {
       setError(problem ?? "Admission unavailable.");
       return;
     }
+    const target = rooms.find((room) => room.id === roomId)!;
     setPlan((p) => [
       ...p.filter((x) => x.admissionId !== id),
       {
@@ -73,6 +82,8 @@ export function useWardPlanner(user: User) {
         patientName: fullName(view.patient),
         fromRoomId: view.assignment!.roomId,
         toRoomId: roomId,
+        toRoomVersion: target.version,
+        requiredRoomCapabilities: view.admission.requiredRoomCapabilities ?? [],
         version: view.admission.version,
       },
     ]);
