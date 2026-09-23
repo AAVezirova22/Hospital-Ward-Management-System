@@ -3,7 +3,9 @@ package com.example.hospital.service;
 import com.example.hospital.api.ApiException;
 import com.example.hospital.api.DoctorInput;
 import com.example.hospital.api.ProcedureInput;
+import com.example.hospital.api.PagedResult;
 import com.example.hospital.api.RoomInput;
+import com.example.hospital.api.Views;
 import com.example.hospital.domain.Doctor;
 import com.example.hospital.domain.MedicalProcedure;
 import com.example.hospital.domain.Room;
@@ -11,10 +13,17 @@ import com.example.hospital.repository.AdmissionRepository;
 import com.example.hospital.repository.DoctorRepository;
 import com.example.hospital.repository.MedicalProcedureRepository;
 import com.example.hospital.repository.RoomRepository;
+import com.example.hospital.repository.RoomAssignmentRepository;
 import com.example.hospital.repository.WorkflowLockRepository;
 import com.example.hospital.security.Actor;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +37,7 @@ public class CatalogueService {
   private final MedicalProcedureRepository catalogue;
   private final AdmissionRepository admissions;
   private final AuditService audit;
+  private final RoomAssignmentRepository assignments;
 
   public CatalogueService(
       HospitalService hospital,
@@ -37,7 +47,8 @@ public class CatalogueService {
       RoomRepository rooms,
       MedicalProcedureRepository catalogue,
       AdmissionRepository admissions,
-      AuditService audit) {
+      AuditService audit,
+      RoomAssignmentRepository assignments) {
     this.hospital = hospital;
     this.lock = lock;
     this.actor = actor;
@@ -46,6 +57,7 @@ public class CatalogueService {
     this.catalogue = catalogue;
     this.admissions = admissions;
     this.audit = audit;
+    this.assignments = assignments;
   }
 
   public List<Doctor> doctors() {
@@ -58,6 +70,91 @@ public class CatalogueService {
 
   public List<MedicalProcedure> procedures() {
     return hospital.procedures();
+  }
+
+  public PagedResult<Map<String, Object>> doctorPage(
+      String q, int requestedPage, int requestedSize, Boolean active) {
+    boolean hasQuery = q != null && !q.isBlank();
+    String query = pattern(q);
+    boolean hasActive = active != null;
+    boolean activeValue = Boolean.TRUE.equals(active);
+    int size = safeSize(requestedSize);
+    long total = doctors.countDirectory(hasQuery, query, hasActive, activeValue);
+    int page = safePage(requestedPage, size, total);
+    Pageable pageable =
+        PageRequest.of(page, size, Sort.by("lastName", "firstName", "doctorIdentifier", "id"));
+    List<Map<String, Object>> items =
+        doctors.searchDirectory(hasQuery, query, hasActive, activeValue, pageable).stream()
+            .map(Views::doctor)
+            .toList();
+    return PagedResult.of(items, page, size, total);
+  }
+
+  public PagedResult<Map<String, Object>> procedurePage(
+      String q, int requestedPage, int requestedSize, Boolean active) {
+    boolean hasQuery = q != null && !q.isBlank();
+    String query = pattern(q);
+    boolean hasActive = active != null;
+    boolean activeValue = Boolean.TRUE.equals(active);
+    int size = safeSize(requestedSize);
+    long total = catalogue.countDirectory(hasQuery, query, hasActive, activeValue);
+    int page = safePage(requestedPage, size, total);
+    Pageable pageable =
+        PageRequest.of(page, size, Sort.by("procedureName", "procedureCode", "id"));
+    List<Map<String, Object>> items =
+        catalogue.searchDirectory(hasQuery, query, hasActive, activeValue, pageable).stream()
+            .map(Views::procedure)
+            .toList();
+    return PagedResult.of(items, page, size, total);
+  }
+
+  public PagedResult<Map<String, Object>> roomPage(
+      String q, int requestedPage, int requestedSize, Boolean active, int minFree, Long roomId) {
+    if (minFree < 0 || minFree > 100)
+      throw new ApiException(
+          400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
+    boolean hasQuery = q != null && !q.isBlank();
+    String query = pattern(q);
+    boolean hasActive = active != null;
+    boolean activeValue = Boolean.TRUE.equals(active);
+    boolean hasRoomId = roomId != null;
+    int size = safeSize(requestedSize);
+    long total = rooms.countDirectory(hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree);
+    int page = safePage(requestedPage, size, total);
+    Pageable pageable = PageRequest.of(page, size, Sort.by("roomNumber", "id"));
+    var selected = rooms.searchDirectory(hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, pageable);
+    Map<Long, Long> occupiedByRoom = new HashMap<>();
+    if (!selected.isEmpty()) {
+      var ids = selected.stream().map(Room::getId).toList();
+      for (Object[] row : assignments.countActiveByRoomIds(ids)) {
+        occupiedByRoom.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+      }
+    }
+    List<Map<String, Object>> items = new ArrayList<>(selected.size());
+    for (Room room : selected) {
+      long occupied = occupiedByRoom.getOrDefault(room.getId(), 0L);
+      Map<String, Object> item = new java.util.LinkedHashMap<>(Views.room(room));
+      item.put("occupiedBeds", occupied);
+      item.put("availableBeds", room.isActive() ? room.getBedCount() - occupied : 0);
+      items.add(item);
+    }
+    return PagedResult.of(items, page, size, total);
+  }
+
+  private static String pattern(String q) {
+    String escaped = q == null ? "" : q.strip().toLowerCase(Locale.ROOT);
+    escaped = escaped.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    return "%" + escaped + "%";
+  }
+
+  private static int safeSize(int size) {
+    return Math.min(Math.max(size, 1), 100);
+  }
+
+  private static int safePage(int requestedPage, int size, long total) {
+    if (requestedPage < 0 || total == 0) return 0;
+    long lastPage = (total - 1) / size;
+    return (int) Math.min(requestedPage, Math.min(lastPage, Integer.MAX_VALUE));
   }
 
   @Transactional

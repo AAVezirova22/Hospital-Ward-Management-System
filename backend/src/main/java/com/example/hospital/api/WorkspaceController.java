@@ -2,6 +2,7 @@ package com.example.hospital.api;
 
 import com.example.hospital.security.DepartmentContext;
 import com.example.hospital.service.WorkspaceService;
+import com.example.hospital.service.DepartmentTimeService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -13,16 +14,21 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/workspaces")
 public class WorkspaceController {
   private final WorkspaceService workspaces;
-  public WorkspaceController(WorkspaceService workspaces) { this.workspaces = workspaces; }
+  private final DepartmentTimeService departmentTime;
+  public WorkspaceController(WorkspaceService workspaces, DepartmentTimeService departmentTime) {
+    this.workspaces = workspaces;
+    this.departmentTime = departmentTime;
+  }
   public record HospitalInput(@NotBlank @Size(max=120) String name, @NotBlank @Size(max=120) String departmentName) {}
   public record DepartmentInput(@NotBlank @Size(max=120) String name) {}
+  public record TimeZoneInput(@NotBlank @Size(max=64) String timeZone) {}
   public record JoinInput(@NotBlank @Size(max=40) String code) {}
   public record OwnerInput(@NotNull Long userId) {}
   public record RotateInput(Integer expiresInHours, Boolean singleUse) {}
   public record RoleInput(@NotNull Long userId, @NotBlank @Size(max=30) String role, Long doctorId) {}
 
   @GetMapping
-  public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "hospitals", workspaces.list()); }
+  public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "timeZone", departmentTime.timeZone(), "hospitals", workspaces.list()); }
   @PostMapping("/hospitals") @ResponseStatus(HttpStatus.CREATED)
   public Object create(@Valid @RequestBody HospitalInput input) {
     return workspaces.createHospital(input.name(), input.departmentName());
@@ -31,6 +37,10 @@ public class WorkspaceController {
   public Object department(@PathVariable long id, @Valid @RequestBody DepartmentInput input) {
     var created = workspaces.createDepartment(id, input.name());
     return Map.of("hospitalId", id, "departmentId", created.get("departmentId"), "joinCode", created.get("joinCode"));
+  }
+  @PutMapping("/departments/{id}/timezone")
+  public Object timeZone(@PathVariable long id, @Valid @RequestBody TimeZoneInput input) {
+    return workspaces.setTimeZone(id, input.timeZone());
   }
   @PostMapping("/join")
   public Object join(@Valid @RequestBody JoinInput input, HttpServletRequest request) {

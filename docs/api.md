@@ -49,12 +49,17 @@ Room responses include `occupiedBeds`, `heldBeds`, `activeHeldBeds`, `availableB
 | Path | Parameters | Result |
 | --- | --- | --- |
 | `/reports/dashboard` | None | Scoped active admissions, occupied/held/available department capacity, doctors, today's procedures |
+| `/reports/dashboard` | None | Scoped active admissions, department capacity, doctors, today's procedures |
+| `/reports/operations` | None | Operations metrics and an `overdueDischarges` worklist for active admissions scheduled before today; doctors see only their assigned admissions |
 | `/reports/census` | Optional `roomId`, `doctorId` | Currently hospitalized patients, scoped by role |
 | `/reports/capacity` | None | Room occupancy and availability |
+| `/reports/discharge-reminders` | None | Recent delivery outcomes for the active department; doctors only see admissions assigned to them |
 | `/reports/procedures` | Required ISO dates `from`, `to`; optional `patientId`, `doctorId` | Rows, exact decimal total, totals grouped by performing doctor |
 | `/reports/procedures.csv` | Same as procedure report | Download containing numeric record, admission and procedure IDs, timestamp and historical cost |
 
 Report dates are inclusive and interpreted in UTC. Future or inverted invalid date input is validated where applicable; `from > to` is rejected. CSV values are numeric identifiers, ISO timestamps and decimals; user-entered text is omitted to avoid spreadsheet-formula injection.
+
+Discharge reminder outcomes include the expected date, reminder window, status, recipient count, attempt count, provider message ID and a safe error code. They omit recipient addresses and patient or admission identifiers. `ACCEPTED` means the email provider accepted the request; it does not confirm inbox delivery.
 
 ## Assistant
 

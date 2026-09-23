@@ -66,7 +66,7 @@ public class LocalModelClient implements AiModelClient {
             || l.contains("month")
             || l.contains("report")
             || l.contains("week"))) {
-      var now = LocalDate.now(ZoneOffset.UTC);
+      var now = LocalDate.now(ZoneId.of(ctx.timeZone()));
       a.put(
           "from",
           l.contains("month")
@@ -76,7 +76,7 @@ public class LocalModelClient implements AiModelClient {
       return new ToolCall("getProcedureStatistics", a);
     }
     if (l.contains("admission") && (l.contains("week") || l.contains("today"))) {
-      var now = LocalDate.now(ZoneOffset.UTC);
+      var now = LocalDate.now(ZoneId.of(ctx.timeZone()));
       a.put("from", l.contains("week") ? now.minusDays(6).toString() : now.toString());
       a.put("to", now.toString());
       return new ToolCall("getAdmissions", a);

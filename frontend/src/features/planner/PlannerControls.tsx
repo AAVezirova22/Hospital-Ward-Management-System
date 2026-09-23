@@ -14,6 +14,8 @@ export function PlannerControls({
   current,
   roomName,
   dischargeDate,
+  timeZone,
+  today,
   arrivals,
   simulation,
   onSelect,
@@ -36,6 +38,8 @@ export function PlannerControls({
   current?: AdmissionView;
   roomName: (id: number) => string;
   dischargeDate: string;
+  timeZone: string;
+  today: string;
   arrivals: number;
   simulation?: ArrivalPlan;
   onSelect: (id: number | undefined, discharge?: string) => void;
@@ -121,10 +125,10 @@ export function PlannerControls({
             <details>
               <summary>Plan discharge date</summary>
               <label>
-                Expected discharge (UTC)
+                Expected discharge ({timeZone})
                 <input
                   type="date"
-                  min={new Date().toISOString().slice(0, 10)}
+                  min={today}
                   value={dischargeDate}
                   onChange={(e) => onDischargeDate(e.target.value)}
                 />

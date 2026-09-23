@@ -146,7 +146,7 @@ export function PhoneScene({
                     <ChatCircle size={20} weight="light" />
                   </span>
                   <div>
-                    Medcore<small>In iMessage</small>
+                    Medcore<small>Assistant preview</small>
                   </div>
                   <span className="mc-example-label">Example</span>
                 </header>
@@ -218,7 +218,7 @@ export function PhoneScene({
         aria-hidden="true"
         style={{ opacity: reduced ? 1 : handoffOpacity }}
       >
-        <span>Message</span>
+        <span>Example request</span>
         <i />
         <span>Review in Medcore</span>
       </motion.div>

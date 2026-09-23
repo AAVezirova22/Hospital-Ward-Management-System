@@ -5,6 +5,7 @@ test("product landing opens the assistant and guided walkthrough", async ({
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await page.waitForLoadState("networkidle");
   await expect(
     page.getByRole("heading", { name: /More presence.*Less process/ }),
   ).toBeVisible();
@@ -28,7 +29,7 @@ test("product landing opens the assistant and guided walkthrough", async ({
   ).toBeVisible();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Stay connected with iMessage." }),
+    page.getByRole("heading", { name: "Review a workflow before it runs." }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
