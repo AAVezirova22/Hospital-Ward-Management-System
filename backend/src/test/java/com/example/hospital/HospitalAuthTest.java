@@ -49,6 +49,7 @@ class HospitalAuthTest extends HospitalSupport {
     mvc.perform(get("/api/v1/auth/me").session(session)).andExpect(status().isOk());
     mvc.perform(post("/api/v1/auth/logout").session(session).with(csrf()))
         .andExpect(status().isNoContent());
+    mvc.perform(get("/api/v1/auth/me").session(session)).andExpect(status().isUnauthorized());
     assertThat(users.findByUsername("admin").orElseThrow().getPasswordHash())
         .startsWith("$2a$")
         .doesNotContain("IntegrationPassword");
