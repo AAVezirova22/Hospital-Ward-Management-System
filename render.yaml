@@ -33,6 +33,9 @@ services:
         value: "true"
       - key: DEMO_MODE
         value: "true"
+      # Public entry is limited to this API's dedicated synthetic demo database.
+      - key: DEMO_PUBLIC_LOGIN
+        value: "true"
       - key: COOKIE_SECURE
         value: "true"
       - key: AI_MODE
