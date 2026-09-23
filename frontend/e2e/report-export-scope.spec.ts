@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
-test("CSV export follows the department visible in its tab", async ({
+test("reports keep department scope and render doctor workload for the selected period", async ({
   page,
   context,
 }) => {
@@ -11,6 +11,7 @@ test("CSV export follows the department visible in its tab", async ({
   ]);
   let sessionDepartmentId = "1";
   let exportedDepartmentId: string | undefined;
+  let workloadRequest: URL | undefined;
   const user = {
     id: 7,
     username: "admin",
@@ -90,10 +91,52 @@ test("CSV export follows the department visible in its tab", async ({
       });
       return;
     }
+    if (path === "/api/v1/reports/doctor-workload") {
+      workloadRequest = new URL(request.url());
+      const query = workloadRequest.searchParams;
+      await route.fulfill({
+        json: {
+          rows: [
+            {
+              doctor: {
+                id: 101,
+                version: 0,
+                doctorIdentifier: "DR-101",
+                firstName: "Ada",
+                lastName: "Lovelace",
+                specialty: "Cardiology",
+                active: true,
+              },
+              activeAdmissions: 0,
+              assignedBeds: 0,
+              recentProcedures: 0,
+            },
+          ],
+          from: query.get("from"),
+          to: query.get("to"),
+          timeZone: "UTC",
+          scope: "Department",
+        },
+      });
+      return;
+    }
     if (
       ["/api/v1/patients", "/api/v1/doctors", "/api/v1/rooms"].includes(path)
     ) {
-      await route.fulfill({ json: [] });
+      const query = new URL(request.url()).searchParams;
+      const page = Number(query.get("page") ?? "0");
+      const size = Number(query.get("size") ?? "20");
+      await route.fulfill({
+        json: {
+          items: [],
+          page,
+          size,
+          totalElements: 0,
+          totalPages: 0,
+          hasNext: false,
+          nextPage: null,
+        },
+      });
       return;
     }
     if (path === "/api/v1/demo/status") {
@@ -106,7 +149,7 @@ test("CSV export follows the department visible in its tab", async ({
   await page.goto("/app/reports");
   await expect(
     page.getByRole("heading", { name: "Decisions, grounded in data." }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 30000 });
   await expect(page.locator(".workspace-switcher small").first()).toHaveText(
     "North Department",
   );
@@ -151,4 +194,26 @@ test("CSV export follows the department visible in its tab", async ({
     `procedure-report-department-${firstDepartmentId}.csv`,
   );
   expect(await readFile((await file.path())!, "utf8")).toContain("1,42");
+
+  await page.goto(
+    "/app/reports?mode=doctor-workload&from=2026-01-01&to=2026-01-31",
+  );
+  await expect(
+    page.getByRole("button", { name: "Doctor workload" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("heading", { name: "Doctor workload", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Scope: Department.")).toBeVisible();
+  const workloadRow = page.getByRole("row", { name: /Ada Lovelace/ });
+  await expect(workloadRow).toBeVisible();
+  await expect(workloadRow.getByRole("cell")).toHaveText([
+    "Cardiology",
+    "0",
+    "0",
+    "0",
+  ]);
+  expect(workloadRequest?.searchParams.get("from")).toBe("2026-01-01");
+  expect(workloadRequest?.searchParams.get("to")).toBe("2026-01-31");
+  expect(workloadRequest?.searchParams.has("doctorId")).toBe(false);
 });
