@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Instant;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.*;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -18,11 +20,19 @@ import org.springframework.security.web.*;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration
 @EnableMethodSecurity
+@EnableScheduling
+@EnableConfigurationProperties(LoginBackoffProperties.class)
 public class SecurityConfig {
+  @Bean
+  Clock loginBackoffClock() {
+    return Clock.systemUTC();
+  }
+
   @Bean
   PasswordEncoder encoder() {
     return new BCryptPasswordEncoder(12);
