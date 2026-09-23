@@ -1,8 +1,7 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api, activeDepartment, fullName, money, date, patientHref, type Row } from "../../api";
 import {
   Link,
   useUser,
@@ -16,6 +15,7 @@ import {
 import { Download } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { ProcedureCharts, CapacityChart } from "./ReportCharts";
+import type { Patient, PatientDirectoryPage } from "../../api/contracts";
 export function Reports() {
   const today = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = useUrlState("from", today.slice(0, 8) + "01"),
@@ -24,8 +24,24 @@ export function Reports() {
     [doctorId, setDoctor] = useUrlState("doctorId"),
     [roomId, setRoom] = useUrlState("roomId"),
     [mode, setMode] = useUrlState("mode", "procedures");
-  const { data: patients } = useData("/patients"),
-    { data: doctors } = useData("/doctors"),
+  const [patientSearch, setPatientSearch] = useState("");
+  const [patientPage, setPatientPage] = useState(0);
+  const patientDirectoryQuery = useData(
+    `/patients?q=${encodeURIComponent(patientSearch)}&page=${patientPage}&size=20`,
+  );
+  const patients = patientDirectoryQuery.data as PatientDirectoryPage | undefined;
+  const selectedPatient = patients?.items.find(
+    (p) => String(p.id) === patientId,
+  );
+  const selectedPatientQuery = useQuery({
+    queryKey: ["/patients", patientId, activeDepartment()],
+    queryFn: () =>
+      api<{ patient: Patient }>(`/patients/${encodeURIComponent(patientId)}`),
+    enabled: Boolean(patientId) && !selectedPatient,
+  });
+  const selectedPatientRecord =
+    selectedPatient ?? selectedPatientQuery.data?.patient;
+  const { data: doctors } = useData("/doctors"),
     { data: rooms } = useData("/rooms");
   const params = new URLSearchParams({
     from,
@@ -86,20 +102,63 @@ export function Reports() {
               />
             </label>
             <label>
+              Find patient
+              <input
+                aria-label="Search patients for reports"
+                value={patientSearch}
+                onChange={(e) => {
+                  setPatientSearch(e.target.value);
+                  setPatientPage(0);
+                }}
+                placeholder="Name or patient ID"
+              />
+            </label>
+            <label>
               Patient
               <select
                 value={patientId}
                 onChange={(e) => setPatient(e.target.value)}
               >
                 <option value="">All permitted patients</option>
-                {Array.isArray(patients) &&
-                  patients.map((p: Row) => (
-                    <option value={p.id} key={p.id}>
-                      {fullName(p)}
-                    </option>
-                  ))}
+                {patientId && !selectedPatient && (
+                  <option value={patientId}>
+                    {selectedPatientRecord
+                      ? fullName(selectedPatientRecord)
+                      : selectedPatientQuery.error
+                        ? "Selected patient unavailable"
+                        : "Loading selected patient…"}
+                  </option>
+                )}
+                {patients?.items.map((p) => (
+                  <option value={p.id} key={p.id}>
+                    {fullName(p)}
+                  </option>
+                ))}
               </select>
             </label>
+            {patients && patients.totalPages > 1 && (
+              <div className="table-pagination">
+                <span>
+                  Page {patients.page + 1} of {patients.totalPages}
+                </span>
+                <button
+                  className="secondary"
+                  disabled={patients.page === 0}
+                  onClick={() => setPatientPage(patients.page - 1)}
+                >
+                  Previous
+                </button>
+                <button
+                  className="secondary"
+                  disabled={!patients.hasNext}
+                  onClick={() =>
+                    setPatientPage(patients.nextPage ?? patients.page + 1)
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </>
         )}
         {mode !== "capacity" && (
@@ -144,7 +203,9 @@ export function Reports() {
           </a>
         )}
       </div>
-      <ErrorBox error={error} />
+      <ErrorBox
+        error={error || patientDirectoryQuery.error || selectedPatientQuery.error}
+      />
       {isLoading ? (
         <div className="skeleton">Calculating report…</div>
       ) : (

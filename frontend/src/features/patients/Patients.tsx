@@ -1,18 +1,15 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
+import React, { useState } from "react";
+import { fullName, patientHref, type Row } from "../../api";
 import {
   Link,
   useUser,
   useData,
   ErrorBox,
   Empty,
-  Status,
-  Modal,
   Title,
 } from "../../components/workspace";
+import type { PatientDirectoryItem, PatientDirectoryPage } from "../../api/contracts";
 import { Plus, Search, ArrowUpRight } from "../../icons";
 import { EntityForm } from "../administration/EntityForm";
 import { DataTable } from "../../components/data-table/DataTable";
@@ -21,10 +18,13 @@ import { LoadingState } from "../../components/LoadingState";
 export function Patients() {
   const user = useUser();
   const [search, setSearch] = useUrlState("q");
+  const [pageSelection, setPageSelection] = useState({ search: "", page: 0 });
+  const page = pageSelection.search === search ? pageSelection.page : 0;
   const [edit, setEdit] = useState<Row | null>(null);
   const { data, error, isLoading } = useData(
-    "/patients?q=" + encodeURIComponent(search),
+    "/patients?q=" + encodeURIComponent(search) + `&page=${page}&size=20`,
   );
+  const directory = data as PatientDirectoryPage | undefined;
   return (
     <>
       <Title
@@ -45,14 +45,23 @@ export function Patients() {
           aria-label="Search patients"
           placeholder="Search by name or patient ID"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+          }}
         />
-        <span>{Array.isArray(data) ? data.length : 0} records</span>
+        <span>{directory?.totalElements ?? 0} records</span>
       </div>
       <ErrorBox error={error} />
       <div className="panel table-panel">
-        <DataTable<import("../../api/contracts").Patient>
-          rows={Array.isArray(data) ? data : []}
+        <DataTable<PatientDirectoryItem>
+          rows={directory?.items ?? []}
+          serverPagination={{
+            page: directory?.page ?? page,
+            totalPages: directory?.totalPages ?? 0,
+            totalElements: directory?.totalElements ?? 0,
+            onPageChange: (nextPage) =>
+              setPageSelection({ search, page: nextPage }),
+          }}
           rowKey={(p) => p.id}
           columns={[
             {
@@ -96,7 +105,7 @@ export function Patients() {
         {isLoading ? (
           <LoadingState label="Loading patients" />
         ) : (
-          Array.isArray(data) && data.length === 0 && <Empty />
+          directory?.items.length === 0 && <Empty />
         )}
       </div>
       {edit && (
