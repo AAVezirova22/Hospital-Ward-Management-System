@@ -15,6 +15,11 @@ spring:
     username: ${DATABASE_USER:hospital}
     password: ${DATABASE_PASSWORD:}
     hikari:
+      pool-name: hospital-db
+      # Per instance. Keep instances x maximum-pool-size below PostgreSQL max_connections minus
+      # reserved/admin connections; see docs/deployment.md.
+      maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+      minimum-idle: ${DATABASE_POOL_MIN_IDLE:2}
       # Wait for a pooled connection before failing the request with DATABASE_UNAVAILABLE.
       connection-timeout: ${DATABASE_POOL_TIMEOUT_MS:5000}
       data-source-properties:
