@@ -4,6 +4,15 @@ export interface Entity {
   createdAt: string;
   updatedAt: string;
 }
+export interface PageResult<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
+}
 export interface Patient extends Entity {
   patientIdentifier: string;
   firstName: string;

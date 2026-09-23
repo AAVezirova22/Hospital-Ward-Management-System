@@ -1,9 +1,9 @@
 "use client";
-import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { api, activeDepartment, fullName, money, date, patientHref, type Row } from "../../api";
-import { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter, usePathname } from "next/navigation";
 import {
+  api,
   activeDepartment,
   downloadFile,
   fullName,
@@ -12,9 +12,17 @@ import {
   patientHref,
   type Row,
 } from "../../api";
+  fullName,
+  money,
+  date,
+  patientHref,
+  type Row,
+  type User,
+} from "../../api";
 import {
   Link,
   useData,
+  useAllPages,
   ErrorBox,
   Empty,
   Title,
@@ -33,25 +41,35 @@ export function Reports() {
     [doctorId, setDoctor] = useUrlState("doctorId"),
     [roomId, setRoom] = useUrlState("roomId"),
     [mode, setMode] = useUrlState("mode", "procedures");
-  const [patientSearch, setPatientSearch] = useState("");
-  const [patientPage, setPatientPage] = useState(0);
-  const patientDirectoryQuery = useData(
-    `/patients?q=${encodeURIComponent(patientSearch)}&page=${patientPage}&size=20`,
-  );
-  const patients = patientDirectoryQuery.data as PatientDirectoryPage | undefined;
-  const selectedPatient = patients?.items.find(
-    (p) => String(p.id) === patientId,
-  );
-  const selectedPatientQuery = useQuery({
-    queryKey: ["/patients", patientId, activeDepartment()],
-    queryFn: () =>
-      api<{ patient: Patient }>(`/patients/${encodeURIComponent(patientId)}`),
-    enabled: Boolean(patientId) && !selectedPatient,
-  });
-  const selectedPatientRecord =
-    selectedPatient ?? selectedPatientQuery.data?.patient;
-  const { data: doctors } = useData("/doctors"),
-    { data: rooms } = useData("/rooms");
+const [patientSearch, setPatientSearch] = useState("");
+const [patientPage, setPatientPage] = useState(0);
+
+const patientDirectoryQuery = useData(
+  `/patients?q=${encodeURIComponent(patientSearch)}&page=${patientPage}&size=20`,
+);
+
+const patients = patientDirectoryQuery.data as
+  | PatientDirectoryPage
+  | undefined;
+
+const selectedPatient = patients?.items.find(
+  (p) => String(p.id) === patientId,
+);
+
+const selectedPatientQuery = useQuery({
+  queryKey: ["/patients", patientId, activeDepartment()],
+  queryFn: () =>
+    api<{ patient: Patient }>(
+      `/patients/${encodeURIComponent(patientId)}`,
+    ),
+  enabled: Boolean(patientId) && !selectedPatient,
+});
+
+const selectedPatientRecord =
+  selectedPatient ?? selectedPatientQuery.data?.patient;
+
+const { data: doctors } = useAllPages<Row>("/doctors"),
+  { data: rooms } = useAllPages<Row>("/rooms");
   const params = new URLSearchParams({
     from,
     to,

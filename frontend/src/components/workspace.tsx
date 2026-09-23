@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useRef } from "react";
 import NextLink from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ClipboardList, X } from "../icons";
-import { allPages, api, activeDepartment, type Row, type User } from "../api";
+import { api, allPages, activeDepartment, type Row, type User } from "../api";
 export const Auth = createContext<User>(null!);
 export const useUser = () => useContext(Auth);
 export const useData = (key: string, path = key) =>
@@ -11,9 +11,9 @@ export const useData = (key: string, path = key) =>
     queryKey: [key, activeDepartment()],
     queryFn: () => api(path),
   });
-export const useAllPages = <T,>(path: string) =>
+export const useAllPages = <T,>(key: string, path = key) =>
   useQuery<T[]>({
-    queryKey: [path, activeDepartment()],
+    queryKey: [key, activeDepartment()],
     queryFn: () => allPages<T>(path),
   });
 export function Link({

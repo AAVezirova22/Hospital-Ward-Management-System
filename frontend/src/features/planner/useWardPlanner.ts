@@ -1,7 +1,18 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { allPages, api, fullName, activeDepartment, type User } from "../../api";
-import type { AdmissionView, RoomCapacity, ArrivalPlan } from "../../api/contracts";
+import {
+  api,
+  allPages,
+  fullName,
+  activeDepartment,
+  type User,
+} from "../../api";
+
+import type {
+  AdmissionView,
+  RoomCapacity,
+  ArrivalPlan,
+} from "../../api/contracts";
 import {
   executableOrder,
   validateTransfer,
@@ -13,7 +24,7 @@ export function useWardPlanner(user: User) {
   const client = useQueryClient();
   const roomsQuery = useQuery({
     queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => api<RoomCapacity[]>("/rooms"),
+    queryFn: () => allPages<RoomCapacity>("/rooms"),
     refetchInterval: 15000,
   });
   const admissionsQuery = useQuery({
