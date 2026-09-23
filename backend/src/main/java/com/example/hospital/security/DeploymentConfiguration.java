@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class DeploymentConfiguration {
   private static final Set<String> AI_MODES = Set.of("local", "external", "off");
+  private static final Set<String> ENVIRONMENTS =
+      Set.of("development", "demo", "staging", "production");
 
   public DeploymentConfiguration(PropertyResolver env) {
     var problems = problems(env);
@@ -65,6 +67,17 @@ public class DeploymentConfiguration {
     String expiry = value(env, "app.registration.expiry-minutes");
     if (!expiry.isBlank() && !between(expiry, 5, 1440))
       problems.add("EMAIL_CONFIRMATION_MINUTES must be a whole number from 5 to 1440.");
+
+    // Demo reset deletes every account and record, so it must be opted into per environment.
+    String environment = value(env, "app.environment");
+    boolean demo = Boolean.parseBoolean(value(env, "app.demo"));
+    boolean seed = Boolean.parseBoolean(value(env, "app.seed"));
+    if (!ENVIRONMENTS.contains(environment))
+      problems.add("APP_ENVIRONMENT must be one of development, demo, staging or production.");
+    if (demo && !"demo".equals(environment))
+      problems.add("DEMO_MODE=true requires APP_ENVIRONMENT=demo (a dedicated synthetic database).");
+    if ("production".equals(environment) && seed)
+      problems.add("DEMO_SEED must be false when APP_ENVIRONMENT=production.");
 
     String mode = value(env, "app.ai.mode");
     if (!AI_MODES.contains(mode)) problems.add("AI_MODE must be one of local, external or off.");

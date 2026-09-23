@@ -13,6 +13,7 @@ class DeploymentConfigurationTest {
         .withProperty("spring.datasource.password", "s3cret-database-password")
         .withProperty("server.servlet.session.cookie.secure", "true")
         .withProperty("app.ai.mode", "local")
+        .withProperty("app.environment", "development")
         .withProperty("app.registration.expiry-minutes", "30");
   }
 
@@ -73,5 +74,25 @@ class DeploymentConfigurationTest {
     assertThatThrownBy(() -> new DeploymentConfiguration(env))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("AI_MODE");
+  }
+
+  @Test
+  void destructiveDemoResetRequiresADemoEnvironment() {
+    assertThat(DeploymentConfiguration.problems(valid().withProperty("app.demo", "true")))
+        .containsExactly(
+            "DEMO_MODE=true requires APP_ENVIRONMENT=demo (a dedicated synthetic database).");
+    assertThat(
+            DeploymentConfiguration.problems(
+                valid().withProperty("app.demo", "true").withProperty("app.environment", "demo")))
+        .isEmpty();
+  }
+
+  @Test
+  void productionRejectsSyntheticSeeding() {
+    var env = valid().withProperty("app.environment", "production").withProperty("app.seed", "true");
+    assertThat(DeploymentConfiguration.problems(env))
+        .containsExactly("DEMO_SEED must be false when APP_ENVIRONMENT=production.");
+    assertThat(DeploymentConfiguration.problems(valid().withProperty("app.environment", "prod")))
+        .anyMatch(p -> p.startsWith("APP_ENVIRONMENT"));
   }
 }
