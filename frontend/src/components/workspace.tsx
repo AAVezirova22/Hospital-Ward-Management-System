@@ -10,6 +10,7 @@ export const useData = (key: string, path = key) =>
   useQuery<Row>({
     queryKey: [key, activeDepartment()],
     queryFn: () => api(path),
+    refetchInterval: key === "/rooms" ? 15_000 : undefined,
   });
 export function Link({
   to,
