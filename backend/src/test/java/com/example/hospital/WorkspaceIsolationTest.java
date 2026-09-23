@@ -18,6 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -277,6 +278,47 @@ class WorkspaceIsolationTest {
   @Test
   void unknownDepartmentHeadersAreRejected() throws Exception {
     call("admin", "GET", "/api/v1/patients", null, 999999L)
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("DEPARTMENT_ACCESS_DENIED"));
+  }
+
+  @Test
+  void staleSessionDepartmentRecoversAfterMembershipIsRemoved() throws Exception {
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Recovery Clinic " + unique(), "departmentName", "Ward"),
+                1L),
+            201);
+    long departmentId = created.get("departmentId").asLong();
+    var session = new MockHttpSession();
+    session.setAttribute("departmentId", departmentId);
+
+    mvc.perform(
+            post("/api/v1/workspaces/departments/" + departmentId + "/leave")
+                .with(user("admin"))
+                .with(csrf())
+                .session(session)
+                .header("X-Department-Id", Long.toString(departmentId)))
+        .andExpect(status().isOk());
+    assertThat(session.getAttribute("departmentId")).isEqualTo(departmentId);
+
+    var workspaces =
+        body(
+            mvc.perform(get("/api/v1/workspaces").with(user("admin")).session(session)),
+            200);
+    long activeDepartmentId = workspaces.get("activeDepartmentId").asLong();
+    assertThat(activeDepartmentId).isGreaterThan(0L).isNotEqualTo(departmentId);
+    assertThat(session.getAttribute("departmentId")).isEqualTo(activeDepartmentId);
+
+    mvc.perform(
+            get("/api/v1/workspaces")
+                .with(user("admin"))
+                .session(session)
+                .header("X-Department-Id", Long.toString(departmentId)))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("DEPARTMENT_ACCESS_DENIED"));
   }
