@@ -6,7 +6,9 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 
 | Method | Path | Request / result |
 | --- | --- | --- |
-| GET | `/health` | Process health |
+| GET | `/health` | Readiness alias (kept for existing probes) |
+| GET | `/health/live` | Liveness: process is serving; no dependency checks |
+| GET | `/health/ready` | Readiness: database reachable; `503` when not ready |
 | GET | `/auth/csrf` | `{token, headerName}` |
 | POST | `/auth/login` | Form-encoded `username`, `password`; returns account without hash |
 | GET | `/auth/me` | Current account |
