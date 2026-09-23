@@ -72,6 +72,18 @@ Watch saturation through the administrator-only metrics endpoint (pool tag `hosp
 
 Sustained pending connections mean too many instances for the database or slow statements; check slow queries before enlarging the pool.
 
+## Slow-query diagnostics
+
+Every JDBC statement is timed. Statements taking `SLOW_QUERY_MS` or longer (default `500`; `0` turns the log off) are logged at `WARN` on the `hospital.slow-query` logger:
+
+```
+Slow select statement took 812 ms: select a.id, a.status from admissions a where a.department_id = ? and a.status = ?
+```
+
+The label never contains data: bound parameters are not read, and string and number literals in the SQL text are replaced with `?`. `IN` lists collapse to `(?...)`. Use the label to find the query in the code, then run `EXPLAIN ANALYZE` with representative synthetic values.
+
+Aggregate timings are available to administrators at `/api/v1/management/metrics/hospital.db.statements`, tagged by `operation` (`select`, `insert`, `update`, `delete`, `with`, `other`) and `outcome` (`success`, `error`). Compare them with `hikaricp.connections.pending`: slow statements usually cause pool waits, not the other way round.
+
 ## Demo scenario and reset
 
 An empty database is seeded once with 28 synthetic patients, 14 active and 12 discharged admissions, rooms with varied occupancy, one inactive room, procedure history, transfer history, expected discharge dates and audit events. Dates are relative to the seed/reset instant. Persistent databases keep their dates and user changes across restarts. To refresh the story for a presentation, use **Reset demonstration**, enter `RESET DEMO`, and sign in again.
