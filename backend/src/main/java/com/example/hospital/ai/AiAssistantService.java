@@ -88,7 +88,8 @@ public class AiAssistantService {
     synchronized (window) {
       if (window.busy)
         throw new ApiException(
-            429, "AI_RATE_LIMIT", "Wait before sending another assistant request.");
+                429, "AI_RATE_LIMIT", "Wait before sending another assistant request.")
+            .withHeader("Retry-After", "1");
       rates.hit(
           "ai:" + u.getId(),
           limit,
