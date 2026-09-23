@@ -57,7 +57,7 @@ export function LandingPage({ nonce }: { nonce?: string }) {
             </a>
             <a href="#workflow">
               <ChatCircle weight="light" />
-              Built for iMessage
+              Assistant workflows
             </a>
             <a href="#platform">
               <ChartLineUp weight="light" />A clearer picture
@@ -158,7 +158,7 @@ export function LandingPage({ nonce }: { nonce?: string }) {
           <nav aria-label="Footer navigation">
             <a href="#platform">Product</a>
             <a href="#assistant">Assistant</a>
-            <a href="#workflow">iMessage</a>
+            <a href="#workflow">Assistant workflows</a>
             <Link href="/app">Sign in</Link>
             <a
               href="https://github.com/AAVezirova22/Hospital-Ward-Management-System"

@@ -42,6 +42,8 @@ const plex = IBM_Plex_Mono({
 const publicUrl =
   process.env.PUBLIC_APP_URL || "https://hospital-ward-frontend.onrender.com";
 const socialImage = "/opengraph-image";
+const description =
+  "Hospital operations with an in-workspace assistant for file-based planning and human-reviewed workflows.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(publicUrl),
@@ -49,14 +51,12 @@ export const metadata: Metadata = {
     default: "Medcore | The ward, in the moment.",
     template: "%s | Medcore",
   },
-  description:
-    "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
+  description,
   applicationName: "Medcore",
   appleWebApp: { capable: true, title: "Medcore", statusBarStyle: "default" },
   openGraph: {
     title: "Medcore | The ward, in the moment.",
-    description:
-      "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
+    description,
     type: "website",
     url: "/",
     siteName: "Medcore",
@@ -72,8 +72,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Medcore | The ward, in the moment.",
-    description:
-      "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
+    description,
     images: [socialImage],
   },
   icons: { icon: "/favicon.svg" },
