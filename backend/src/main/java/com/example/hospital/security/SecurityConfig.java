@@ -49,7 +49,8 @@ public class SecurityConfig {
       ObjectMapper json,
       AppUserRepository users,
       WorkspaceAccess workspaces,
-      LoginBackoff backoff)
+      LoginBackoff backoff,
+      SessionLifetime lifetime)
       throws Exception {
     http.authorizeHttpRequests(
             a ->
@@ -79,6 +80,7 @@ public class SecurityConfig {
                             u.setSessionStamp(SessionStamps.next());
                           users.save(u);
                           r.getSession().setAttribute("credentialStamp", u.getSessionStamp());
+                          SessionLifetime.markAuthenticated(r.getSession());
                           r.getSession().setAttribute("accountId", u.getId());
                           s.setContentType("application/json");
                           json.writeValue(s.getWriter(), com.example.hospital.api.Views.account(u));
@@ -163,7 +165,7 @@ public class SecurityConfig {
             },
             UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(
-            new DepartmentScopeFilter(users, workspaces, json),
+            new DepartmentScopeFilter(users, workspaces, json, lifetime),
             AuthorizationFilter.class);
     return http.build();
   }

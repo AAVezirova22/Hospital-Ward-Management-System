@@ -60,6 +60,7 @@ public class DemoController {
     SecurityContextHolder.setContext(context);
     if (user.getSessionStamp() == null || user.getSessionStamp().isBlank()) user.setSessionStamp(SessionStamps.next());
     request.getSession(true).setAttribute("credentialStamp", user.getSessionStamp());
+    com.example.hospital.security.SessionLifetime.markAuthenticated(request.getSession());
     request.getSession().setAttribute("accountId", user.getId());
     new HttpSessionSecurityContextRepository().saveContext(context, request, response);
     user.setLastLoginAt(Instant.now());
