@@ -31,6 +31,7 @@ server:
 app:
   demo: ${DEMO_MODE:false}
   demo-token: ${DEMO_TOKEN:}
+  demo-public-login: ${DEMO_PUBLIC_LOGIN:false}
   public-url: ${PUBLIC_APP_URL:}
   registration:
     enabled: ${REGISTRATION_ENABLED:true}
