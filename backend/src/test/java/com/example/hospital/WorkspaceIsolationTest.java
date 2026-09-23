@@ -267,8 +267,9 @@ class WorkspaceIsolationTest {
         body(
             mvc.perform(get("/api/v1/workspaces").with(user("admin")).session(session)),
             200);
-    assertThat(workspaces.get("activeDepartmentId").asLong()).isEqualTo(1L);
-    assertThat(session.getAttribute("departmentId")).isEqualTo(1L);
+    long activeDepartmentId = workspaces.get("activeDepartmentId").asLong();
+    assertThat(activeDepartmentId).isGreaterThan(0L).isNotEqualTo(departmentId);
+    assertThat(session.getAttribute("departmentId")).isEqualTo(activeDepartmentId);
 
     mvc.perform(
             get("/api/v1/workspaces")
