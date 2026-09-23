@@ -102,7 +102,10 @@ public class CatalogueService {
     r.setRoomNumber(in.roomNumber().trim());
     r.setBedCount(in.bedCount());
     r.setActive(in.active());
-    var capabilities = RoomCapabilityMatcher.normalize(in.capabilities());
+    var capabilities =
+        in.capabilities() == null
+            ? (id == null ? java.util.Set.<String>of() : r.getCapabilities())
+            : RoomCapabilityMatcher.normalize(in.capabilities());
     if (id != null) {
       var requiredInUse =
           assignments.findByRoomIdAndReleasedAtIsNull(id).stream()

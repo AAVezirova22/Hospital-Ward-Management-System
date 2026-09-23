@@ -252,4 +252,35 @@ class StayFlowTest extends HospitalSupport {
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("ROOM_CAPABILITY_IN_USE"));
   }
+
+  @Test
+  void legacyRoomUpdatesPreserveCapabilitiesWhenFieldIsOmitted() throws Exception {
+    var created =
+        result(
+            request(
+                "admin",
+                "POST",
+                "/api/v1/rooms",
+                Map.of(
+                    "roomNumber", "L-" + unique(),
+                    "bedCount", 2,
+                    "active", true,
+                    "capabilities", List.of("oxygen"))),
+            201);
+
+    var updated =
+        result(
+            request(
+                "admin",
+                "PUT",
+                "/api/v1/rooms/" + created.get("id").asLong(),
+                Map.of(
+                    "roomNumber", created.get("roomNumber").asText(),
+                    "bedCount", 3,
+                    "active", true,
+                    "version", created.get("version").asLong())),
+            200);
+
+    assertThat(updated.path("capabilities").get(0).asText()).isEqualTo("oxygen");
+  }
 }
