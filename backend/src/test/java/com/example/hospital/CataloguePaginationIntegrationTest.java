@@ -55,7 +55,7 @@ class CataloguePaginationIntegrationTest extends HospitalSupport {
   @Test
   void roomsRetainCapacityAndActiveFiltersWithPagedOccupancy() throws Exception {
     String marker = "capacity-" + unique();
-    createRoom(marker + "-available", 2, true);
+    JsonNode availableRoom = createRoom(marker + "-available", 2, true);
     createRoom(marker + "-inactive", 2, false);
 
     JsonNode available =
@@ -69,6 +69,18 @@ class CataloguePaginationIntegrationTest extends HospitalSupport {
     assertThat(available.get("totalElements").asLong()).isEqualTo(1);
     assertThat(available.get("items").get(0).get("occupiedBeds").asLong()).isZero();
     assertThat(available.get("items").get(0).get("availableBeds").asInt()).isEqualTo(2);
+
+    JsonNode selectedRoom =
+        result(
+            request(
+                "admin",
+                "GET",
+                "/api/v1/rooms?roomId=" + availableRoom.get("id").asLong(),
+                null),
+            200);
+    assertThat(selectedRoom.get("items").size()).isEqualTo(1);
+    assertThat(selectedRoom.get("items").get(0).get("id").asLong())
+        .isEqualTo(availableRoom.get("id").asLong());
 
     JsonNode tooFewBeds =
         result(

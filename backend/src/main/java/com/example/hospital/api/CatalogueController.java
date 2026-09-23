@@ -40,8 +40,9 @@ public class CatalogueController {
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size,
       @RequestParam(required = false) Boolean active,
-      @RequestParam(defaultValue = "0") int minFree) {
-    return catalogue.roomPage(q, page, size, active, minFree);
+      @RequestParam(defaultValue = "0") int minFree,
+      @RequestParam(required = false) Long roomId) {
+    return catalogue.roomPage(q, page, size, active, minFree, roomId);
   }
 
   @PostMapping("/rooms")

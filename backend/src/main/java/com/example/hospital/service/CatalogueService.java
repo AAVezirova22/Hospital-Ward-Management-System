@@ -109,7 +109,7 @@ public class CatalogueService {
   }
 
   public PagedResult<Map<String, Object>> roomPage(
-      String q, int requestedPage, int requestedSize, Boolean active, int minFree) {
+      String q, int requestedPage, int requestedSize, Boolean active, int minFree, Long roomId) {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
@@ -117,11 +117,12 @@ public class CatalogueService {
     String query = pattern(q);
     boolean hasActive = active != null;
     boolean activeValue = Boolean.TRUE.equals(active);
+    boolean hasRoomId = roomId != null;
     int size = safeSize(requestedSize);
-    long total = rooms.countDirectory(hasQuery, query, hasActive, activeValue, minFree);
+    long total = rooms.countDirectory(hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree);
     int page = safePage(requestedPage, size, total);
     Pageable pageable = PageRequest.of(page, size, Sort.by("roomNumber", "id"));
-    var selected = rooms.searchDirectory(hasQuery, query, hasActive, activeValue, minFree, pageable);
+    var selected = rooms.searchDirectory(hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, pageable);
     Map<Long, Long> occupiedByRoom = new HashMap<>();
     if (!selected.isEmpty()) {
       var ids = selected.stream().map(Room::getId).toList();

@@ -10,6 +10,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
   @Query("""
       select r from Room r
       where (:hasQuery = false or lower(r.roomNumber) like :query escape '!')
+        and (:hasRoomId = false or r.id = :roomId)
         and (:hasActive = false or r.active = :active)
         and (case when r.active = true then r.bedCount -
           (select count(a.id) from RoomAssignment a
@@ -18,6 +19,8 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
   List<Room> searchDirectory(
       @Param("hasQuery") boolean hasQuery,
       @Param("query") String query,
+      @Param("hasRoomId") boolean hasRoomId,
+      @Param("roomId") Long roomId,
       @Param("hasActive") boolean hasActive,
       @Param("active") boolean active,
       @Param("minFree") int minFree,
@@ -26,6 +29,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
   @Query("""
       select count(r) from Room r
       where (:hasQuery = false or lower(r.roomNumber) like :query escape '!')
+        and (:hasRoomId = false or r.id = :roomId)
         and (:hasActive = false or r.active = :active)
         and (case when r.active = true then r.bedCount -
           (select count(a.id) from RoomAssignment a
@@ -34,6 +38,8 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
   long countDirectory(
       @Param("hasQuery") boolean hasQuery,
       @Param("query") String query,
+      @Param("hasRoomId") boolean hasRoomId,
+      @Param("roomId") Long roomId,
       @Param("hasActive") boolean hasActive,
       @Param("active") boolean active,
       @Param("minFree") int minFree);
