@@ -1,5 +1,40 @@
 import { expect, test } from "@playwright/test";
 
+test("social preview marks sample ward metrics as illustrative", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const openGraphImage = page.locator('meta[property="og:image"]');
+  const imageAlt = page.locator('meta[property="og:image:alt"]');
+  const twitterImage = page.locator('meta[name="twitter:image"]');
+  const twitterImageAlt = page.locator('meta[name="twitter:image:alt"]');
+
+  await expect(openGraphImage).toHaveAttribute(
+    "content",
+    /\/opengraph-image(?:\?.*)?$/,
+  );
+  await expect(imageAlt).toHaveAttribute("content", /illustrative.*sample.*not live/i);
+  await expect(twitterImage).toHaveAttribute(
+    "content",
+    /\/opengraph-image(?:\?.*)?$/,
+  );
+  await expect(twitterImageAlt).toHaveAttribute(
+    "content",
+    /illustrative.*sample.*not live/i,
+  );
+
+  const response = await page.request.get("/opengraph-image");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("image/png");
+  const image = await response.body();
+  expect(image.subarray(0, 8)).toEqual(
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  );
+  expect(image.readUInt32BE(16)).toBe(1200);
+  expect(image.readUInt32BE(20)).toBe(630);
+});
+
 test("sample workflow reviews, cancels, and confirms without making API writes", async ({
   page,
 }) => {

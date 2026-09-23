@@ -42,6 +42,8 @@ const plex = IBM_Plex_Mono({
 const publicUrl =
   process.env.PUBLIC_APP_URL || "https://hospital-ward-frontend.onrender.com";
 const socialImage = "/opengraph-image";
+const socialImageAlt =
+  "Illustrative Medcore preview with sample ward metrics; not live operational data";
 
 export const metadata: Metadata = {
   metadataBase: new URL(publicUrl),
@@ -65,7 +67,7 @@ export const metadata: Metadata = {
         url: socialImage,
         width: 1200,
         height: 630,
-        alt: "Medcore hospital operations workspace",
+        alt: socialImageAlt,
       },
     ],
   },
@@ -74,7 +76,7 @@ export const metadata: Metadata = {
     title: "Medcore | The ward, in the moment.",
     description:
       "Hospital operations with an assistant that plans from files and Messages, then waits for a human to confirm.",
-    images: [socialImage],
+    images: [{ url: socialImage, alt: socialImageAlt }],
   },
   icons: { icon: "/favicon.svg" },
 };
