@@ -11,6 +11,17 @@ The repository includes a Render Blueprint in `render.yaml`. It declares managed
 5. Keep `COOKIE_SECURE=true` behind HTTPS. The frontend proxies same-origin `/api` requests; no browser CORS exception is needed.
 6. Confirm `/api/v1/health/ready` returns `UP`, then enter the administrator demo. Verify patient count, active admissions, room capacity, procedure reports and planner simulation before presenting.
 
+## Startup configuration check
+
+The backend refuses to start when deployment settings are missing or contradict each other, and lists every problem at once by variable name. Values are never printed, so the log is safe to share. It checks:
+
+- `DATABASE_PASSWORD` is set (and not the old committed fallback); `DATABASE_URL`, when used, is a `jdbc:postgresql:` URL.
+- `BOOTSTRAP_PASSWORD`, when set, is 12 characters to 72 UTF-8 bytes.
+- `PUBLIC_APP_URL`, when set, is a bare `http(s)` origin; an `https` origin requires `COOKIE_SECURE=true`.
+- `RESEND_API_KEY` requires `EMAIL_FROM` and `PUBLIC_APP_URL`. `EMAIL_FROM` alone just leaves email off.
+- `EMAIL_CONFIRMATION_MINUTES` is between 5 and 1440.
+- `AI_MODE` is `local`, `external` or `off`; `external` needs an `http(s)` `AI_URL` and an `AI_MODEL`.
+
 ## Health probes
 
 The backend exposes two unauthenticated probes. Neither returns hostnames, credentials or health details beyond an `UP`/`DOWN` state.
