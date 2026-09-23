@@ -18,9 +18,9 @@ The backend exposes two unauthenticated probes. Neither returns hostnames, crede
 | Probe | Path | Checks | Use it for |
 | --- | --- | --- | --- |
 | Liveness | `/api/v1/health/live` | The process can serve HTTP | Restart decisions (container orchestrators) |
-| Readiness | `/api/v1/health/ready` | Liveness plus a database round trip | Traffic routing, Compose `service_healthy`, Render `healthCheckPath` |
+| Readiness | `/api/v1/health/ready` | Liveness, a database round trip, and no pending or failed Flyway migration | Traffic routing, Compose `service_healthy`, Render `healthCheckPath` |
 
-A live but not-ready backend (for example, waiting on PostgreSQL) answers `200` on liveness and `503` on readiness, so do not restart it on a readiness failure. `/api/v1/health` remains as an alias of readiness for existing probes. Compose and `render.yaml` use readiness.
+Readiness reports `database` (`UP`/`UNAVAILABLE`) and `migrations` (`UP`/`PENDING`/`UNKNOWN`) without schema versions. A live but not-ready backend (for example, waiting on PostgreSQL) answers `200` on liveness and `503` on readiness, so do not restart it on a readiness failure. `/api/v1/health` remains as an alias of readiness for existing probes. Compose and `render.yaml` use readiness.
 
 ## Demo scenario and reset
 
