@@ -89,3 +89,19 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 409 | `ACTION_EXPIRED` / `ACTION_CONSUMED` | Expired or previously resolved proposal |
 | 409 | `DATA_CONFLICT` | Uniqueness, optimistic lock or lock contention conflict |
 | 429 | `AI_RATE_LIMIT` | Assistant quota or in-flight request limit |
+| 429 | `RATE_LIMITED` | Confirmation-email resend limit |
+| 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
+
+## Rate-limit headers
+
+Rate-limited endpoints (`POST /assistant/messages`, registration confirmation resends) return the remaining budget on every checked response:
+
+| Header | Meaning |
+| --- | --- |
+| `RateLimit-Limit` | Requests allowed in the current window |
+| `RateLimit-Remaining` | Requests left in the window after this one |
+| `RateLimit-Reset` | Seconds until the window resets |
+| `Retry-After` | On `429` only: seconds to wait before retrying |
+
+Clients should wait at least `Retry-After` seconds after a `429` and must not retry a rejected request sooner; the rejected request had no effect. An assistant request rejected because another one is still running returns `Retry-After: 1` without budget headers.
+
