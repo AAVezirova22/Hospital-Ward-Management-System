@@ -46,7 +46,6 @@
 .ward-patient.restricted small {
   margin-left: 0;
 }
-}
 .ward-patient.vacant {
   background: transparent;
   border: 1px dashed var(--line);
