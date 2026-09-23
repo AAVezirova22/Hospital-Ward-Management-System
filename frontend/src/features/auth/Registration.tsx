@@ -259,3 +259,84 @@ export function ResendConfirmation() {
   );
 }
 
+export function RecoverRegistration() {
+  const [username, setUsername] = useState(""),
+    [password, setPassword] = useState(""),
+    [email, setEmail] = useState(""),
+    [busy, setBusy] = useState(false),
+    [message, setMessage] = useState(""),
+    [error, setError] = useState("");
+  return (
+    <details className="resend-confirmation">
+      <summary>Correct a signup email address</summary>
+      <p>
+        If your confirmation link expired after you entered the wrong email,
+        enter your original username and password with an address you can
+        access.
+      </p>
+      <label>
+        Username
+        <input
+          autoComplete="username"
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+        />
+      </label>
+      <label>
+        Password
+        <input
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+      </label>
+      <label>
+        Correct email address
+        <input
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        className="secondary"
+        disabled={
+          busy ||
+          username.trim().length < 3 ||
+          password.length < 12 ||
+          !email.includes("@")
+        }
+        onClick={async () => {
+          setBusy(true);
+          setError("");
+          setMessage("");
+          try {
+            const result = await api<{ message: string }>(
+              "/registration/recover",
+              "POST",
+              { username, password, email },
+            );
+            setMessage(result.message);
+            setPassword("");
+          } catch (e) {
+            setError((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "Sending…" : "Recover registration"}
+      </button>
+      {message && <p role="status">{message}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </details>
+  );
+}
+

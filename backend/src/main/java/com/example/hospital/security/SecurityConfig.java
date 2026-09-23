@@ -56,7 +56,8 @@ public class SecurityConfig {
                 a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health",
                     "/api/v1/demo/status", "/api/v1/demo/login", "/api/v1/registration/status",
                     "/api/v1/registration/hospitals",
-                    "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend")
+                    "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend",
+                    "/api/v1/registration/recover")
                     .permitAll()
                     .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout")
                     .authenticated()
