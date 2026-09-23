@@ -25,7 +25,6 @@ public ReportController(
   this.audit = audit;
   this.reminders = reminders;
 }
-  }
 
   @GetMapping("/dashboard")
   public Object dashboard() {

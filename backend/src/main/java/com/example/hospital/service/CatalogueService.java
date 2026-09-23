@@ -38,7 +38,6 @@ public class CatalogueService {
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
   private final AuditService audit;
-  private final RoomAssignmentRepository assignments;
 
   public CatalogueService(
       HospitalService hospital,
@@ -59,7 +58,6 @@ public class CatalogueService {
     this.admissions = admissions;
     this.assignments = assignments;
     this.audit = audit;
-    this.assignments = assignments;
   }
 
   public List<Doctor> doctors() {

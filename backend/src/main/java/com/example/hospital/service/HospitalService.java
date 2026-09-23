@@ -217,7 +217,6 @@ public int held(Long id) {
       bedHolds.findByRoomIdAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(id, now);
   return BedHoldCapacity.reserved(holds, now);
 }
-  }
 
   public String scopeLabel() {
     long departmentId = com.example.hospital.security.DepartmentContext.id();
