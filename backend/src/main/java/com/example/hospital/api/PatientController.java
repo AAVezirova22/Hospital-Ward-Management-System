@@ -16,8 +16,14 @@ public class PatientController {
   }
 
   @GetMapping("/patients")
-  public Object patients(@RequestParam(defaultValue = "") String q) {
-    return patients.list(q).stream().map(Views.PatientDirectory::of).toList();
+  public Object patients(
+      @RequestParam(defaultValue = "") String q,
+      @RequestParam(required = false) Boolean activeAdmission,
+      @RequestParam(required = false) Long doctorId,
+      @RequestParam(required = false) Long roomId) {
+    return patients.list(q, activeAdmission, doctorId, roomId).stream()
+        .map(Views.PatientDirectory::of)
+        .toList();
   }
 
   @GetMapping("/patients/{id}")

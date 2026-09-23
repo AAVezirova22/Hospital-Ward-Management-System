@@ -1,5 +1,6 @@
 package com.example.hospital.service;
 
+import com.example.hospital.api.ApiException;
 import com.example.hospital.api.PatientInput;
 import com.example.hospital.domain.Patient;
 import com.example.hospital.repository.PatientRepository;
@@ -26,6 +27,14 @@ public class PatientService {
 
   public List<Patient> list(String search) {
     return hospital.patients(search);
+  }
+
+  public List<Patient> list(
+      String search, Boolean activeAdmission, Long doctorId, Long roomId) {
+    if ((doctorId != null && doctorId < 1) || (roomId != null && roomId < 1))
+      throw new ApiException(
+          400, "VALIDATION_ERROR", "Doctor and room filters must use positive identifiers.");
+    return hospital.patientDirectory(search, activeAdmission, doctorId, roomId);
   }
 
   public Patient byRef(String ref) {
