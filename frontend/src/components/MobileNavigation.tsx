@@ -10,7 +10,7 @@ import {
   Plus,
   X,
 } from "../icons";
-import { useUser, Modal, useData, ErrorBox } from "./workspace";
+import { useUser, Modal, useData, useAllPages, ErrorBox } from "./workspace";
 import { fullName } from "../api";
 import type { Patient, AdmissionView } from "../api/contracts";
 import { Workflow } from "../features/admissions/Workflow";
@@ -18,7 +18,7 @@ import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
 function QuickTask({ kind, close }: { kind: string; close: () => void }) {
   const patients = useData("/patients");
-  const admissions = useData("/admissions");
+  const admissions = useAllPages<AdmissionView>("/admissions?status=ACTIVE");
   const [chosen, setChosen] = useState<Patient>();
   const [search, setSearch] = useState("");
   const rows = (admissions.data ?? []) as AdmissionView[];

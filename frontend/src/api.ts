@@ -1,5 +1,7 @@
 // These pages still consume several endpoint shapes that are not modeled yet.
 // Keep the shared legacy row type permissive; typed endpoints use api/contracts.
+import type { PageResult } from "./api/contracts";
+
 export type Row = any;
 export type User = {
   id: number;
@@ -175,6 +177,21 @@ export async function api<T = any>(
     window.dispatchEvent(new CustomEvent("saved", { detail: message }));
   }
   return result;
+}
+export async function allPages<T>(path: string): Promise<T[]> {
+  const [endpoint, query = ""] = path.split("?", 2);
+  const params = new URLSearchParams(query);
+  const items: T[] = [];
+  let page = 0;
+  params.set("size", "100");
+  while (true) {
+    params.set("page", String(page));
+    const result = await api<PageResult<T>>(`${endpoint}?${params.toString()}`);
+    items.push(...result.items);
+    if (!result.hasNext || result.nextPage == null || result.nextPage <= page)
+      return items;
+    page = result.nextPage;
+  }
 }
 export async function login(username: string, password: string): Promise<User> {
   const t = await token();
