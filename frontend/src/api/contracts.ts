@@ -21,6 +21,22 @@ export interface Patient extends Entity {
   address: string | null;
   phoneNumber: string | null;
 }
+export interface PatientDirectoryItem {
+  id: number;
+  patientIdentifier: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+}
+export interface PatientDirectoryPage {
+  items: PatientDirectoryItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
+}
 export interface Doctor extends Entity {
   doctorIdentifier: string;
   firstName: string;
@@ -79,6 +95,15 @@ export interface AdmissionView {
   rooms: { assignment: RoomAssignment; room: RoomCapacity }[];
   procedures: ProcedureView[];
   totalCost: number;
+}
+export interface PageResult<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
 }
 export interface DashboardReport {
   activeAdmissions: number;

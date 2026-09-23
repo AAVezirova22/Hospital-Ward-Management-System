@@ -4,9 +4,14 @@ import com.example.hospital.api.*;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
+import com.example.hospital.security.DepartmentContext;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,31 +68,50 @@ public class HospitalService {
     return patients.findById(id).orElseThrow(ApiException::missing);
   }
 
-  public List<Patient> patients(String search) {
-    var q = search == null ? "" : search.toLowerCase(Locale.ROOT);
-    return patients.findAll().stream()
-        .filter(
-            p ->
-                (p.getFirstName() + " " + p.getLastName() + " " + p.getPatientIdentifier())
-                    .toLowerCase(Locale.ROOT)
-                    .contains(q))
-        .filter(
-            p ->
-                !actor.doctor()
-                    || admissions.existsByPatientIdAndAttendingDoctorId(
-                        p.getId(), actor.user().getDoctorId()))
-        .sorted(Comparator.comparing(p -> p.getLastName()))
-        .toList();
+  public Page<Patient> patients(String search, int page, int size) {
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.min(Math.max(size, 1), 100);
+    Sort sort = Sort.by(
+        Sort.Order.asc("lastName"),
+        Sort.Order.asc("firstName"),
+        Sort.Order.asc("patientIdentifier"),
+        Sort.Order.asc("id"));
+    Pageable pageable = PageRequest.of(safePage, safeSize, sort);
+    String query = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
+    Long doctorId = actor.doctor() ? actor.user().getDoctorId() : null;
+    Long departmentId = com.example.hospital.security.DepartmentContext.id();
+    Page<Patient> result =
+        patients.searchDirectory(departmentId, doctorId, query, pageable);
+    if (result.getTotalPages() > 0 && safePage >= result.getTotalPages()) {
+      return patients.searchDirectory(
+          departmentId,
+          doctorId,
+          query,
+          PageRequest.of(result.getTotalPages() - 1, safeSize, sort));
+    }
+    return result;
+  }
+
+  public List<Patient> patientMatches(String search, int limit) {
+    return patients(search, 0, limit).getContent();
+  }
+
+  public List<Patient> patientDirectory(
+      String search, Boolean activeAdmission, Long doctorId, Long roomId) {
+    return patients.findDirectory(
+        search == null ? "" : search,
+        activeAdmission,
+        doctorId,
+        roomId,
+        DepartmentContext.id(),
+        actor.doctor() ? actor.user().getDoctorId() : null);
   }
 
   public Patient patientByRef(String ref) {
     if (ref == null || ref.isBlank()) throw ApiException.missing();
     if (ref.chars().allMatch(Character::isDigit)) return patient(Long.parseLong(ref));
-    var found =
-        patients.findAll().stream()
-            .filter(p -> p.getPatientIdentifier().equals(ref))
-            .findFirst()
-            .orElseThrow(ApiException::missing);
+    var found = patients.findByDepartmentIdAndPatientIdentifier(
+        com.example.hospital.security.DepartmentContext.id(), ref).orElseThrow(ApiException::missing);
     accessible(found.getId());
     return found;
   }
@@ -111,10 +135,69 @@ public class HospitalService {
   }
 
   public List<Admission> admissions() {
-    return admissions.findAll().stream()
-        .filter(this::visible)
-        .sorted(Comparator.comparing((Admission a) -> a.getAdmissionDateTime()).reversed())
-        .toList();
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    return admissions.findVisibleAdmissions(
+        DepartmentContext.id(),
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId,
+        Sort.by(Sort.Order.desc("admissionDateTime")).and(Sort.by(Sort.Order.desc("id"))));
+  }
+
+  public List<Admission> admissions(
+      String status,
+      Instant fromDate,
+      Instant toDateExclusive,
+      Long doctorId,
+      Pageable pageable) {
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    return admissions.searchAdmissions(
+        DepartmentContext.id(),
+        status != null,
+        status,
+        fromDate != null,
+        fromDate,
+        toDateExclusive != null,
+        toDateExclusive,
+        doctorId != null,
+        doctorId,
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId,
+        pageable);
+  }
+
+  public long admissionCount(
+      String status, Instant fromDate, Instant toDateExclusive, Long doctorId) {
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    return admissions.countSearchAdmissions(
+        DepartmentContext.id(),
+        status != null,
+        status,
+        fromDate != null,
+        fromDate,
+        toDateExclusive != null,
+        toDateExclusive,
+        doctorId != null,
+        doctorId,
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId);
   }
 
   public Room room(Long id) {

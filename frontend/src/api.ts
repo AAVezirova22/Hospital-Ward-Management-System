@@ -2,6 +2,8 @@ import type { PageResult } from "./api/contracts";
 
 // These pages still consume several endpoint shapes that are not modeled yet.
 // Keep the shared legacy row type permissive; typed endpoints use api/contracts.
+import type { PageResult } from "./api/contracts";
+
 export type Row = any;
 export type User = {
   id: number;
@@ -179,40 +181,95 @@ export async function api<T = any>(
   return result;
 }
 export async function allPages<T>(path: string): Promise<T[]> {
-  const separator = path.indexOf("?");
-  const endpoint = separator < 0 ? path : path.slice(0, separator);
-  const params = new URLSearchParams(separator < 0 ? "" : path.slice(separator + 1));
-  params.set("page", "0");
-  params.set("size", "100");
-  const rows: T[] = [];
-  const visited = new Set<number>();
-  let page = 0;
-  while (!visited.has(page)) {
-    visited.add(page);
-    params.set("page", String(page));
-    const result = await api<PageResult<T>>(`${endpoint}?${params.toString()}`);
-    if (!result || !Array.isArray(result.items))
-      throw new ApiError(
-        502,
-        "INVALID_PAGINATION",
-        "The department service returned an invalid page.",
-      );
-    rows.push(...result.items);
-    if (!result.hasNext) return rows;
-    const nextPage = result.nextPage ?? result.page + 1;
-    if (!Number.isInteger(nextPage) || nextPage <= page)
-      throw new ApiError(
-        502,
-        "INVALID_PAGINATION",
-        "The department service returned invalid page navigation.",
-      );
-    page = nextPage;
-  }
-  throw new ApiError(
-    502,
-    "INVALID_PAGINATION",
-    "The department service returned a repeated page.",
+const separator = path.indexOf("?");
+const endpoint = separator < 0 ? path : path.slice(0, separator);
+const params = new URLSearchParams(
+  separator < 0 ? "" : path.slice(separator + 1),
+);
+params.set("page", "0");
+params.set("size", "100");
+
+const rows: T[] = [];
+const visited = new Set<number>();
+let page = 0;
+
+while (!visited.has(page)) {
+  visited.add(page);
+  params.set("page", String(page));
+
+  const result = await api<PageResult<T>>(
+    `${endpoint}?${params.toString()}`,
   );
+
+  if (!result || !Array.isArray(result.items))
+    throw new ApiError(
+      502,
+      "INVALID_PAGINATION",
+      "The department service returned an invalid page.",
+    );
+
+  rows.push(...result.items);
+
+  if (!result.hasNext) return rows;
+
+  const nextPage = result.nextPage ?? result.page + 1;
+
+  if (!Number.isInteger(nextPage) || nextPage <= page)
+    throw new ApiError(
+      502,
+      "INVALID_PAGINATION",
+      "The department service returned invalid page navigation.",
+    );
+
+  page = nextPage;
+}
+
+throw new ApiError(
+  502,
+  "INVALID_PAGINATION",
+  "The department service returned a repeated page.",
+);
+}
+
+export async function downloadFile(
+  path: string,
+  department: string | number,
+): Promise<{ blob: Blob; filename: string }> {
+  const departmentId = String(department);
+
+  const r = await fetch("/api/v1" + path, {
+    headers: { "X-Department-Id": departmentId },
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+
+    if (r.status === 401) {
+      csrf = null;
+      window.dispatchEvent(new Event("session-expired"));
+    }
+
+    throw new ApiError(
+      r.status,
+      e.code || "REQUEST_FAILED",
+      e.message || "The download could not be completed.",
+    );
+  }
+
+  const disposition = r.headers.get("content-disposition") || "";
+  const encodedFilename =
+    disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plainFilename =
+    disposition.match(/filename="?([^";]+)"?/i)?.[1];
+
+  const filename = encodedFilename
+    ? decodeURIComponent(encodedFilename)
+    : plainFilename || "download";
+
+  return { blob: await r.blob(), filename };
+}
 }
 export async function login(username: string, password: string): Promise<User> {
   const t = await token();
