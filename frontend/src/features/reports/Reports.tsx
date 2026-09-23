@@ -25,6 +25,7 @@ import { Download } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { ProcedureCharts, CapacityChart } from "./ReportCharts";
 import type {
+  DoctorWorkloadReport,
   Patient,
   PatientDirectoryPage,
   WorkspaceList,
@@ -48,35 +49,32 @@ export function Reports() {
     [doctorId, setDoctor] = useUrlState("doctorId"),
     [roomId, setRoom] = useUrlState("roomId"),
     [mode, setMode] = useUrlState("mode", "procedures");
-const [patientSearch, setPatientSearch] = useState("");
-const [patientPage, setPatientPage] = useState(0);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [patientPage, setPatientPage] = useState(0);
 
-const patientDirectoryQuery = useData(
-  `/patients?q=${encodeURIComponent(patientSearch)}&page=${patientPage}&size=20`,
-);
+  const patientDirectoryQuery = useData(
+    `/patients?q=${encodeURIComponent(patientSearch)}&page=${patientPage}&size=20`,
+  );
 
-const patients = patientDirectoryQuery.data as
-  | PatientDirectoryPage
-  | undefined;
+  const patients = patientDirectoryQuery.data as
+    PatientDirectoryPage | undefined;
 
-const selectedPatient = patients?.items.find(
-  (p) => String(p.id) === patientId,
-);
+  const selectedPatient = patients?.items.find(
+    (p) => String(p.id) === patientId,
+  );
 
-const selectedPatientQuery = useQuery({
-  queryKey: ["/patients", patientId, activeDepartment()],
-  queryFn: () =>
-    api<{ patient: Patient }>(
-      `/patients/${encodeURIComponent(patientId)}`,
-    ),
-  enabled: Boolean(patientId) && !selectedPatient,
-});
+  const selectedPatientQuery = useQuery({
+    queryKey: ["/patients", patientId, activeDepartment()],
+    queryFn: () =>
+      api<{ patient: Patient }>(`/patients/${encodeURIComponent(patientId)}`),
+    enabled: Boolean(patientId) && !selectedPatient,
+  });
 
-const selectedPatientRecord =
-  selectedPatient ?? selectedPatientQuery.data?.patient;
+  const selectedPatientRecord =
+    selectedPatient ?? selectedPatientQuery.data?.patient;
 
-const { data: doctors } = useAllPages<Row>("/doctors"),
-  { data: rooms } = useAllPages<Row>("/rooms");
+  const { data: doctors } = useAllPages<Row>("/doctors"),
+    { data: rooms } = useAllPages<Row>("/rooms");
   const params = new URLSearchParams({
     from,
     to,
@@ -88,11 +86,13 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
       ? "/reports/procedures?" + params
       : mode === "capacity"
         ? "/reports/capacity"
-        : "/reports/census?" +
-          new URLSearchParams({
-            ...(doctorId ? { doctorId } : {}),
-            ...(roomId ? { roomId } : {}),
-          });
+        : mode === "doctor-workload"
+          ? "/reports/doctor-workload?" + new URLSearchParams({ from, to })
+          : "/reports/census?" +
+            new URLSearchParams({
+              ...(doctorId ? { doctorId } : {}),
+              ...(roomId ? { roomId } : {}),
+            });
   const { data, error, isLoading } = useData(path);
   const exportCsv = async () => {
     const department = activeDepartment();
@@ -129,10 +129,11 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
         title="Decisions, grounded in data."
         description="Authoritative reports calculated from saved department records."
       />
-      <div className="tabs">
-        {["procedures", "census", "capacity"].map((m) => (
+      <div className="tabs" role="group" aria-label="Report type">
+        {["procedures", "census", "capacity", "doctor-workload"].map((m) => (
           <button
             className={mode === m ? "selected" : ""}
+            aria-pressed={mode === m}
             onClick={() => setMode(m)}
             key={m}
           >
@@ -140,13 +141,15 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
               ? "Hospitalized patients"
               : m === "capacity"
                 ? "Bed capacity"
-                : "Procedure activity"}
+                : m === "doctor-workload"
+                  ? "Doctor workload"
+                  : "Procedure activity"}
           </button>
         ))}
       </div>
       <div className="report-filters">
         <small className="muted">Calendar dates use {timeZone}.</small>
-        {mode === "procedures" && (
+        {(mode === "procedures" || mode === "doctor-workload") && (
           <>
             <label>
               From
@@ -164,67 +167,71 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
                 onChange={(e) => setTo(e.target.value)}
               />
             </label>
-            <label>
-              Find patient
-              <input
-                aria-label="Search patients for reports"
-                value={patientSearch}
-                onChange={(e) => {
-                  setPatientSearch(e.target.value);
-                  setPatientPage(0);
-                }}
-                placeholder="Name or patient ID"
-              />
-            </label>
-            <label>
-              Patient
-              <select
-                value={patientId}
-                onChange={(e) => setPatient(e.target.value)}
-              >
-                <option value="">All permitted patients</option>
-                {patientId && !selectedPatient && (
-                  <option value={patientId}>
-                    {selectedPatientRecord
-                      ? fullName(selectedPatientRecord)
-                      : selectedPatientQuery.error
-                        ? "Selected patient unavailable"
-                        : "Loading selected patient…"}
-                  </option>
+            {mode === "procedures" && (
+              <>
+                <label>
+                  Find patient
+                  <input
+                    aria-label="Search patients for reports"
+                    value={patientSearch}
+                    onChange={(e) => {
+                      setPatientSearch(e.target.value);
+                      setPatientPage(0);
+                    }}
+                    placeholder="Name or patient ID"
+                  />
+                </label>
+                <label>
+                  Patient
+                  <select
+                    value={patientId}
+                    onChange={(e) => setPatient(e.target.value)}
+                  >
+                    <option value="">All permitted patients</option>
+                    {patientId && !selectedPatient && (
+                      <option value={patientId}>
+                        {selectedPatientRecord
+                          ? fullName(selectedPatientRecord)
+                          : selectedPatientQuery.error
+                            ? "Selected patient unavailable"
+                            : "Loading selected patient…"}
+                      </option>
+                    )}
+                    {patients?.items.map((p) => (
+                      <option value={p.id} key={p.id}>
+                        {fullName(p)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {patients && patients.totalPages > 1 && (
+                  <div className="table-pagination">
+                    <span>
+                      Page {patients.page + 1} of {patients.totalPages}
+                    </span>
+                    <button
+                      className="secondary"
+                      disabled={patients.page === 0}
+                      onClick={() => setPatientPage(patients.page - 1)}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      className="secondary"
+                      disabled={!patients.hasNext}
+                      onClick={() =>
+                        setPatientPage(patients.nextPage ?? patients.page + 1)
+                      }
+                    >
+                      Next
+                    </button>
+                  </div>
                 )}
-                {patients?.items.map((p) => (
-                  <option value={p.id} key={p.id}>
-                    {fullName(p)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {patients && patients.totalPages > 1 && (
-              <div className="table-pagination">
-                <span>
-                  Page {patients.page + 1} of {patients.totalPages}
-                </span>
-                <button
-                  className="secondary"
-                  disabled={patients.page === 0}
-                  onClick={() => setPatientPage(patients.page - 1)}
-                >
-                  Previous
-                </button>
-                <button
-                  className="secondary"
-                  disabled={!patients.hasNext}
-                  onClick={() =>
-                    setPatientPage(patients.nextPage ?? patients.page + 1)
-                  }
-                >
-                  Next
-                </button>
-              </div>
+              </>
             )}
           </>
         )}
-        {mode !== "capacity" && (
+        {(mode === "procedures" || mode === "census") && (
           <label>
             Doctor
             <select
@@ -269,12 +276,18 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
         )}
       </div>
       <ErrorBox
-        error={error || patientDirectoryQuery.error || selectedPatientQuery.error}
+        error={
+          error ||
+          (mode === "procedures"
+            ? patientDirectoryQuery.error || selectedPatientQuery.error
+            : null)
+        }
       />
-      <ErrorBox error={error} />
       <ErrorBox error={exportError} />
       {isLoading ? (
-        <div className="skeleton">Calculating report…</div>
+        <div className="skeleton" role="status" aria-live="polite">
+          Calculating report…
+        </div>
       ) : (
         data && (
           <>
@@ -370,6 +383,49 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
                       ))}
                   </tbody>
                 </table>
+              ) : mode === "doctor-workload" ? (
+                <>
+                  <h2>Doctor workload</h2>
+                  <p className="muted">
+                    Scope: {(data as DoctorWorkloadReport).scope}. Recent
+                    procedures include {(data as DoctorWorkloadReport).from}{" "}
+                    through {(data as DoctorWorkloadReport).to} (
+                    {(data as DoctorWorkloadReport).timeZone}).
+                  </p>
+                  <div className="report-total">
+                    <strong>
+                      {(data as DoctorWorkloadReport).rows.length} active doctor
+                      {(data as DoctorWorkloadReport).rows.length === 1
+                        ? ""
+                        : "s"}
+                    </strong>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th scope="col">Doctor</th>
+                        <th scope="col">Specialty</th>
+                        <th scope="col">Active admissions</th>
+                        <th scope="col">Assigned beds</th>
+                        <th scope="col">Recent procedures</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data as DoctorWorkloadReport).rows.map((row) => (
+                        <tr key={row.doctor.id}>
+                          <th scope="row">{fullName(row.doctor)}</th>
+                          <td>{row.doctor.specialty || "Not recorded"}</td>
+                          <td>{row.activeAdmissions}</td>
+                          <td>{row.assignedBeds}</td>
+                          <td>{row.recentProcedures}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(data as DoctorWorkloadReport).rows.length === 0 && (
+                    <Empty text="No active doctors are available in this reporting scope." />
+                  )}
+                </>
               ) : (
                 <table>
                   <thead>
