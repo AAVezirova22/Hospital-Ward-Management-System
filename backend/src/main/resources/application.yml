@@ -66,6 +66,9 @@ app:
     resend-key: ${RESEND_API_KEY:}
     from: ${EMAIL_FROM:}
   seed: ${DEMO_SEED:true}
+  session:
+    # Hard limit from sign-in, independent of the idle timeout; users then sign in again.
+    max-lifetime: ${SESSION_MAX_LIFETIME:12h}
   diagnostics:
     # Log statements at or above this many milliseconds (redacted); 0 disables the log.
     slow-query-ms: ${SLOW_QUERY_MS:500}
