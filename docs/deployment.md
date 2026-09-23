@@ -16,6 +16,11 @@ The paid web services do not spin down after 15 minutes of inactivity, unlike Fr
 5. Keep `COOKIE_SECURE=true` behind HTTPS. The frontend proxies same-origin `/api` requests; no browser CORS exception is needed.
 6. Confirm `/api/v1/health` returns `UP`, then enter the administrator demo. Verify patient count, active admissions, room capacity, procedure reports and planner simulation before presenting.
 
+## Multiple backend instances
+
+The supported multi-instance setup requires all API instances to use the same PostgreSQL database and cookie-based session affinity. Spring Security stores authenticated sessions in each servlet container's memory; configure the load balancer to route requests with the same `JSESSIONID` cookie to the same API instance. Preserve and forward that cookie through the frontend `/api` proxy, including login, CSRF, assistant upload, message, source-removal and clear requests. The servlet session expires after 30 minutes of inactivity, so affinity must last at least as long as the active session.
+
+Assistant conversation turns, uploaded source text, the one-in-flight request guard and login-failure backoff are also held in process memory. Routing a browser session to another instance or restarting its instance loses its login and transient assistant context. The user can sign in again, but the earlier assistant context and uploads cannot be resumed. The AI session record, pending actions and rate-limit windows are stored in PostgreSQL and shared across instances. The one-in-flight guard is per instance, so separate browser sessions for the same account can make simultaneous requests on different instances. Run one API instance if the deployment cannot preserve cookie affinity or needs a global in-flight limit.
 ## Assistant context retention
 
 When an external AI model is configured, PostgreSQL stores up to six recent user/assistant text pairs per assistant session, with a 40,000-character cap and a rolling 30-minute expiry. The `ai_sessions` row scopes that context to its owner and department; clearing the session removes it, and a scheduled cleanup scrubs expired text. These pairs can contain patient information, so restrict database and backup access accordingly. Uploaded files, extracted source text and raw tool results remain in process memory or are discarded after the request.
