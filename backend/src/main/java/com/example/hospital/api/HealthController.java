@@ -5,6 +5,8 @@ import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationState;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.availability.ApplicationAvailability;
+import org.springframework.boot.availability.ReadinessState;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,12 +21,15 @@ import org.springframework.web.bind.annotation.*;
 public class HealthController {
   private final JdbcTemplate jdbc;
   private final ObjectProvider<Flyway> flyway;
+  private final ApplicationAvailability availability;
   // A schema that was fully applied stays applied for this process, so skip rescanning.
   private volatile boolean schemaApplied;
 
-  public HealthController(JdbcTemplate jdbc, ObjectProvider<Flyway> flyway) {
+  public HealthController(
+      JdbcTemplate jdbc, ObjectProvider<Flyway> flyway, ApplicationAvailability availability) {
     this.jdbc = jdbc;
     this.flyway = flyway;
+    this.availability = availability;
   }
 
   /** Kept for existing probes; equivalent to readiness. */
@@ -46,7 +51,11 @@ public class HealthController {
     body.put("database", database ? "UP" : "UNAVAILABLE");
     boolean migrations = database && migrationsApplied();
     body.put("migrations", !database ? "UNKNOWN" : migrations ? "UP" : "PENDING");
-    boolean ready = database && migrations;
+    // REFUSING_TRAFFIC until startup runners finish and again once shutdown starts, so
+    // balancers only route to a fully started instance and drain one that is stopping.
+    boolean accepting = availability.getReadinessState() == ReadinessState.ACCEPTING_TRAFFIC;
+    if (!accepting) body.put("traffic", "REFUSING");
+    boolean ready = accepting && database && migrations;
     body.put("status", ready ? "UP" : "DOWN");
     return ResponseEntity.status(ready ? 200 : 503).body(body);
   }
