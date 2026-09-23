@@ -26,6 +26,7 @@ jobs:
       COOKIE_SECURE: false
       DEMO_SEED: true
       DEMO_MODE: true
+      APP_ENVIRONMENT: demo
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v6

@@ -29,6 +29,9 @@ services:
       # Required to create the initial administrator on an empty database.
       - key: BOOTSTRAP_PASSWORD
         sync: false
+      # Dedicated synthetic database: required for DEMO_MODE=true.
+      - key: APP_ENVIRONMENT
+        value: demo
       - key: DEMO_SEED
         value: "true"
       - key: DEMO_MODE
