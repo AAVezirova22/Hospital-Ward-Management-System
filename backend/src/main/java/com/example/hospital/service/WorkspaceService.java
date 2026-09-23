@@ -5,6 +5,7 @@ import com.example.hospital.security.Actor;
 import com.example.hospital.security.DepartmentContext;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,7 +27,7 @@ public class WorkspaceService {
     this.actor = actor;
     this.audit = audit;
   }
-  public record Department(long id, String name, String role, boolean hasJoinCode) {}
+  public record Department(long id, String name, String role, boolean hasJoinCode, String timeZone) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
 
   public List<Hospital> list() {
@@ -34,9 +35,9 @@ public class WorkspaceService {
     return jdbc.query("select h.id,h.name,m.owner from hospitals h join hospital_memberships m on m.hospital_id=h.id where m.user_id=? order by h.name,h.id",
         (rs, n) -> {
           long id = rs.getLong(1); boolean owner = rs.getBoolean(3);
-          var departments = jdbc.query("select d.id,d.name,m.role from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? order by d.name,d.id",
+          var departments = jdbc.query("select d.id,d.name,m.role,d.time_zone from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? order by d.name,d.id",
               (d, i) -> new Department(d.getLong(1), d.getString(2), d.getString(3),
-                  "ADMIN".equals(d.getString(3))), id, user.getId());
+                  "ADMIN".equals(d.getString(3)), d.getString(4)), id, user.getId());
           return new Hospital(id, rs.getString(2), owner, owner, departments);
         }, user.getId());
   }
@@ -106,14 +107,14 @@ public class WorkspaceService {
     guardJoinAttempts(user.getId(), remoteAddr);
     var departments = jdbc.queryForList("select id,hospital_id,join_code_expires_at,join_code_single_use from departments where join_code=?", code);
     if (!departments.isEmpty()) {
-      clearJoinAttempts(user.getId(), remoteAddr);
       var row = departments.getFirst();
       assertJoinFresh(row.get("join_code_expires_at"));
       long id = ((Number) row.get("id")).longValue();
       long hospitalId = ((Number) row.get("hospital_id")).longValue();
+      if (Boolean.TRUE.equals(row.get("join_code_single_use"))) consumeJoinCode(false, id, code);
+      clearJoinAttempts(user.getId(), remoteAddr);
       jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", hospitalId, user.getId());
       jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'MEDICAL_STAFF') on conflict do nothing", id, user.getId());
-      if (Boolean.TRUE.equals(row.get("join_code_single_use"))) consumeJoinCode(false, id);
       audit.log("WORKSPACE_JOINED", "Department", id, "UI");
       return Map.of("hospitalId", hospitalId, "departmentId", id);
     }
@@ -123,12 +124,12 @@ public class WorkspaceService {
       audit.log("JOIN_CODE_REJECTED", "Workspace", user.getId(), "UI");
       throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
     }
-    clearJoinAttempts(user.getId(), remoteAddr);
     var hospital = hospitals.getFirst();
     assertJoinFresh(hospital.get("join_code_expires_at"));
     long id = ((Number) hospital.get("id")).longValue();
+    if (Boolean.TRUE.equals(hospital.get("join_code_single_use"))) consumeJoinCode(true, id, code);
+    clearJoinAttempts(user.getId(), remoteAddr);
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", id, user.getId());
-    if (Boolean.TRUE.equals(hospital.get("join_code_single_use"))) consumeJoinCode(true, id);
     audit.log("WORKSPACE_JOINED", "Hospital", id, "UI");
     String hospitalName = jdbc.queryForObject("select name from hospitals where id=?", String.class, id);
     return Map.of("hospitalId", id, "hospitalName", hospitalName == null ? "" : hospitalName);
@@ -166,11 +167,14 @@ public class WorkspaceService {
       throw new ApiException(400, "CODE_EXPIRED", "This join code has expired. Ask the owner for a new one.");
   }
 
-  private void consumeJoinCode(boolean hospital, long id) {
+  private void consumeJoinCode(boolean hospital, long id, String consumedCode) {
     String next = code(hospital ? "H-" : "D-");
-    jdbc.update(
-        "update " + (hospital ? "hospitals" : "departments") + " set join_code=?, join_code_single_use=false, join_code_expires_at=null where id=?",
-        next, id);
+    int consumed =
+        jdbc.update(
+            "update " + (hospital ? "hospitals" : "departments") + " set join_code=?, join_code_single_use=false, join_code_expires_at=null where id=? and join_code=? and join_code_single_use=true",
+            next, id, consumedCode);
+    if (consumed != 1)
+      throw new ApiException(400, "INVALID_CODE", "This code is invalid. Check it with your hospital or department owner.");
   }
 
   @Transactional
@@ -233,6 +237,18 @@ public class WorkspaceService {
     Long hospitalId = jdbc.queryForObject("select hospital_id from departments where id=?", Long.class, departmentId);
     if (hospitalId == null) throw new ApiException(404, "NOT_FOUND", "Department not found.");
     owner(hospitalId);
+  }
+
+  @Transactional
+  public Map<String, Object> setTimeZone(long departmentId, String supplied) {
+    departmentAdmin(departmentId);
+    String timeZone = supplied == null ? "" : supplied.strip();
+    if (timeZone.isEmpty() || timeZone.length() > 64
+        || !ZoneId.getAvailableZoneIds().contains(timeZone))
+      throw new ApiException(400, "INVALID_TIME_ZONE", "Choose a valid IANA time zone.");
+    jdbc.update("update departments set time_zone=? where id=?", timeZone, departmentId);
+    audit.log("DEPARTMENT_TIME_ZONE_UPDATED", "Department", departmentId, "UI");
+    return Map.of("timeZone", timeZone);
   }
 
   @Transactional

@@ -163,3 +163,50 @@ export function CreateDepartmentForm({
     </form>
   );
 }
+
+export function DepartmentTimeZoneForm({
+  departmentName,
+  timeZone,
+  busy,
+  onTimeZone,
+  onBack,
+  onSave,
+}: {
+  departmentName: string;
+  timeZone: string;
+  busy: boolean;
+  onTimeZone: (value: string) => void;
+  onBack: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <form
+      className="workspace-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave();
+      }}
+    >
+      <p>Set the IANA time zone used for {departmentName} daily reports and schedules.</p>
+      <label>
+        Time zone
+        <input
+          autoFocus
+          value={timeZone}
+          onChange={(e) => onTimeZone(e.target.value)}
+          maxLength={64}
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </label>
+      <div className="actions">
+        <button type="button" className="secondary" onClick={onBack}>
+          Back
+        </button>
+        <button className="primary" disabled={busy || !timeZone.trim()}>
+          {busy ? "Saving…" : "Save time zone"}
+        </button>
+      </div>
+    </form>
+  );
+}

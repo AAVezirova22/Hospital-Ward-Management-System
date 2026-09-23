@@ -18,16 +18,29 @@ import com.example.hospital.repository.PerformedProcedureRepository;
 import com.example.hospital.repository.RoomAssignmentRepository;
 import com.example.hospital.repository.WorkflowLockRepository;
 import com.example.hospital.security.Actor;
+import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class StayService {
+  private static final int MAX_PAGE_SIZE = 100;
+  private static final Set<String> ADMISSION_STATUSES = Set.of("ACTIVE", "DISCHARGED", "CANCELLED");
+
   private final HospitalService hospital;
   private final WorkflowLockRepository lock;
   private final Actor actor;
@@ -61,6 +74,60 @@ public class StayService {
 
   public List<Admission> list() {
     return hospital.admissions();
+  }
+
+  public Page<Admission> list(
+      int page, int size, String status, LocalDate from, LocalDate to, Long doctorId) {
+    if (page < 0 || size < 1 || (doctorId != null && doctorId < 1))
+      throw new ApiException(
+          400, "VALIDATION_ERROR", "Check the admission filters and page values.");
+    if (from != null && to != null && from.isAfter(to))
+      throw new ApiException(
+          400, "VALIDATION_ERROR", "The start date must not be after the end date.");
+
+    String normalizedStatus =
+        status == null || status.isBlank() ? null : status.trim().toUpperCase(Locale.ROOT);
+    if (normalizedStatus != null && !ADMISSION_STATUSES.contains(normalizedStatus))
+      throw new ApiException(400, "VALIDATION_ERROR", "Choose a valid admission status.");
+
+    Instant fromDate = from == null ? null : from.atStartOfDay(ZoneOffset.UTC).toInstant();
+    Instant toDateExclusive = null;
+    if (to != null) {
+      try {
+        toDateExclusive = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+      } catch (DateTimeException e) {
+        throw new ApiException(400, "VALIDATION_ERROR", "The end date is outside the supported range.");
+      }
+    }
+
+    int pageSize = Math.min(size, MAX_PAGE_SIZE);
+    Sort sort =
+        Sort.by(Sort.Order.desc("admissionDateTime")).and(Sort.by(Sort.Order.desc("id")));
+    return page(
+        page,
+        pageSize,
+        sort,
+        normalizedStatus,
+        fromDate,
+        toDateExclusive,
+        doctorId);
+  }
+
+  private Page<Admission> page(
+      int page,
+      int size,
+      Sort sort,
+      String status,
+      Instant fromDate,
+      Instant toDateExclusive,
+      Long doctorId) {
+    long totalElements = hospital.admissionCount(status, fromDate, toDateExclusive, doctorId);
+    long lastPageNumber = totalElements == 0 ? 0 : (totalElements - 1) / size;
+    int effectivePage = (int) Math.min(page, Math.min(lastPageNumber, Integer.MAX_VALUE));
+    Pageable pageable = PageRequest.of(effectivePage, size, sort);
+    List<Admission> content =
+        hospital.admissions(status, fromDate, toDateExclusive, doctorId, pageable);
+    return new PageImpl<>(content, pageable, totalElements);
   }
 
   public Map<String, Object> view(Admission admission) {
@@ -104,7 +171,7 @@ public class StayService {
 
   private Room freeRoom(Long id) {
     var r = hospital.room(id);
-    if (!r.isActive() || hospital.occupied(id) >= r.getBedCount())
+    if (!r.isActive() || hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
       throw ApiException.conflict(
           "ROOM_CAPACITY_EXCEEDED", "Room " + r.getRoomNumber() + " no longer has available capacity.");
     return r;

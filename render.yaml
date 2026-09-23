@@ -2,7 +2,7 @@
 # Keep these names and Docker settings aligned with the live Render services.
 databases:
   - name: hospital-ward-demo-db
-    plan: free
+    plan: 0.1c-256mb
     databaseName: hospital_ward_demo_db
     user: hospital_ward_demo_db_user
     ipAllowList: []
@@ -11,7 +11,7 @@ services:
   - type: web
     name: hospital-ward-backend
     runtime: docker
-    plan: free
+    plan: 0.5c-512mb
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     healthCheckPath: /api/v1/health/ready
@@ -36,16 +36,27 @@ services:
         value: "true"
       - key: DEMO_MODE
         value: "true"
+      # Public entry is limited to this API's dedicated synthetic demo database.
+      - key: DEMO_PUBLIC_LOGIN
+        value: "true"
       - key: COOKIE_SECURE
         value: "true"
       - key: AI_MODE
         value: local
       - key: EMAIL_FROM
         value: "Medcore <onboarding@resend.dev>"
+      - key: DISCHARGE_REMINDERS_ENABLED
+        value: "false"
+      - key: DISCHARGE_REMINDER_WINDOWS
+        value: "7,3,1"
+      - key: DISCHARGE_REMINDER_MAX_ATTEMPTS
+        value: "5"
+      - key: DISCHARGE_REMINDER_OUTCOMES_LIMIT
+        value: "50"
   - type: web
     name: hospital-ward-frontend
     runtime: docker
-    plan: free
+    plan: 0.5c-512mb
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: ./frontend
     healthCheckPath: /manifest.webmanifest

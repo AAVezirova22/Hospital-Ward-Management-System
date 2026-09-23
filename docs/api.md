@@ -18,6 +18,8 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST / PUT | `/patients` / `/patients/{id}` | PatientInput |
 | GET / POST / PUT | `/doctors` / `/doctors/{id}` | DoctorInput; writes admin-only |
 | GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET supports `minFree` |
+| POST | `/rooms/{id}/holds` | `{bedCount, reason, startsAt, endsAt}`; admin/staff; timed maintenance reservation |
+| DELETE | `/rooms/{roomId}/holds/{holdId}` | Admin/staff; cancels a reservation and returns 204 |
 | GET / POST / PUT | `/procedures` / `/procedures/{id}` | ProcedureInput; catalogue |
 | GET | `/admissions` / `/admissions/{id}` | Scoped stays with patient/doctor/room/procedure details |
 | POST | `/admissions` | `{patientId, doctorId, roomId}` |
@@ -42,17 +44,24 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 
+Room responses include `occupiedBeds`, `heldBeds`, `activeHeldBeds`, `availableBeds`, and current/upcoming `holds`. A hold uses a half-open `[startsAt, endsAt)` window. Upcoming holds reserve placement capacity immediately and release it automatically at `endsAt`; overlapping holds are checked against current occupancy and room capacity. `minFree`, admission, transfer, the planner, and reports all use the same reserved capacity.
+
 ## Reports
 
 | Path | Parameters | Result |
 | --- | --- | --- |
+| `/reports/dashboard` | None | Scoped active admissions, occupied/held/available department capacity, doctors, today's procedures |
 | `/reports/dashboard` | None | Scoped active admissions, department capacity, doctors, today's procedures |
+| `/reports/operations` | None | Operations metrics and an `overdueDischarges` worklist for active admissions scheduled before today; doctors see only their assigned admissions |
 | `/reports/census` | Optional `roomId`, `doctorId` | Currently hospitalized patients, scoped by role |
 | `/reports/capacity` | None | Room occupancy and availability |
+| `/reports/discharge-reminders` | None | Recent delivery outcomes for the active department; doctors only see admissions assigned to them |
 | `/reports/procedures` | Required ISO dates `from`, `to`; optional `patientId`, `doctorId` | Rows, exact decimal total, totals grouped by performing doctor |
 | `/reports/procedures.csv` | Same as procedure report | Download containing numeric record, admission and procedure IDs, timestamp and historical cost. Each download writes a `DATA_EXPORTED` audit event with the export type, date range, patient/doctor filters, department, actor, time and row count; the exported rows are not stored |
 
 Report dates are inclusive and interpreted in UTC. Future or inverted invalid date input is validated where applicable; `from > to` is rejected. CSV values are numeric identifiers, ISO timestamps and decimals; user-entered text is omitted to avoid spreadsheet-formula injection.
+
+Discharge reminder outcomes include the expected date, reminder window, status, recipient count, attempt count, provider message ID and a safe error code. They omit recipient addresses and patient or admission identifiers. `ACCEPTED` means the email provider accepted the request; it does not confirm inbox delivery.
 
 ## Assistant
 

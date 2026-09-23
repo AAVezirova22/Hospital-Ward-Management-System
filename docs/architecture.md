@@ -33,6 +33,7 @@ erDiagram
   Doctor ||--o{ PerformedProcedure : performs
   AppUser ||--o{ AiPendingAction : owns
   AppUser ||--o{ AiSession : owns
+  AppUser ||--o{ EmailOutbox : receives
   AiSession ||--o{ AiInteraction : groups
 ```
 
@@ -40,11 +41,11 @@ JPA models use scalar foreign-key identifiers to avoid accidental recursive enti
 
 Hospitals own departments. Staff join a hospital or a department with a rotating code. Hospital membership alone does not open clinical records; a department code grants medical staff access without administrator rights. Codes can expire and can be issued as single-use invites; joining with a single-use code rotates it immediately. Clinical tables carry `department_id` and Hibernate filters every load, including lookups by primary key.
 
-Partial unique indexes enforce one active admission per patient and one unreleased room assignment per admission. Bed availability derives from unreleased assignments; it is not a separate stored counter. Procedure prices are copied into `priceAtExecution` at recording time.
+Partial unique indexes enforce one active admission per patient and one unreleased room assignment per admission. Bed availability derives from unreleased assignments plus timed maintenance holds; it is not a separate stored counter. Holds use half-open time windows, retain a reason and cancellation history, and reserve their capacity ahead of a scheduled start so admissions cannot consume it first. Procedure prices are copied into `priceAtExecution` at recording time.
 
 ## Transactions and concurrency
 
-`WorkflowLockRepository.acquire()` takes a pessimistic write lock on the **current department's** pre-created `workflow_lock` row (id = `department_id`). Admission, transfer, discharge, doctor reassignment, procedure recording, room capacity edits, doctor deactivation and account administration acquire this lock before checking current state. The lock persists until transaction completion. It serializes department-level writes and avoids lock-order deadlocks across source/destination rooms; ordinary reads remain concurrent. Cross-department operations (demo reset) call `acquireAll()` and lock every row in id order, including the global sentinel (`id = 0`). New departments insert a matching lock row in the same transaction.
+`WorkflowLockRepository.acquire()` takes a pessimistic write lock on the **current department's** pre-created `workflow_lock` row (id = `department_id`). Admission, transfer, discharge, doctor reassignment, procedure recording, room capacity edits, bed-hold creation/cancellation, doctor deactivation and account administration acquire this lock before checking current state. The lock persists until transaction completion. It serializes department-level writes and avoids lock-order deadlocks across source/destination rooms; ordinary reads remain concurrent. Cross-department operations (demo reset) call `acquireAll()` and lock every row in id order, including the global sentinel (`id = 0`). New departments insert a matching lock row in the same transaction.
 
 A transfer releases the previous assignment, flushes it, inserts the next assignment, increments the admission version and writes an audit event in one transaction. Failure rolls the entire operation back. Discharge updates status, closes the assignment and releases the bed in one transaction. Existing-record edits require the version last displayed to the user.
 
@@ -78,9 +79,11 @@ The default local command model requires no network. The external adapter implem
 
 The default limit is 20 requests per user per minute and one in-flight request per user per application process. The limiter is isolated from CRUD APIs. Counters for both the assistant and registration confirmation emails persist in the `rate_windows` Postgres table so a restart or a second backend instance keeps the same window.
 
+Registration writes its verification hash and an `email_outbox` row in the same transaction as the account. Workers claim due rows using PostgreSQL `FOR UPDATE SKIP LOCKED`, commit the lease before calling the provider, and retry failures with bounded exponential backoff. Retries reuse the same confirmation token and provider idempotency key. The outbox retains recipient, name and raw token only while the link can be delivered; success, replacement, verification and expiry clear them. Terminal delivery records are pruned after 30 days.
+
 Pending actions persist a server-built immutable payload, owner, creation time, expiry and status. The model cannot call confirmation. The confirmation endpoint checks current role, ownership, pending state, expiry, admission version, active status and current capacity. The confirmation and hospital mutation share one transaction. Expired proposals are persisted as expired while returning `409 ACTION_EXPIRED`; ordinary workflow errors retain their specific conflict response and roll back. Successful proposals become `EXECUTED`; replay is rejected. Cancellation is owner-only.
 
-Only AI operational metadata is retained: tool, model, duration, owner, session and outcome. User prompt text and full AI context are not stored. Clearing a session clears selected-patient context and the transient UI conversation; existing audit metadata is retained. No raw notes, passwords, session cookies or prompts are emitted in audit metadata.
+AI interaction records retain operational metadata: tool, model, duration, owner, session and outcome. Each owner- and department-scoped assistant session also stores at most six recent user/assistant text pairs for 30 minutes so requests can reach another backend instance without losing conversational continuity. The context is size-bounded, excluded from history and audit responses, and erased by clear or expiry. Uploaded source text and tool-result payloads are not stored. No raw notes, passwords, session cookies or prompts are emitted in audit metadata.
 
 ## Interface and failure behavior
 

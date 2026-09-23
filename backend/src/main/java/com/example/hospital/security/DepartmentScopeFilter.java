@@ -1,5 +1,6 @@
 package com.example.hospital.security;
 
+import com.example.hospital.api.ApiException;
 import com.example.hospital.api.Errors;
 import com.example.hospital.repository.AppUserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,11 +63,24 @@ public class DepartmentScopeFilter extends OncePerRequestFilter {
         try {
           String requested = r.getHeader("X-Department-Id");
           if (requested == null) requested = r.getParameter("departmentId");
+          boolean sessionSelection = false;
           if (requested == null && session != null) {
             var stored = session.getAttribute("departmentId");
             requested = stored == null ? null : stored.toString();
+            sessionSelection = requested != null;
           }
-          var scope = workspaces.resolve(u.get(), requested);
+          DepartmentContext.Scope scope;
+          try {
+            scope = workspaces.resolve(u.get(), requested);
+          } catch (ApiException e) {
+            if (!sessionSelection || !"DEPARTMENT_ACCESS_DENIED".equals(e.code)) {
+              throw e;
+            }
+            // Membership can be revoked from another tab or by an administrator.
+            // Recover only stale session fallback; explicit scopes remain rejected.
+            session.removeAttribute("departmentId");
+            scope = workspaces.resolve(u.get(), null);
+          }
           DepartmentContext.set(scope);
           if (session != null && scope.id() > 0) {
             session.setAttribute("departmentId", scope.id());

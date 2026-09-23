@@ -102,17 +102,18 @@ export function MessageExperience() {
               aria-hidden="true"
             />
             <h2 id="messages-title">
-              The conversation
+              From request
               <br />
-              carries on.
+              to review.
             </h2>
             <p>
-              Between rounds. Away from your desk. Reach your Medcore assistant
-              in iMessage and keep the work moving.
+              Use the assistant inside your Medcore workspace to plan workflows
+              from files or typed requests. Review the proposed steps and
+              confirm them before any records change.
             </p>
             <div
               className="mc-message-options"
-              aria-label="Choose an iMessage example"
+              aria-label="Choose an assistant example"
             >
               {conversations.map((item, index) => (
                 <button
@@ -126,9 +127,8 @@ export function MessageExperience() {
               ))}
             </div>
             <p className="mc-message-note">
-              A familiar conversation. A connected workflow.
-              <br />
-              Your team stays in control.
+              An illustrative assistant preview. The working assistant is in
+              your Medcore workspace.
             </p>
             <Link href="/app" className="mc-text-link">
               Continue in Medcore <ArrowUpRight aria-hidden="true" />
