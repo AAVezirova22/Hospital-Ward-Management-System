@@ -109,7 +109,9 @@ export function OperationsOverview({
   const activeRooms = rooms.filter((r) => r.active),
     beds = activeRooms.reduce((n, r) => n + r.bedCount, 0),
     occupied = activeRooms.reduce((n, r) => n + r.occupiedBeds, 0),
-    percent = beds ? (occupied / beds) * 100 : 0;
+    held = activeRooms.reduce((n, r) => n + r.heldBeds, 0),
+    available = activeRooms.reduce((n, r) => n + r.availableBeds, 0),
+    percent = beds ? ((occupied + held) / beds) * 100 : 0;
   const severity =
     percent >= d.thresholds.criticalPercent
       ? "critical"
@@ -126,13 +128,13 @@ export function OperationsOverview({
     <div className="operations-overview">
       <div className="operations-metrics">
         <article className={`operation-stat ${severity}`}>
-          <span>Department occupancy</span>
+          <span>Department capacity in use</span>
           <strong>
             {percent.toFixed(1)}
             <small>%</small>
           </strong>
           <p>
-            {occupied} occupied · {beds - occupied} available
+            {occupied} occupied · {held} held · {available} available
           </p>
           <small>
             {d.scope === "Department" && censusChange !== null
@@ -225,15 +227,14 @@ export function OperationsOverview({
             {activeRooms
               .filter(
                 (r) =>
-                  (r.occupiedBeds / r.bedCount) * 100 >=
+                  ((r.occupiedBeds + r.heldBeds) / r.bedCount) * 100 >=
                   d.thresholds.warningPercent,
               )
               .map((r) => (
                 <div key={r.id}>
                   <strong>Room {r.roomNumber}</strong>
                   <span>
-                    {r.availableBeds} beds available · {r.occupiedBeds}/
-                    {r.bedCount} occupied
+                    {r.availableBeds} available · {r.occupiedBeds} occupied · {r.heldBeds} held
                   </span>
                 </div>
               ))}

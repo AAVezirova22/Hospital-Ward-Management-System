@@ -15,6 +15,9 @@ export function projectRooms(rooms: RoomCapacity[], plan: PlannedTransfer[]) {
       plan.filter((p) => p.fromRoomId === room.id).length,
   }));
 }
+function allocatableBeds(room: RoomCapacity) {
+  return room.bedCount - (room.heldBeds ?? 0);
+}
 export function validateTransfer(
   view: AdmissionView | undefined,
   destination: RoomCapacity | undefined,
@@ -32,7 +35,7 @@ export function validateTransfer(
   );
   if (
     (projected.find((r) => r.id === destination.id)?.projectedBeds ??
-      destination.bedCount) >= destination.bedCount
+      allocatableBeds(destination)) >= allocatableBeds(destination)
   )
     return "The destination has no capacity in this plan.";
   return null;
@@ -48,7 +51,7 @@ export function executableOrder(
   while (pending.length) {
     const index = pending.findIndex((p) => {
       const r = rooms.find((r) => r.id === p.toRoomId);
-      return r?.active && (counts.get(r.id) ?? r.bedCount) < r.bedCount;
+      return r?.active && (counts.get(r.id) ?? r.bedCount) < allocatableBeds(r);
     });
     if (index < 0) return null;
     const [next] = pending.splice(index, 1);

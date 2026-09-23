@@ -70,7 +70,7 @@ export function NotificationCenter() {
                 Room {r.roomNumber} is at full capacity →
               </Link>
               <small>
-                {r.occupiedBeds}/{r.bedCount} occupied · observed{" "}
+                {r.occupiedBeds} occupied · {r.heldBeds} held · observed{" "}
                 {new Date(rooms.dataUpdatedAt).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",

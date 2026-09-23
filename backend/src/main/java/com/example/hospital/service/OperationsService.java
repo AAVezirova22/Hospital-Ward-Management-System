@@ -161,8 +161,8 @@ public class OperationsService {
     rooms.forEach(r -> counts.put((Long) r.get("id"), ((Number) r.get("occupiedBeds")).intValue()));
     var placements = new ArrayList<Map<String, Object>>();
     for (int i = 0; i < arrivals; i++) {
-      var best = rooms.stream().filter(r -> counts.get((Long) r.get("id")) < ((Number) r.get("bedCount")).intValue())
-          .min(Comparator.<Map<String, Object>>comparingDouble(r -> counts.get((Long) r.get("id")) / ((Number) r.get("bedCount")).doubleValue())
+      var best = rooms.stream().filter(r -> counts.get((Long) r.get("id")) < ((Number) r.get("bedCount")).intValue() - ((Number) r.get("heldBeds")).intValue())
+          .min(Comparator.<Map<String, Object>>comparingDouble(r -> counts.get((Long) r.get("id")) / (double) Math.max(1, ((Number) r.get("bedCount")).intValue() - ((Number) r.get("heldBeds")).intValue()))
               .thenComparing(r -> (String) r.get("roomNumber")));
       if (best.isEmpty()) break;
       var room = best.get();

@@ -113,7 +113,7 @@ The local interpreter supports these documented command patterns and falls back 
 
 - Session login/logout, CSRF protection, password hashing, current-account revalidation and three roles.
 - Patient demographics and search; doctor, room, procedure and user administration.
-- Admission, attending-doctor assignment, room-transfer history, discharge and bed release.
+- Admission, attending-doctor assignment, room-transfer history, discharge, bed release, and scheduled maintenance holds that preserve room capacity.
 - Transactional capacity checks, active-admission uniqueness and optimistic version checks.
 - Procedure recording with immutable historical prices and operational notes.
 - Dashboard, hospitalized-patient census, room capacity, filters by doctor/room, procedure period/patient reports, grouped totals and CSV export.

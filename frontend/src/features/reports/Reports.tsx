@@ -377,6 +377,7 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
                       <th scope="col">Room</th>
                       <th scope="col">Total beds</th>
                       <th scope="col">Occupied</th>
+                      <th scope="col">Held</th>
                       <th scope="col">Available</th>
                       <th scope="col">Status</th>
                     </tr>
@@ -388,6 +389,7 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
                           <td>{r.roomNumber}</td>
                           <td>{r.bedCount}</td>
                           <td>{r.occupiedBeds}</td>
+                          <td>{r.heldBeds}</td>
                           <td>{r.availableBeds}</td>
                           <td>{r.active ? "Active" : "Inactive"}</td>
                         </tr>

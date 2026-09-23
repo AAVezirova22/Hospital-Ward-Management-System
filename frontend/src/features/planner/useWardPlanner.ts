@@ -60,7 +60,7 @@ export function useWardPlanner(user: User) {
   });
   const conflicts = projectRooms(rooms, plan).some(
     (r) =>
-      r.projectedBeds > r.bedCount ||
+      r.projectedBeds > r.bedCount - (r.heldBeds ?? 0) ||
       r.projectedBeds < 0 ||
       (!r.active && plan.some((p) => p.toRoomId === r.id)),
   );

@@ -7,6 +7,7 @@ import com.example.hospital.security.Actor;
 import com.example.hospital.security.DepartmentContext;
 import java.math.BigDecimal;
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,6 +25,7 @@ public class HospitalService {
   private final RoomRepository rooms;
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
+  private final BedHoldRepository bedHolds;
   private final MedicalProcedureRepository catalogue;
   private final PerformedProcedureRepository performed;
   private final Actor actor;
@@ -35,6 +37,7 @@ public class HospitalService {
       RoomRepository r,
       AdmissionRepository a,
       RoomAssignmentRepository ra,
+      BedHoldRepository bh,
       MedicalProcedureRepository mp,
       PerformedProcedureRepository pp,
       Actor actor,
@@ -44,6 +47,7 @@ public class HospitalService {
     rooms = r;
     admissions = a;
     assignments = ra;
+    bedHolds = bh;
     catalogue = mp;
     performed = pp;
     this.actor = actor;
@@ -208,6 +212,12 @@ public class HospitalService {
     return assignments.countByRoomIdAndReleasedAtIsNull(id);
   }
 
+  public int held(Long id) {
+    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+    var holds = bedHolds.findByRoomIdAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(id, now);
+    return BedHoldCapacity.reserved(holds, now);
+  }
+
   public String scopeLabel() {
     long departmentId = com.example.hospital.security.DepartmentContext.id();
     var rows =
@@ -222,13 +232,22 @@ public class HospitalService {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
+    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+    var holdsByRoom =
+        bedHolds.findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
+            .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
     return rooms.findAll().stream()
         .map(
             r -> {
               Map<String, Object> m = new LinkedHashMap<>(Views.room(r));
               long used = occupied(r.getId());
+              var holds = holdsByRoom.getOrDefault(r.getId(), List.of());
+              int reserved = BedHoldCapacity.reserved(holds, now);
               m.put("occupiedBeds", used);
-              m.put("availableBeds", r.isActive() ? r.getBedCount() - used : 0);
+              m.put("heldBeds", reserved);
+              m.put("activeHeldBeds", BedHoldCapacity.active(holds, now));
+              m.put("holds", holds.stream().map(Views::bedHold).toList());
+              m.put("availableBeds", r.isActive() ? Math.max(0, r.getBedCount() - (int) used - reserved) : 0);
               return m;
             })
         .filter(m -> ((Number) m.get("availableBeds")).intValue() >= minFree)

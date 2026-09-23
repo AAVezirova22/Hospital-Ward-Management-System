@@ -55,7 +55,7 @@ export function PlannerControls({
   return (
     <aside className="panel planner-controls">
       <h2>{canWrite ? "Plan a placement" : "Ward overview"}</h2>
-      <p>Capacity slots represent occupancy, not assigned bed numbers.</p>
+      <p>Held beds stay out of current and upcoming placement capacity.</p>
       {canWrite ? (
         <>
           <label>
@@ -98,7 +98,11 @@ export function PlannerControls({
             >
               <option value="">Choose a room</option>
               {rooms.map((r) => (
-                <option key={r.id} value={r.id} disabled={!r.active}>
+                <option
+                  key={r.id}
+                  value={r.id}
+                  disabled={!r.active || r.availableBeds <= 0}
+                >
                   Room {r.roomNumber} ·{" "}
                   {r.active ? `${r.availableBeds} free now` : "Inactive"}
                 </option>

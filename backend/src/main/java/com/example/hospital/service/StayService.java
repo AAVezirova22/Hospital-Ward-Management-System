@@ -138,22 +138,27 @@ public class StayService {
     return hospital.admissionView(hospital.admission(id));
   }
 
+  @Transactional
   public Object admit(AdmissionInput in) {
     return Views.admission(create(in, "UI"));
   }
 
+  @Transactional
   public Object transfer(Long id, TransferInput in) {
     return Views.admission(move(id, in, "UI"));
   }
 
+  @Transactional
   public Object discharge(Long id, DischargeInput in) {
     return Views.admission(close(id, in.version(), "UI"));
   }
 
+  @Transactional
   public Object changeDoctor(Long id, Long doctorId, Long version) {
     return Views.admission(reassign(id, doctorId, version));
   }
 
+  @Transactional
   public Object recordProcedure(Long id, RecordProcedureInput in) {
     return Views.performed(record(id, in));
   }
@@ -166,7 +171,7 @@ public class StayService {
 
   private Room freeRoom(Long id) {
     var r = hospital.room(id);
-    if (!r.isActive() || hospital.occupied(id) >= r.getBedCount())
+    if (!r.isActive() || hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
       throw ApiException.conflict(
           "ROOM_CAPACITY_EXCEEDED", "Room " + r.getRoomNumber() + " no longer has available capacity.");
     return r;

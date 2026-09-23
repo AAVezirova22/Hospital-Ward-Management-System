@@ -36,7 +36,8 @@ export function WardMap({
           }),
         )
         .map((room, index) => {
-          const percent = (room.projectedBeds / room.bedCount) * 100;
+          const heldBeds = room.heldBeds ?? 0;
+          const percent = ((room.projectedBeds + heldBeds) / room.bedCount) * 100;
           const state = !room.active
             ? "inactive"
             : percent >= critical
@@ -95,6 +96,11 @@ export function WardMap({
                     <span className="projection">· projected</span>
                   )}
                 </p>
+                {heldBeds > 0 && (
+                  <p className="muted">
+                    {heldBeds} bed{heldBeds === 1 ? "" : "s"} reserved for maintenance
+                  </p>
+                )}
                 {occupants.map((v) => (
                   <button
                     type="button"
@@ -134,7 +140,7 @@ export function WardMap({
                   ),
                 )}
                 {Array.from(
-                  { length: Math.max(0, room.bedCount - room.projectedBeds) },
+                  { length: Math.max(0, room.bedCount - room.projectedBeds - heldBeds) },
                   (_, i) => (
                     <button
                       type="button"
@@ -149,6 +155,17 @@ export function WardMap({
                     </button>
                   ),
                 )}
+                {(room.holds ?? []).map((hold) => (
+                  <div className="ward-patient restricted" key={`hold-${hold.id}`}>
+                    <BedDouble size={18} />
+                    <span>
+                      {hold.reason}
+                      <small>
+                        {new Date(hold.startsAt).toLocaleString()} - {new Date(hold.endsAt).toLocaleString()}
+                      </small>
+                    </span>
+                  </div>
+                ))}
               </section>
             </Fragment>
           );

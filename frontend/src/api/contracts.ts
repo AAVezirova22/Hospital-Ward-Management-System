@@ -49,7 +49,19 @@ export interface RoomCapacity extends Entity {
   bedCount: number;
   active: boolean;
   occupiedBeds: number;
+  heldBeds: number;
+  activeHeldBeds: number;
   availableBeds: number;
+  holds: BedHold[];
+}
+export interface BedHold extends Entity {
+  roomId: number;
+  bedCount: number;
+  reason: string;
+  startsAt: string;
+  endsAt: string;
+  createdBy: number;
+  cancelledAt: string | null;
 }
 export interface Admission extends Entity {
   admissionNumber: string;
@@ -108,6 +120,7 @@ export interface PageResult<T> {
 export interface DashboardReport {
   activeAdmissions: number;
   occupiedBeds: number;
+  heldBeds: number;
   totalBeds: number;
   availableBeds: number;
   activeDoctors: number;
