@@ -22,6 +22,12 @@ The backend exposes two unauthenticated probes. Neither returns hostnames, crede
 
 Readiness reports `database` (`UP`/`UNAVAILABLE`) and `migrations` (`UP`/`PENDING`/`UNKNOWN`) without schema versions. A live but not-ready backend (for example, waiting on PostgreSQL) answers `200` on liveness and `503` on readiness, so do not restart it on a readiness failure. `/api/v1/health` remains as an alias of readiness for existing probes. Compose and `render.yaml` use readiness.
 
+## Graceful shutdown
+
+On `SIGTERM` the backend stops accepting new connections, readiness switches to `503` (`"traffic": "REFUSING"`), open operations streams are closed so clients reconnect elsewhere, and in-flight requests get up to `SHUTDOWN_GRACE_PERIOD` (default `20s`) to finish. Scheduled notification jobs get a further 10 seconds. Each request runs in a single database transaction: work that finishes within the grace period commits; work still running afterwards is aborted and PostgreSQL rolls back its open transaction when the connection closes, so no partial admission, transfer or discharge is left behind.
+
+Keep the platform's kill timeout above the grace period. Compose sets `stop_grace_period: 30s`; Render sends `SIGTERM` and waits 30 seconds by default, which also fits.
+
 ## Demo scenario and reset
 
 An empty database is seeded once with 28 synthetic patients, 14 active and 12 discharged admissions, rooms with varied occupancy, one inactive room, procedure history, transfer history, expected discharge dates and audit events. Dates are relative to the seed/reset instant. Persistent databases keep their dates and user changes across restarts. To refresh the story for a presentation, use **Reset demonstration**, enter `RESET DEMO`, and sign in again.
