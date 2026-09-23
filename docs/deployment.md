@@ -16,6 +16,12 @@ The paid web services do not spin down after 15 minutes of inactivity, unlike Fr
 5. Keep `COOKIE_SECURE=true` behind HTTPS. The frontend proxies same-origin `/api` requests; no browser CORS exception is needed.
 6. Confirm `/api/v1/health` returns `UP`, then enter the administrator demo. Verify patient count, active admissions, room capacity, procedure reports and planner simulation before presenting.
 
+## Multiple backend instances
+
+The supported multi-instance setup requires all API instances to use the same PostgreSQL database and cookie-based session affinity. Spring Security stores authenticated sessions in each servlet container's memory; configure the load balancer to route requests with the same `JSESSIONID` cookie to the same API instance. Preserve and forward that cookie through the frontend `/api` proxy, including login, CSRF, assistant upload, message, source-removal and clear requests. The servlet session expires after 30 minutes of inactivity, so affinity must last at least as long as the active session.
+
+Assistant conversation turns, uploaded source text, the one-in-flight request guard and login-failure backoff are also held in process memory. Routing a browser session to another instance or restarting its instance loses its login and transient assistant context. The user can sign in again, but the earlier assistant context and uploads cannot be resumed. The AI session record, pending actions and rate-limit windows are stored in PostgreSQL and shared across instances. The one-in-flight guard is per instance, so separate browser sessions for the same account can make simultaneous requests on different instances. Run one API instance if the deployment cannot preserve cookie affinity or needs a global in-flight limit.
+
 ## Public demo entry
 
 `DEMO_PUBLIC_LOGIN` defaults to `false`. The Render Blueprint enables it only for the API connected to the dedicated synthetic demo database. This explicitly allows the browser's demo role buttons to sign in through the frontend's private `/api` proxy, whose backend connection does not appear to come from loopback. The server does not trust `X-Forwarded-For` for this decision. Demo mode and seeded demo identities are still required.

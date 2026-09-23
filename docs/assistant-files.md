@@ -40,7 +40,7 @@ File names from the connected folder and extracted text from attached/requested 
 
 Native enumeration skips hidden names and common dependency/build directories. The folder fallback filters by supported extension and name length. The UI reports when a scan limit is reached; choose a smaller folder to include omitted files. Tika OCR and embedded-document extraction are disabled. Scanned-image documents need OCR first; encrypted, unreadable and oversized documents are rejected with an explanation.
 
-No source bytes or extracted source text are stored in database tables. Removing sources, clearing or closing the assistant attempts to delete their server context; expired entries are inaccessible and purged on the next source request. Restarting the backend clears in-memory context. Sticky routing is necessary if deploying this in-memory implementation across multiple backend instances. Reviewed workflow payloads persist in the existing pending-action table and may contain the imported record fields.
+No source bytes or extracted source text are stored in database tables. Removing sources, clearing or closing the assistant attempts to delete their server context; expired entries are inaccessible and purged on the next source request. Restarting the backend clears in-memory context. For multi-instance deployments, preserve `JSESSIONID` affinity as described in the [deployment guide](deployment.md#multiple-backend-instances). Reviewed workflow payloads persist in the existing pending-action table and may contain the imported record fields.
 
 Local command mode remains deterministic and does not interpret files. It explicitly asks for an external model when file context is attached. No paid/live provider call was used during verification.
 
