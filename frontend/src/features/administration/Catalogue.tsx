@@ -13,10 +13,13 @@ import { Plus, ArrowUpRight } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { EntityForm, configs } from "./EntityForm";
 export function Catalogue({ kind }: { kind: string }) {
-  const cfg = configs[kind],
-    { data, error, isLoading } = useData("/" + kind);
+  const cfg = configs[kind];
   const [edit, setEdit] = useState<Row | null>(null);
   const [search, setSearch] = useUrlState("q");
+  const [pageText, setPageText] = useUrlState("page", "0");
+  const page = Math.max(0, Number.parseInt(pageText, 10) || 0);
+  const params = new URLSearchParams({ q: search, page: String(page) });
+  const { data, error, isLoading } = useData(`/${kind}?${params}`);
   const user = useUser();
   const columns =
     kind === "doctors"
@@ -42,7 +45,10 @@ export function Catalogue({ kind }: { kind: string }) {
           Search {kind}
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setPageText("0");
+              setSearch(e.target.value);
+            }}
             placeholder="Search records"
           />
         </label>
@@ -58,64 +64,77 @@ export function Catalogue({ kind }: { kind: string }) {
             </tr>
           </thead>
           <tbody>
-            {Array.isArray(data) &&
-              data
-                .filter((r: Row) =>
-                  [
-                    fullName(r),
-                    r.specialty,
-                    r.procedureName,
-                    r.procedureCode,
-                  ]
-                    .filter(Boolean)
-                    .join(" ")
-                    .toLowerCase()
-                    .includes(search.toLowerCase()),
-                )
-                .map((r: Row) => (
-                  <tr key={r.id}>
-                    {kind === "doctors" ? (
-                      <>
-                        <td>
-                          <strong>Dr. {fullName(r)}</strong>
-                          <small>{r.doctorIdentifier}</small>
-                        </td>
-                        <td>{r.specialty}</td>
-                        <td>
-                          <Status value={r.active ? "ACTIVE" : "INACTIVE"} />
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td>
-                          <strong>{r.procedureName}</strong>
-                        </td>
-                        <td className="mono">{r.procedureCode}</td>
-                        <td>{money(r.currentCost)}</td>
-                        <td>
-                          <Status value={r.active ? "ACTIVE" : "INACTIVE"} />
-                        </td>
-                      </>
-                    )}
-                    {user.role === "ADMIN" && (
+            {Array.isArray(data?.items) &&
+              data.items.map((r: Row) => (
+                <tr key={r.id}>
+                  {kind === "doctors" ? (
+                    <>
                       <td>
-                        <button
-                          className="text-button"
-                          onClick={() => setEdit(r)}
-                        >
-                          Edit
-                          <ArrowUpRight size={15} />
-                        </button>
+                        <strong>Dr. {fullName(r)}</strong>
+                        <small>{r.doctorIdentifier}</small>
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td>{r.specialty}</td>
+                      <td>
+                        <Status value={r.active ? "ACTIVE" : "INACTIVE"} />
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td>
+                        <strong>{r.procedureName}</strong>
+                      </td>
+                      <td className="mono">{r.procedureCode}</td>
+                      <td>{money(r.currentCost)}</td>
+                      <td>
+                        <Status value={r.active ? "ACTIVE" : "INACTIVE"} />
+                      </td>
+                    </>
+                  )}
+                  {user.role === "ADMIN" && (
+                    <td>
+                      <button
+                        className="text-button"
+                        onClick={() => setEdit(r)}
+                      >
+                        Edit
+                        <ArrowUpRight size={15} />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
           </tbody>
         </table>
         {isLoading ? (
           <div className="skeleton">Loading records…</div>
         ) : (
-          Array.isArray(data) && !data.length && <Empty />
+          Array.isArray(data?.items) && !data.items.length && <Empty />
+        )}
+        {data && data.totalPages > 0 && (
+          <div
+            className="toolbar"
+            role="navigation"
+            aria-label={`${cfg.title} pages`}
+          >
+            <button
+              className="secondary"
+              disabled={data.page === 0}
+              onClick={() => setPageText(String(data.page - 1))}
+            >
+              Previous
+            </button>
+            <span>
+              Page {data.page + 1} of {data.totalPages} · {data.totalElements}{" "}
+              records
+            </span>
+            <button
+              className="secondary"
+              disabled={!data.hasNext}
+              onClick={() => setPageText(String(data.nextPage))}
+            >
+              Next
+            </button>
+          </div>
         )}
       </section>
       {edit && (

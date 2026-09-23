@@ -45,7 +45,8 @@ public class ExternalAiProviderClient implements AiModelClient {
               + " unsupported work. A workflow proposal is not an executed workflow."
               + " Do not repeat queries already answered in observations. Current role: "
               + ctx.role()
-              + ".";
+              + ". Current department time zone: " + ctx.timeZone()
+              + ". Interpret today and calendar dates in that time zone.";
       var body =
           Map.of(
               "model",

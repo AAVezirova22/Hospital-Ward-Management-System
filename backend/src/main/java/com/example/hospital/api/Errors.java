@@ -41,6 +41,7 @@ public class Errors {
   @ExceptionHandler({
     MethodArgumentNotValidException.class,
     HttpMessageNotReadableException.class,
+    jakarta.validation.ConstraintViolationException.class,
     IllegalArgumentException.class,
     org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class
   })

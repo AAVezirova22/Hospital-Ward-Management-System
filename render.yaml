@@ -42,6 +42,14 @@ services:
         value: local
       - key: EMAIL_FROM
         value: "Medcore <onboarding@resend.dev>"
+      - key: DISCHARGE_REMINDERS_ENABLED
+        value: "false"
+      - key: DISCHARGE_REMINDER_WINDOWS
+        value: "7,3,1"
+      - key: DISCHARGE_REMINDER_MAX_ATTEMPTS
+        value: "5"
+      - key: DISCHARGE_REMINDER_OUTCOMES_LIMIT
+        value: "50"
   - type: web
     name: hospital-ward-frontend
     runtime: docker

@@ -6,14 +6,21 @@ import {
   type PlannedTransfer,
 } from "./model";
 import type { RoomCapacity, AdmissionView } from "../../api/contracts";
-const room = (id: number, occupiedBeds: number, bedCount = 2, active = true) =>
+const room = (
+  id: number,
+  occupiedBeds: number,
+  bedCount = 2,
+  active = true,
+  heldBeds = 0,
+) =>
   ({
     id,
     occupiedBeds,
     bedCount,
     active,
+    heldBeds,
     roomNumber: `Ward ${id}`,
-    availableBeds: bedCount - occupiedBeds,
+    availableBeds: bedCount - occupiedBeds - heldBeds,
   }) as RoomCapacity;
 const transfer = (id: number, fromRoomId: number, toRoomId: number) =>
   ({
@@ -76,5 +83,22 @@ describe("ward planning", () => {
       /inactive/,
     );
     expect(validateTransfer(view, room(1, 1), [], [])).toMatch(/already/);
+  });
+  it("keeps held capacity unavailable during projections and transfers", () => {
+    const heldRoom = room(2, 0, 2, true, 1);
+    const view = {
+      admission: { id: 1, status: "ACTIVE" },
+      assignment: { roomId: 1 },
+    } as AdmissionView;
+    expect(validateTransfer(view, heldRoom, [room(1, 1), heldRoom], [])).toBeNull();
+    expect(
+      validateTransfer(view, heldRoom, [room(1, 1), heldRoom], [transfer(2, 1, 2)]),
+    ).toMatch(/capacity/);
+    expect(
+      executableOrder([room(1, 1), heldRoom], [transfer(1, 1, 2)]),
+    ).toEqual([transfer(1, 1, 2)]);
+    expect(
+      executableOrder([room(1, 1), room(2, 0, 2, true, 2)], [transfer(1, 1, 2)]),
+    ).toBeNull();
   });
 });

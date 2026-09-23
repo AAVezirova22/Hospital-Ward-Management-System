@@ -1,19 +1,23 @@
 package com.example.hospital.api;
 
 import com.example.hospital.service.ReportService;
+import com.example.hospital.service.DischargeReminderService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/reports")
 public class ReportController {
   private final ReportService reports;
+  private final DischargeReminderService reminders;
 
-  public ReportController(ReportService reports) {
+  public ReportController(ReportService reports, DischargeReminderService reminders) {
     this.reports = reports;
+    this.reminders = reminders;
   }
 
   @GetMapping("/dashboard")
@@ -30,6 +34,12 @@ public class ReportController {
   @GetMapping("/capacity")
   public Object capacity() {
     return reports.capacity();
+  }
+
+  @GetMapping("/discharge-reminders")
+  @PreAuthorize("hasAnyRole('ADMIN', 'MEDICAL_STAFF', 'DOCTOR')")
+  public Object dischargeReminders() {
+    return reminders.recentOutcomes();
   }
 
   @GetMapping("/procedures")
