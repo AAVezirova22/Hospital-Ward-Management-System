@@ -19,6 +19,7 @@ import com.example.hospital.repository.RoomAssignmentRepository;
 import com.example.hospital.repository.WorkflowLockRepository;
 import com.example.hospital.security.Actor;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -71,22 +72,27 @@ public class StayService {
     return hospital.admissionView(hospital.admission(id));
   }
 
+  @Transactional
   public Object admit(AdmissionInput in) {
     return Views.admission(create(in, "UI"));
   }
 
+  @Transactional
   public Object transfer(Long id, TransferInput in) {
     return Views.admission(move(id, in, "UI"));
   }
 
+  @Transactional
   public Object discharge(Long id, DischargeInput in) {
     return Views.admission(close(id, in.version(), "UI"));
   }
 
+  @Transactional
   public Object changeDoctor(Long id, Long doctorId, Long version) {
     return Views.admission(reassign(id, doctorId, version));
   }
 
+  @Transactional
   public Object recordProcedure(Long id, RecordProcedureInput in) {
     return Views.performed(record(id, in));
   }
@@ -97,9 +103,12 @@ public class StayService {
     return d;
   }
 
-  private Room freeRoom(Long id) {
+  private Room freeRoom(Long id, Collection<String> requiredCapabilities) {
     var r = hospital.room(id);
-    if (!r.isActive() || hospital.occupied(id) >= r.getBedCount())
+    if (!r.isActive())
+      throw ApiException.conflict("ROOM_INACTIVE", "Room " + r.getRoomNumber() + " is inactive.");
+    RoomCapabilityMatcher.require(r, requiredCapabilities);
+    if (hospital.occupied(id) >= r.getBedCount())
       throw ApiException.conflict(
           "ROOM_CAPACITY_EXCEEDED", "Room " + r.getRoomNumber() + " no longer has available capacity.");
     return r;
@@ -127,7 +136,8 @@ public class StayService {
     actor.staff();
     hospital.patient(in.patientId());
     activeDoctor(in.doctorId());
-    freeRoom(in.roomId());
+    var requirements = RoomCapabilityMatcher.normalize(in.requiredRoomCapabilities());
+    freeRoom(in.roomId(), requirements);
     if (admissions.findByPatientIdAndStatus(in.patientId(), "ACTIVE").isPresent())
       throw ApiException.conflict(
           "ALREADY_ADMITTED", "The patient already has an active admission.");
@@ -137,6 +147,7 @@ public class StayService {
     a.setAdmissionDateTime(Instant.now());
     a.setAdmissionNumber("ADM-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase());
     a.setCreatedBy(actor.user().getId());
+    a.setRequiredRoomCapabilities(requirements);
     admissions.saveAndFlush(a);
     assign(a, in.roomId(), "Admission", source);
     audit.log("ADMISSION_CREATED", "Admission", a.getId(), source);
@@ -154,7 +165,7 @@ public class StayService {
         assignments.findByAdmissionIdAndReleasedAtIsNull(id).orElseThrow(ApiException::missing);
     if (ra.getRoomId().equals(in.roomId()))
       throw ApiException.conflict("SAME_ROOM", "The patient is already in that room.");
-    freeRoom(in.roomId());
+    freeRoom(in.roomId(), a.getRequiredRoomCapabilities());
     ra.setReleasedAt(Instant.now());
     assignments.saveAndFlush(ra);
     assign(a, in.roomId(), in.reason(), source);

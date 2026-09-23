@@ -3,6 +3,8 @@ package com.example.hospital.domain;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Set;
+import java.util.TreeSet;
 
 @Entity
 @Table(name = "admissions")
@@ -15,6 +17,13 @@ public class Admission extends DepartmentEntity {
   private LocalDate expectedDischargeDate;
   private String status = "ACTIVE";
   private Long createdBy;
+  @ElementCollection(fetch = FetchType.EAGER)
+  @CollectionTable(
+      name = "admission_room_requirements",
+      joinColumns = @JoinColumn(name = "admission_id"),
+      uniqueConstraints = @UniqueConstraint(columnNames = {"admission_id", "capability"}))
+  @Column(name = "capability", nullable = false, length = 64)
+  private Set<String> requiredRoomCapabilities = new TreeSet<>();
 
   public String getAdmissionNumber() { return admissionNumber; }
   public void setAdmissionNumber(String admissionNumber) { this.admissionNumber = admissionNumber; }
@@ -32,4 +41,9 @@ public class Admission extends DepartmentEntity {
   public void setStatus(String status) { this.status = status; }
   public Long getCreatedBy() { return createdBy; }
   public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
+  public Set<String> getRequiredRoomCapabilities() { return requiredRoomCapabilities; }
+  public void setRequiredRoomCapabilities(Set<String> requiredRoomCapabilities) {
+    this.requiredRoomCapabilities =
+        requiredRoomCapabilities == null ? new TreeSet<>() : new TreeSet<>(requiredRoomCapabilities);
+  }
 }

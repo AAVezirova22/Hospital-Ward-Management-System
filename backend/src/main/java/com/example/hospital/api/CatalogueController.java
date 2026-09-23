@@ -31,8 +31,10 @@ public class CatalogueController {
   }
 
   @GetMapping("/rooms")
-  public Object rooms(@RequestParam(defaultValue = "0") int minFree) {
-    return catalogue.rooms(minFree);
+  public Object rooms(
+      @RequestParam(defaultValue = "0") int minFree,
+      @RequestParam(required = false) java.util.List<String> requiredCapabilities) {
+    return catalogue.rooms(minFree, requiredCapabilities);
   }
 
   @PostMapping("/rooms")
