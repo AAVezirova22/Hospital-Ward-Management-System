@@ -3,6 +3,7 @@ package com.example.hospital;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +16,7 @@ class PatientFiltersIntegrationTest extends HospitalSupport {
     String search = patient.get("patientIdentifier").asText();
     var firstRoom = room(2);
     var nextRoom = room(2);
-    var doctors = result(request("admin", "GET", "/api/v1/doctors", null), 200);
+    var doctors = result(request("admin", "GET", "/api/v1/doctors", null), 200).get("items");
     long attendingDoctorId = doctors.get(0).get("id").asLong();
     var admission =
         result(
@@ -34,29 +35,20 @@ class PatientFiltersIntegrationTest extends HospitalSupport {
     String patientPath = "/api/v1/patients?q=" + search;
 
     assertThat(
-            result(
-                    request(
-                        "admin",
-                        "GET",
-                        patientPath
-                            + "&activeAdmission=true&doctorId="
-                            + attendingDoctorId
-                            + "&roomId="
-                            + firstRoom.get("id").asLong(),
-                        null),
-                    200))
+            patientItems(
+                "admin",
+                patientPath
+                    + "&activeAdmission=true&doctorId="
+                    + attendingDoctorId
+                    + "&roomId="
+                    + firstRoom.get("id").asLong()))
         .hasSize(1);
 
-    var byName =
-        result(
-            request(
-                "admin",
-                "GET",
-                "/api/v1/patients?q="
-                    + patient.get("firstName").asText().toLowerCase()
-                    + "&activeAdmission=true",
-                null),
-            200);
+    var byName = patientItems(
+        "admin",
+        "/api/v1/patients?q="
+            + patient.get("firstName").asText().toLowerCase()
+            + "&activeAdmission=true");
     assertThat(byName).hasSize(1);
 
     Long otherDoctorId = null;
@@ -68,19 +60,12 @@ class PatientFiltersIntegrationTest extends HospitalSupport {
     }
     assertThat(otherDoctorId).isNotNull();
     assertThat(
-            result(
-                    request(
-                        "admin",
-                        "GET",
-                        patientPath + "&activeAdmission=true&doctorId=" + otherDoctorId + "&roomId="
-                            + firstRoom.get("id").asLong(),
-                        null),
-                    200))
+            patientItems(
+                "admin",
+                patientPath + "&activeAdmission=true&doctorId=" + otherDoctorId + "&roomId="
+                    + firstRoom.get("id").asLong()))
         .isEmpty();
-    assertThat(
-            result(
-                    request("admin", "GET", patientPath + "&activeAdmission=false", null), 200))
-        .isEmpty();
+    assertThat(patientItems("admin", patientPath + "&activeAdmission=false")).isEmpty();
 
     var moved =
         result(
@@ -97,22 +82,14 @@ class PatientFiltersIntegrationTest extends HospitalSupport {
                     admission.get("version").asLong())),
             200);
     assertThat(
-            result(
-                    request(
-                        "admin",
-                        "GET",
-                        patientPath + "&activeAdmission=true&roomId=" + firstRoom.get("id").asLong(),
-                        null),
-                    200))
+            patientItems(
+                "admin",
+                patientPath + "&activeAdmission=true&roomId=" + firstRoom.get("id").asLong()))
         .isEmpty();
     assertThat(
-            result(
-                    request(
-                        "admin",
-                        "GET",
-                        patientPath + "&activeAdmission=true&roomId=" + nextRoom.get("id").asLong(),
-                        null),
-                    200))
+            patientItems(
+                "admin",
+                patientPath + "&activeAdmission=true&roomId=" + nextRoom.get("id").asLong()))
         .hasSize(1);
 
     request(
@@ -121,32 +98,9 @@ class PatientFiltersIntegrationTest extends HospitalSupport {
             "/api/v1/admissions/" + admission.get("id").asLong() + "/discharge",
             Map.of("version", moved.get("version").asLong()))
         .andExpect(status().isOk());
-    assertThat(
-            result(
-                    request(
-                        "admin",
-                        "GET",
-                        patientPath + "&activeAdmission=true",
-                        null),
-                    200))
-        .isEmpty();
-    assertThat(
-            result(
-                    request(
-                        "admin",
-                        "GET",
-                        patientPath + "&activeAdmission=false",
-                        null),
-                    200))
-        .hasSize(1);
-    assertThat(
-            result(
-                    request(
-                        "admin",
-                        "GET",
-                        patientPath + "&roomId=" + nextRoom.get("id").asLong(),
-                        null),
-                    200))
+    assertThat(patientItems("admin", patientPath + "&activeAdmission=true")).isEmpty();
+    assertThat(patientItems("admin", patientPath + "&activeAdmission=false")).hasSize(1);
+    assertThat(patientItems("admin", patientPath + "&roomId=" + nextRoom.get("id").asLong()))
         .isEmpty();
   }
 
@@ -154,9 +108,8 @@ class PatientFiltersIntegrationTest extends HospitalSupport {
   void requestedDoctorFilterCannotExpandDoctorAccess() throws Exception {
     var patient = createPatient();
     var room = room(1);
-    var currentUser = result(request("doctor", "GET", "/api/v1/auth/me", null), 200);
-    long currentDoctorId = currentUser.get("doctorId").asLong();
-    var doctors = result(request("admin", "GET", "/api/v1/doctors", null), 200);
+    long currentDoctorId = users.findByUsername("doctor").orElseThrow().getDoctorId();
+    var doctors = result(request("admin", "GET", "/api/v1/doctors", null), 200).get("items");
     Long otherDoctorId = null;
     for (var doctor : doctors) {
       if (doctor.get("id").asLong() != currentDoctorId) {
@@ -179,17 +132,13 @@ class PatientFiltersIntegrationTest extends HospitalSupport {
         .andExpect(status().isCreated());
 
     assertThat(
-            result(
-                    request(
-                        "doctor",
-                        "GET",
-                        "/api/v1/patients?q="
-                            + patient.get("patientIdentifier").asText()
-                            + "&doctorId="
-                            + otherDoctorId
-                            + "&activeAdmission=true",
-                        null),
-                    200))
+            patientItems(
+                "doctor",
+                "/api/v1/patients?q="
+                    + patient.get("patientIdentifier").asText()
+                    + "&doctorId="
+                    + otherDoctorId
+                    + "&activeAdmission=true"))
         .isEmpty();
   }
 
@@ -199,5 +148,9 @@ class PatientFiltersIntegrationTest extends HospitalSupport {
         .andExpect(status().isBadRequest());
     request("admin", "GET", "/api/v1/patients?roomId=-1", null)
         .andExpect(status().isBadRequest());
+  }
+
+  private JsonNode patientItems(String user, String path) throws Exception {
+    return result(request(user, "GET", path, null), 200).get("items");
   }
 }
