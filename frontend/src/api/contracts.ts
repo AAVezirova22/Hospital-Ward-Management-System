@@ -87,6 +87,17 @@ export interface OperationalActivity {
   admissionId: number;
   source: string;
 }
+export interface OverdueDischarge {
+  admissionId: number;
+  admissionNumber: string;
+  patientId: number;
+  patientIdentifier: string;
+  patientName: string;
+  attendingDoctorId: number;
+  attendingDoctorName: string;
+  expectedDischargeDate: string;
+  daysOverdue: number;
+}
 export interface OperationsReport {
   trends: {
     date: string;
@@ -98,6 +109,7 @@ export interface OperationsReport {
   averageStayDays: number;
   longStayPatients: number;
   expectedDischargesToday: number;
+  overdueDischarges: OverdueDischarge[];
   thresholds: {
     longStayDays: number;
     warningPercent: number;

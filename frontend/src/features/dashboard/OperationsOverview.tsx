@@ -235,6 +235,27 @@ export function OperationsOverview({
                 Operational review only.
               </span>
             </div>
+            <div>
+              <strong>Overdue discharges</strong>
+              <span>
+                {d.overdueDischarges.length
+                  ? `${d.overdueDischarges.length} active ${d.overdueDischarges.length === 1 ? "stay" : "stays"} past the expected discharge date.`
+                  : "No active stays are past their expected discharge date."}
+              </span>
+            </div>
+            {d.overdueDischarges.map((stay) => (
+              <div key={stay.admissionId}>
+                <strong>
+                  <Link href={patientHref({ id: stay.patientId })}>
+                    {stay.patientName}
+                  </Link>
+                </strong>
+                <span>
+                  {stay.admissionNumber} · expected {stay.expectedDischargeDate} · {stay.daysOverdue}{" "}
+                  {stay.daysOverdue === 1 ? "day" : "days"} overdue · Dr. {stay.attendingDoctorName}
+                </span>
+              </div>
+            ))}
           </div>
         </section>
         <section className="panel activity-panel">
