@@ -18,6 +18,7 @@ const room = z
     roomNumber: z.string(),
     availableBeds: z.number().nonnegative(),
     bedCount: z.number().positive(),
+    capabilities: z.array(z.string()).default([]),
   })
   .passthrough();
 const base = {
@@ -100,7 +101,18 @@ export const aiResponse = z.discriminatedUnion("responseType", [
   z.object({
     ...base,
     responseType: z.literal("ROOM_LIST"),
-    data: z.object({ rooms: z.array(room) }),
+    data: z.object({
+      rooms: z.array(room),
+      requiredCapabilities: z.array(z.string()).default([]),
+      excludedRooms: z.array(
+        z.object({
+          id: z.number().int().positive(),
+          roomNumber: z.string(),
+          missingCapabilities: z.array(z.string()),
+          reason: z.string(),
+        }).passthrough(),
+      ).default([]),
+    }),
   }),
   z.object({
     ...base,
@@ -123,9 +135,10 @@ export const aiResponse = z.discriminatedUnion("responseType", [
             actionType: z.enum(["ADMISSION", "TRANSFER", "DISCHARGE"]),
             expiresAt: z.string().datetime(),
             status: z.literal("PENDING"),
-          })
-          .passthrough(),
+        })
+        .passthrough(),
         patient,
+        requiredRoomCapabilities: z.array(z.string()).default([]),
       })
       .passthrough(),
   }),

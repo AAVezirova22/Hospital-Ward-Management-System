@@ -33,6 +33,8 @@ const labels: Record<string, string> = {
   active: "Active",
   roomNumber: "Room",
   bedCount: "Beds",
+  capabilities: "Room capabilities",
+  requiredRoomCapabilities: "Required room capabilities",
   procedureCode: "Procedure code",
   procedureName: "Procedure",
   currentCost: "Cost",

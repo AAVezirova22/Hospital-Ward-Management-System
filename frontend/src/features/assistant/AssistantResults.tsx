@@ -112,12 +112,32 @@ export function AssistantTurn({
           </button>
         ))}
       {r.responseType === "ROOM_LIST" &&
-        asRows(d.rooms).map((room: Row) => (
-          <div className="result-row" key={room.id}>
-            <span>Room {String(room.roomNumber ?? "")}</span>
-            <strong>{String(room.availableBeds ?? 0)} free</strong>
-          </div>
-        ))}
+        <>
+          {asRows(d.requiredCapabilities).length > 0 && (
+            <p>Required capabilities: {asRows(d.requiredCapabilities).join(", ")}.</p>
+          )}
+          {asRows(d.rooms).map((room: Row) => (
+            <div className="result-row" key={room.id}>
+              <span>
+                Room {String(room.roomNumber ?? "")}
+                {asRows(room.capabilities).length > 0 && (
+                  <small>Capabilities: {asRows(room.capabilities).join(", ")}</small>
+                )}
+              </span>
+              <strong>{String(room.availableBeds ?? 0)} free</strong>
+            </div>
+          ))}
+          {asRows(d.excludedRooms).map((room: Row) => (
+            <div className="result-row" key={room.id}>
+              <span>
+                Room {String(room.roomNumber ?? "")}
+                <small>{String(room.reason ?? "Excluded from placement search.")}</small>
+              </span>
+              <strong>Excluded</strong>
+            </div>
+          ))}
+        </>
+      }
       {r.responseType === "PATIENT_SUMMARY" && (
         <>
           <h3>{fullName(asRow(d.patient))}</h3>
@@ -172,6 +192,9 @@ export function AssistantTurn({
             current={current}
             destination={destination}
             actionType={String(action.actionType ?? "")}
+            requiredRoomCapabilities={Array.isArray(d.requiredRoomCapabilities)
+              ? d.requiredRoomCapabilities.map(String)
+              : current?.admission.requiredRoomCapabilities ?? []}
             expiresAt={String(action.expiresAt ?? "")}
           />
           {current && (
