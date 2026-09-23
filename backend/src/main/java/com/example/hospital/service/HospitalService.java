@@ -73,42 +73,35 @@ public class HospitalService {
   }
 
   public Page<Patient> patients(String search, int page, int size) {
+    return patientDirectory(search, null, null, null, page, size);
+  }
+
+  public Page<Patient> patientDirectory(
+      String search, Boolean activeAdmission, Long doctorId, Long roomId, int page, int size) {
     int safePage = Math.max(page, 0);
     int safeSize = Math.min(Math.max(size, 1), 100);
-    Sort sort = Sort.by(
-        Sort.Order.asc("lastName"),
-        Sort.Order.asc("firstName"),
-        Sort.Order.asc("patientIdentifier"),
-        Sort.Order.asc("id"));
-    Pageable pageable = PageRequest.of(safePage, safeSize, sort);
+    Pageable pageable = PageRequest.of(safePage, safeSize);
     String query = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
-    Long doctorId = actor.doctor() ? actor.user().getDoctorId() : null;
+    Long scopedDoctorId = actor.doctor() ? actor.user().getDoctorId() : null;
     Long departmentId = com.example.hospital.security.DepartmentContext.id();
     Page<Patient> result =
-        patients.searchDirectory(departmentId, doctorId, query, pageable);
+        patients.findDirectory(
+            query, activeAdmission, doctorId, roomId, departmentId, scopedDoctorId, pageable);
     if (result.getTotalPages() > 0 && safePage >= result.getTotalPages()) {
-      return patients.searchDirectory(
-          departmentId,
-          doctorId,
+      return patients.findDirectory(
           query,
-          PageRequest.of(result.getTotalPages() - 1, safeSize, sort));
+          activeAdmission,
+          doctorId,
+          roomId,
+          departmentId,
+          scopedDoctorId,
+          PageRequest.of(result.getTotalPages() - 1, safeSize));
     }
     return result;
   }
 
   public List<Patient> patientMatches(String search, int limit) {
     return patients(search, 0, limit).getContent();
-  }
-
-  public List<Patient> patientDirectory(
-      String search, Boolean activeAdmission, Long doctorId, Long roomId) {
-    return patients.findDirectory(
-        search == null ? "" : search,
-        activeAdmission,
-        doctorId,
-        roomId,
-        DepartmentContext.id(),
-        actor.doctor() ? actor.user().getDoctorId() : null);
   }
 
   public Patient patientByRef(String ref) {

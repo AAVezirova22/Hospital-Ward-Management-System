@@ -9,7 +9,6 @@ import org.springframework.data.repository.query.Param;
 
 public interface PatientRepository extends JpaRepository<Patient, Long> {
   @Query(
-@Query(
     value = """
         select p from Patient p
         where p.departmentId = :departmentId
