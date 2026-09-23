@@ -26,12 +26,14 @@ public class RegistrationService {
   private final RateLimitService rates;
   private final boolean enabled;
   private final int expiryMinutes;
+  private final String recoveryProbeHash;
   public RegistrationService(AppUserRepository users, PatientRepository patients, PasswordEncoder encoder,
       ConfirmationEmailService email, JdbcTemplate jdbc, WorkflowLockRepository lock, RateLimitService rates,
       @Value("${app.registration.enabled:true}") boolean enabled,
       @Value("${app.registration.expiry-minutes:30}") int expiryMinutes) {
     this.users=users; this.patients=patients; this.encoder=encoder; this.email=email;
     this.jdbc=jdbc; this.lock=lock; this.rates=rates; this.enabled=enabled; this.expiryMinutes=expiryMinutes;
+    this.recoveryProbeHash=encoder.encode(UUID.randomUUID().toString());
   }
   public boolean available() { return enabled && email.configured(); }
 
@@ -56,7 +58,7 @@ public class RegistrationService {
         1,
         Duration.ofSeconds(60),
         "RATE_LIMITED",
-        "Please wait a minute before requesting another confirmation email.");
+        "Please wait a minute before trying again.");
   }
   @Transactional
   public void signup(String username, String address, String password, String first, String last, LocalDate dob, String requestedRole, Long hospitalId) {
@@ -67,7 +69,7 @@ public class RegistrationService {
     com.example.hospital.security.DepartmentContext.set(
         new com.example.hospital.security.DepartmentContext.Scope(departmentId, "PATIENT", null));
     try {
-    lock.acquire();
+    lock.lockById(0L);
     String normalized = address.trim().toLowerCase(Locale.ROOT);
     if (users.findByUsername(username).isPresent() || Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from app_users where email = ?",Boolean.class,normalized)))
       return;
@@ -90,14 +92,49 @@ public class RegistrationService {
   @Transactional
   public void resend(String address) {
     if (!available()) throw new ApiException(503,"REGISTRATION_UNAVAILABLE","Account registration is not configured yet.");
-    lock.acquire();
+    lock.lockById(0L);
     var ids=jdbc.queryForList("select id from app_users where email=? and email_verified=false",Long.class,address.trim().toLowerCase(Locale.ROOT));
     if (!ids.isEmpty()) {var u=users.findById(ids.getFirst()).orElseThrow();issue(u,patients.findById(u.getPatientId()).orElseThrow().getFirstName());}
   }
   @Transactional
+  public void recover(String username, String password, String address) {
+    if (!available()) return;
+    lock.lockById(0L);
+    var candidate=users.findByUsername(username).orElse(null);
+    String passwordHash=candidate == null || candidate.getPasswordHash() == null
+        ? recoveryProbeHash : candidate.getPasswordHash();
+    boolean passwordMatches=password != null
+        && password.getBytes(StandardCharsets.UTF_8).length <= 72
+        && encoder.matches(password,passwordHash);
+    if (candidate == null || !passwordMatches || candidate.isEnabled() || candidate.isEmailVerified()
+        || !"PATIENT".equals(candidate.getRole()) || candidate.getPatientId() == null
+        || candidate.getRequestedRole() == null || candidate.getEmail() == null) return;
+
+    String normalized=address.trim().toLowerCase(Locale.ROOT);
+    if (normalized.equals(candidate.getEmail())) return;
+    Timestamp now=Timestamp.from(Instant.now());
+    boolean expired=Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from email_verifications where user_id=? and used_at is null and expires_at<=?",
+        Boolean.class,candidate.getId(),now));
+    boolean active=Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from email_verifications where user_id=? and used_at is null and expires_at>?",
+        Boolean.class,candidate.getId(),now));
+    if (!expired || active) return;
+    boolean addressTaken=Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from app_users where email=? and id<>?",
+        Boolean.class,normalized,candidate.getId()));
+    if (addressTaken) return;
+
+    var firstNames=jdbc.queryForList("select first_name from patients where id=?",String.class,candidate.getPatientId());
+    if (firstNames.isEmpty()) return;
+    candidate.setEmail(normalized);
+    users.saveAndFlush(candidate);
+    issue(candidate,firstNames.getFirst());
+  }
+  @Transactional
   public void verify(String token) {
     if (!enabled) throw new ApiException(404,"REGISTRATION_UNAVAILABLE","Registration is disabled.");
-    lock.acquire();
+    lock.lockById(0L);
     var ids=jdbc.queryForList("select user_id from email_verifications where token_hash=? and used_at is null and expires_at>? for update",Long.class,hash(token),Timestamp.from(Instant.now()));
     if (ids.isEmpty()) throw new ApiException(400,"INVALID_CONFIRMATION","This confirmation link has expired or was already used. Request a new email.");
     var u=users.findById(ids.getFirst()).orElseThrow(); u.setEmailVerified(true); u.setEnabled(true); users.saveAndFlush(u);
