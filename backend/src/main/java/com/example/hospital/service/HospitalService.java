@@ -4,6 +4,7 @@ import com.example.hospital.api.*;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
+import com.example.hospital.security.DepartmentContext;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -93,6 +94,17 @@ public class HospitalService {
 
   public List<Patient> patientMatches(String search, int limit) {
     return patients(search, 0, limit).getContent();
+  }
+
+  public List<Patient> patientDirectory(
+      String search, Boolean activeAdmission, Long doctorId, Long roomId) {
+    return patients.findDirectory(
+        search == null ? "" : search,
+        activeAdmission,
+        doctorId,
+        roomId,
+        DepartmentContext.id(),
+        actor.doctor() ? actor.user().getDoctorId() : null);
   }
 
   public Patient patientByRef(String ref) {

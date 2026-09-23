@@ -30,6 +30,14 @@ public class PatientController {
   }
 
   @GetMapping("/patients")
+  public Object patients(
+      @RequestParam(defaultValue = "") String q,
+      @RequestParam(required = false) Boolean activeAdmission,
+      @RequestParam(required = false) Long doctorId,
+      @RequestParam(required = false) Long roomId) {
+    return patients.list(q, activeAdmission, doctorId, roomId).stream()
+        .map(Views.PatientDirectory::of)
+        .toList();
   public DirectoryPage patients(
       @RequestParam(defaultValue = "") @Size(max = 100) String q,
       @RequestParam(defaultValue = "0") @Min(0) int page,
