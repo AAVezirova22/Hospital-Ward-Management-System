@@ -16,7 +16,9 @@ class HealthProbeTest extends HospitalSupport {
     mvc.perform(get("/api/v1/health/ready"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("UP"))
-        .andExpect(jsonPath("$.database").value("UP"));
+        .andExpect(jsonPath("$.database").value("UP"))
+        .andExpect(jsonPath("$.migrations").value("UP"))
+        .andExpect(jsonPath("$.version").doesNotExist());
     mvc.perform(get("/api/v1/health"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.database").value("UP"));
