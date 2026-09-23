@@ -34,8 +34,9 @@ public class Errors {
 
   @ExceptionHandler(ApiException.class)
   ResponseEntity<?> api(ApiException e, HttpServletRequest r) {
-    return ResponseEntity.status(e.getStatus())
-        .body(body(e.getStatus(), e.code, e.getMessage(), r.getRequestURI()));
+    var response = ResponseEntity.status(e.getStatus());
+    e.headers().forEach((name, value) -> response.header(name, value));
+    return response.body(body(e.getStatus(), e.code, e.getMessage(), r.getRequestURI()));
   }
 
   @ExceptionHandler({
