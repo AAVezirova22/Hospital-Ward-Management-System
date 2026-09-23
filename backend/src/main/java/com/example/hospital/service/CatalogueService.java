@@ -86,10 +86,11 @@ public class CatalogueService {
     var r = id == null ? new Room() : hospital.room(id);
     if (id != null) HospitalService.version(r, in.version());
     long used = id == null ? 0 : hospital.occupied(id);
-    if (in.bedCount() < used || (!in.active() && used > 0))
+    long held = id == null ? 0 : hospital.held(id);
+    if (in.bedCount() < used + held || (!in.active() && used + held > 0))
       throw ApiException.conflict(
           "ROOM_OCCUPIED",
-          "The room has occupied beds; transfer patients before reducing capacity or deactivating"
+          "The room has occupied or reserved beds; release capacity before reducing it or deactivating"
               + " it.");
     r.setRoomNumber(in.roomNumber().trim());
     r.setBedCount(in.bedCount());

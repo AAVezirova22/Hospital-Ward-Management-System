@@ -45,22 +45,10 @@ public class ReportService {
             "select count(*) from room_assignments ra join rooms r on r.id=ra.room_id where r.department_id=? and ra.released_at is null",
             Long.class,
             departmentId);
-    Long totalBeds =
-        jdbc.queryForObject(
-            "select coalesce(sum(bed_count),0) from rooms where department_id=? and active=true",
-            Long.class,
-            departmentId);
-    Long availableBeds =
-        jdbc.queryForObject(
-            """
-            select coalesce(sum(r.bed_count),0) - (
-              select count(*) from room_assignments ra join rooms x on x.id=ra.room_id
-              where x.department_id=? and ra.released_at is null and x.active=true)
-            from rooms r where r.department_id=? and r.active=true
-            """,
-            Long.class,
-            departmentId,
-            departmentId);
+    var rooms = hospital.rooms(0).stream().filter(r -> Boolean.TRUE.equals(r.get("active"))).toList();
+    long totalBeds = rooms.stream().mapToLong(r -> ((Number) r.get("bedCount")).longValue()).sum();
+    long heldBeds = rooms.stream().mapToLong(r -> ((Number) r.get("heldBeds")).longValue()).sum();
+    long availableBeds = rooms.stream().mapToLong(r -> ((Number) r.get("availableBeds")).longValue()).sum();
     Long activeDoctors =
         jdbc.queryForObject(
             "select count(*) from doctors where department_id=? and active=true",
@@ -89,9 +77,11 @@ public class ReportService {
         "occupiedBeds",
         occupiedBeds == null ? 0 : occupiedBeds,
         "totalBeds",
-        totalBeds == null ? 0 : totalBeds,
+        totalBeds,
+        "heldBeds",
+        heldBeds,
         "availableBeds",
-        availableBeds == null ? 0 : availableBeds,
+        availableBeds,
         "activeDoctors",
         activeDoctors == null ? 0 : activeDoctors,
         "proceduresToday",
