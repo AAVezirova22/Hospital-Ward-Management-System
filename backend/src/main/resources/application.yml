@@ -14,6 +14,16 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:hospital}}
     username: ${DATABASE_USER:hospital}
     password: ${DATABASE_PASSWORD:}
+    hikari:
+      # Wait for a pooled connection before failing the request with DATABASE_UNAVAILABLE.
+      connection-timeout: ${DATABASE_POOL_TIMEOUT_MS:5000}
+      data-source-properties:
+        connectTimeout: ${DATABASE_CONNECT_TIMEOUT_SECONDS:10}
+        # Server-side cap on any single statement; exceeded statements fail with DATABASE_TIMEOUT.
+        options: -c statement_timeout=${DATABASE_STATEMENT_TIMEOUT_MS:15000}
+  transaction:
+    # Upper bound for the database work of one API request.
+    default-timeout: ${API_TRANSACTION_TIMEOUT:30s}
   jpa:
     open-in-view: false
     hibernate:
