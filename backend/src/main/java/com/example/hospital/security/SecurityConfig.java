@@ -53,7 +53,7 @@ public class SecurityConfig {
       throws Exception {
     http.authorizeHttpRequests(
             a ->
-                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health",
+                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health", "/api/v1/health/live", "/api/v1/health/ready",
                     "/api/v1/demo/status", "/api/v1/demo/login", "/api/v1/registration/status",
                     "/api/v1/registration/hospitals",
                     "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend")
