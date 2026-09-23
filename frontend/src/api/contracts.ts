@@ -106,6 +106,18 @@ export interface OperationsReport {
   scope: string;
   asOf: string;
 }
+export interface DischargeReminderOutcome {
+  id: number;
+  expectedDischargeDate: string;
+  windowDays: number;
+  status: "PENDING" | "SENDING" | "ACCEPTED" | "FAILED" | "NO_RECIPIENT" | "CANCELLED";
+  recipientCount: number;
+  attemptCount: number;
+  lastAttemptAt: string | null;
+  providerMessageId: string | null;
+  errorCode: string | null;
+  createdAt: string;
+}
 export interface ArrivalPlan {
   arrivals: number;
   placements: { arrival: number; roomId: number; roomNumber: string }[];
