@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   api,
+  allPages,
   bindAccount,
   login,
   logout,
@@ -64,6 +65,49 @@ describe("department scope", () => {
         headers: expect.objectContaining({ "X-Department-Id": "12" }),
       }),
     );
+  });
+  it("follows catalogue page links and preserves active and capacity filters", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [{ id: 1 }],
+          page: 0,
+          size: 100,
+          totalElements: 2,
+          totalPages: 2,
+          hasNext: true,
+          nextPage: 1,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [{ id: 2 }],
+          page: 1,
+          size: 100,
+          totalElements: 2,
+          totalPages: 2,
+          hasNext: false,
+          nextPage: null,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(allPages<{ id: number }>("/rooms?active=true&minFree=1")).resolves.toEqual([
+      { id: 1 },
+      { id: 2 },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [url] of fetchMock.mock.calls) {
+      const parsed = new URL(url, "http://localhost");
+      expect(parsed.searchParams.get("active")).toBe("true");
+      expect(parsed.searchParams.get("minFree")).toBe("1");
+      expect(parsed.searchParams.get("size")).toBe("100");
+    }
+    expect(new URL(fetchMock.mock.calls[0][0], "http://localhost").searchParams.get("page"))
+      .toBe("0");
+    expect(new URL(fetchMock.mock.calls[1][0], "http://localhost").searchParams.get("page"))
+      .toBe("1");
   });
   it("does not retry assistant writes in another department after access is denied", async () => {
     setActiveDepartment(12);
