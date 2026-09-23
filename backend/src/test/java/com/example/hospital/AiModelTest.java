@@ -47,6 +47,15 @@ class AiModelTest {
   }
 
   @Test
+  void localCalendarRequestsUseTheDepartmentTimeZone() {
+    var tokyo = new AiModelClient.Context(
+        "ADMIN", "/app/dashboard", 1L, List.of(), List.of(), List.of(), List.of(), "Pacific/Kiritimati");
+    var request = model.complete("Procedures today", tokyo);
+    var expected = java.time.LocalDate.now(java.time.ZoneId.of("Pacific/Kiritimati")).toString();
+    assertThat(request.arguments()).containsEntry("from", expected).containsEntry("to", expected);
+  }
+
+  @Test
   void externalProviderContractAndMalformedOutput() throws Exception {
     var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     var request = new java.util.concurrent.atomic.AtomicReference<String>();

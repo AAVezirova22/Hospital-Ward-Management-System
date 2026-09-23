@@ -42,7 +42,7 @@ public class DemoService {
     // Dedicated synthetic database only. Clinical ids are not restarted, so stale
     // sessions cannot address newly seeded patients. Hospital and department 1 are
     // recreated so bootstrap enrollment stays valid.
-    for (String table : new String[]{"email_verifications", "ai_sessions", "ai_pending_actions", "ai_interactions",
+    for (String table : new String[]{"email_outbox", "email_verifications", "ai_sessions", "ai_pending_actions", "ai_interactions",
         "audit_events", "performed_procedures", "room_assignments", "admissions",
         "app_users", "patients", "doctors", "rooms", "medical_procedures",
         "department_memberships", "hospital_memberships", "departments", "hospitals"}) {

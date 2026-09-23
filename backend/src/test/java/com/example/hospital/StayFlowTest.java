@@ -15,7 +15,7 @@ class StayFlowTest extends HospitalSupport {
     var r2 = room(1);
     var a = admit(p, r1);
     long id = a.get("id").asLong();
-    assertThat(assignments.countByRoomIdAndReleasedAtIsNull(r1.get("id").asLong())).isOne();
+    assertThat(occupiedBeds(r1.get("id").asLong())).isOne();
     var moved =
         result(
             request(
@@ -30,16 +30,20 @@ class StayFlowTest extends HospitalSupport {
                     "version",
                     a.get("version").asLong())),
             200);
-    assertThat(assignments.countByRoomIdAndReleasedAtIsNull(r1.get("id").asLong())).isZero();
-    assertThat(assignments.findByAdmissionIdOrderByAssignedAt(id)).hasSize(2);
+    assertThat(occupiedBeds(r1.get("id").asLong())).isZero();
+    assertThat(result(request("admin", "GET", "/api/v1/admissions/" + id, null), 200)
+            .get("rooms").size())
+        .isEqualTo(2);
     request(
             "admin",
             "POST",
             "/api/v1/admissions/" + id + "/discharge",
             Map.of("version", moved.get("version").asLong()))
         .andExpect(status().isOk());
-    assertThat(assignments.countByRoomIdAndReleasedAtIsNull(r2.get("id").asLong())).isZero();
-    assertThat(admissions.findById(id).orElseThrow().getStatus()).isEqualTo("DISCHARGED");
+    assertThat(occupiedBeds(r2.get("id").asLong())).isZero();
+    assertThat(result(request("admin", "GET", "/api/v1/admissions/" + id, null), 200)
+            .get("admission").get("status").asText())
+        .isEqualTo("DISCHARGED");
     request(
             "admin",
             "POST",
@@ -101,7 +105,7 @@ class StayFlowTest extends HospitalSupport {
             Map.of("roomId", r.get("id").asLong(), "reason", "test", "version", 0))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("SAME_ROOM"));
-    assertThat(assignments.countByRoomIdAndReleasedAtIsNull(r.get("id").asLong())).isOne();
+    assertThat(occupiedBeds(r.get("id").asLong())).isOne();
   }
 
   @Test

@@ -5,7 +5,7 @@ import {
   KeyRound,
   Plus,
 } from "../icons";
-import type { WorkspaceHospital } from "../api/contracts";
+import type { WorkspaceDepartment, WorkspaceHospital } from "../api/contracts";
 
 type Props = {
   hospitals: WorkspaceHospital[];
@@ -21,6 +21,7 @@ type Props = {
   onLeaveDepartment: (id: number) => void;
   onLeaveHospital: (id: number) => void;
   onNewDepartment: (hospital: WorkspaceHospital) => void;
+  onTimeZone: (department: WorkspaceDepartment) => void;
   onJoin: () => void;
   onCreateHospital: () => void;
 };
@@ -35,6 +36,7 @@ export function WorkspaceList({
   onLeaveDepartment,
   onLeaveHospital,
   onNewDepartment,
+  onTimeZone,
   onJoin,
   onCreateHospital,
 }: Props) {
@@ -66,9 +68,19 @@ export function WorkspaceList({
                 >
                   {department.name}
                   <small>
-                    {department.role.replaceAll("_", " ").toLowerCase()}
+                    {department.role.replaceAll("_", " ").toLowerCase()} · {department.timeZone}
                   </small>
                 </button>
+                {(department.role === "ADMIN" || hospital.owner) && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => onTimeZone(department)}
+                  >
+                    Set time zone
+                  </button>
+                )}
                 {department.hasJoinCode && (
                   <p className="workspace-code">
                     Department join code
