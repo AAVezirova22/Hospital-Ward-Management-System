@@ -10,7 +10,9 @@ export function IdleTimeout() {
   const [warn, setWarn] = useState(false);
   useEffect(() => {
     let last = Date.now();
+    let expired = false;
     const bump = () => {
+      if (expired) return;
       last = Date.now();
       setWarn(false);
     };
@@ -18,8 +20,10 @@ export function IdleTimeout() {
     events.forEach((name) => window.addEventListener(name, bump));
     const timer = window.setInterval(() => {
       const idle = Date.now() - last;
-      if (idle >= SESSION_MS) window.dispatchEvent(new Event("session-expired"));
-      else if (idle >= WARN_MS) setWarn(true);
+      if (idle >= SESSION_MS && !expired) {
+        expired = true;
+        window.dispatchEvent(new Event("session-expired"));
+      } else if (idle >= WARN_MS) setWarn(true);
     }, 1000);
     return () => {
       window.clearInterval(timer);
@@ -29,7 +33,10 @@ export function IdleTimeout() {
   if (!warn) return null;
   return (
     <Modal title="Session about to expire" onClose={() => setWarn(false)}>
-      <p>You have been idle. Stay signed in to keep this admission form, or you will be signed out in two minutes.</p>
+      <p>
+        You have been idle. Stay signed in to keep this admission form, or you
+        will be signed out in two minutes.
+      </p>
       <div className="actions">
         <button
           className="primary"
