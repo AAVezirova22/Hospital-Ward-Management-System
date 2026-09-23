@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  activeDepartment,
   api,
   bindAccount,
+  downloadFile,
   login,
   logout,
   setActiveDepartment,
@@ -64,6 +66,69 @@ describe("department scope", () => {
         headers: expect.objectContaining({ "X-Department-Id": "12" }),
       }),
     );
+  });
+  it("retries workspace listing without a stale selected department", async () => {
+    setActiveDepartment(12);
+    const workspaces = { activeDepartmentId: -1, hospitals: [] };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json(
+          { code: "DEPARTMENT_ACCESS_DENIED", message: "Denied" },
+          { status: 403 },
+        ),
+      )
+      .mockResolvedValueOnce(Response.json(workspaces));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api("/workspaces")).resolves.toEqual(workspaces);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBe("12");
+    expect(fetchMock.mock.calls[1][1].headers["X-Department-Id"]).toBeUndefined();
+    expect(activeDepartment()).toBeNull();
+  it("downloads a file using the department captured by its caller", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("Department,Record\r\n12,34\r\n", {
+        headers: {
+          "Content-Disposition":
+            "attachment; filename=procedure-report-department-12.csv",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const file = await downloadFile(
+      "/reports/procedures.csv?from=2026-01-01",
+      12,
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/reports/procedures.csv?from=2026-01-01",
+      expect.objectContaining({
+        headers: { "X-Department-Id": "12" },
+        credentials: "include",
+        cache: "no-store",
+      }),
+    );
+    expect(file.filename).toBe("procedure-report-department-12.csv");
+    expect(await file.blob.text()).toContain("12,34");
+  });
+  it("surfaces a server rejection for an unauthorized download scope", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json(
+        {
+          code: "DEPARTMENT_ACCESS_DENIED",
+          message: "You do not have access to this department.",
+        },
+        { status: 403 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      downloadFile("/reports/procedures.csv", 999),
+    ).rejects.toMatchObject({
+      code: "DEPARTMENT_ACCESS_DENIED",
+      status: 403,
+    });
+    expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBe("999");
   });
   it("does not retry assistant writes in another department after access is denied", async () => {
     setActiveDepartment(12);

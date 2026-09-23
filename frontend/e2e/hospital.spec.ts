@@ -97,7 +97,7 @@ test("full patient journey: create, admit, procedure, transfer, discharge, reloa
       .first(),
   ).toBeVisible();
   const download = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Export CSV" }).click();
+  await page.getByRole("button", { name: "Export CSV" }).click();
   expect((await download).suggestedFilename()).toMatch(
     /^procedure-report-department-\d+\.csv$/,
   );
