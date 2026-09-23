@@ -21,6 +21,7 @@ public class RegistrationService {
   private final PatientRepository patients;
   private final PasswordEncoder encoder;
   private final ConfirmationEmailService email;
+  private final EmailOutboxStore emailOutbox;
   private final JdbcTemplate jdbc;
   private final WorkflowLockRepository lock;
   private final RateLimitService rates;
@@ -28,10 +29,11 @@ public class RegistrationService {
   private final int expiryMinutes;
   private final String recoveryProbeHash;
   public RegistrationService(AppUserRepository users, PatientRepository patients, PasswordEncoder encoder,
-      ConfirmationEmailService email, JdbcTemplate jdbc, WorkflowLockRepository lock, RateLimitService rates,
+      ConfirmationEmailService email, EmailOutboxStore emailOutbox, JdbcTemplate jdbc,
+      WorkflowLockRepository lock, RateLimitService rates,
       @Value("${app.registration.enabled:true}") boolean enabled,
       @Value("${app.registration.expiry-minutes:30}") int expiryMinutes) {
-    this.users=users; this.patients=patients; this.encoder=encoder; this.email=email;
+    this.users=users; this.patients=patients; this.encoder=encoder; this.email=email; this.emailOutbox=emailOutbox;
     this.jdbc=jdbc; this.lock=lock; this.rates=rates; this.enabled=enabled; this.expiryMinutes=expiryMinutes;
     this.recoveryProbeHash=encoder.encode(UUID.randomUUID().toString());
   }
@@ -85,9 +87,12 @@ public class RegistrationService {
   private void issue(AppUser user,String first) {
     byte[] bytes = new byte[32]; new SecureRandom().nextBytes(bytes);
     String token=Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    Instant expiresAt = Instant.now().plusSeconds(expiryMinutes * 60L);
+    emailOutbox.cancelOpenForUser(user.getId());
     jdbc.update("delete from email_verifications where user_id = ?",user.getId());
-    jdbc.update("insert into email_verifications(token_hash,user_id,expires_at) values (?,?,?)",hash(token),user.getId(),Timestamp.from(Instant.now().plusSeconds(expiryMinutes*60L)));
-    email.send(user.getEmail(),first,token,"DOCTOR".equals(user.getRequestedRole()),expiryMinutes);
+    jdbc.update("insert into email_verifications(token_hash,user_id,expires_at) values (?,?,?)",hash(token),user.getId(),Timestamp.from(expiresAt));
+    emailOutbox.enqueue(user.getId(), user.getEmail(), first, token,
+        "DOCTOR".equals(user.getRequestedRole()), expiryMinutes, expiresAt);
   }
   @Transactional
   public void resend(String address) {
@@ -139,6 +144,7 @@ public class RegistrationService {
     if (ids.isEmpty()) throw new ApiException(400,"INVALID_CONFIRMATION","This confirmation link has expired or was already used. Request a new email.");
     var u=users.findById(ids.getFirst()).orElseThrow(); u.setEmailVerified(true); u.setEnabled(true); users.saveAndFlush(u);
     jdbc.update("update email_verifications set used_at=? where token_hash=?",Timestamp.from(Instant.now()),hash(token));
+    emailOutbox.cancelOpenForUser(u.getId());
   }
   private static String hash(String token) {
     try {return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));}

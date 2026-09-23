@@ -39,6 +39,10 @@ app:
   email:
     resend-key: ${RESEND_API_KEY:}
     from: ${EMAIL_FROM:}
+    outbox:
+      poll-interval-ms: ${EMAIL_OUTBOX_POLL_INTERVAL_MS:5000}
+      initial-delay-ms: ${EMAIL_OUTBOX_INITIAL_DELAY_MS:5000}
+      batch-size: ${EMAIL_OUTBOX_BATCH_SIZE:10}
   seed: ${DEMO_SEED:true}
   bootstrap-password: ${BOOTSTRAP_PASSWORD:}
   ai:

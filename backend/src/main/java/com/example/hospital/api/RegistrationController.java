@@ -34,12 +34,12 @@ public class RegistrationController {
     return Map.of("message","Check your inbox to confirm your email. Doctor requests require administrator approval after verification.");
   }
   @PostMapping("/verify") public Object verify(@Valid @RequestBody Verify in) {registration.verify(in.token());return Map.of("message","Email confirmed. You can now sign in. Doctor access requests will be reviewed by an administrator.");}
-  @PostMapping("/resend") public Object resend(@Valid @RequestBody Resend in,HttpServletRequest request) {registration.limit(clientKey(request, in.email()));registration.resend(in.email());return Map.of("message","If an unverified account matches, a new confirmation email has been sent.");}
+  @PostMapping("/resend") public Object resend(@Valid @RequestBody Resend in,HttpServletRequest request) {registration.limit(clientKey(request, in.email()));registration.resend(in.email());return Map.of("message","If an unverified account matches, a new confirmation email will be sent.");}
   @PostMapping("/recover") public Object recover(@Valid @RequestBody Recover in,HttpServletRequest request) {
     registration.limit(clientKey(request, in.email()));
     registration.limit(clientKey(request, "username:" + in.username()));
     registration.recover(in.username(),in.password(),in.email());
-    return Map.of("message","If the registration can be recovered, a fresh confirmation email has been sent.");
+    return Map.of("message","If the registration can be recovered, a fresh confirmation email will be sent.");
   }
 
   private static String clientKey(HttpServletRequest request, String identifier) {
