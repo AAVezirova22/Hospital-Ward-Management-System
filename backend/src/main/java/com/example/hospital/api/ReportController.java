@@ -43,6 +43,11 @@ public ReportController(
     return reports.capacity();
   }
 
+  @GetMapping("/doctor-workload")
+  public Object doctorWorkload(@RequestParam LocalDate from, @RequestParam LocalDate to) {
+    return reports.doctorWorkload(from, to);
+  }
+
   @GetMapping("/discharge-reminders")
   @PreAuthorize("hasAnyRole('ADMIN', 'MEDICAL_STAFF', 'DOCTOR')")
   public Object dischargeReminders() {
