@@ -135,10 +135,69 @@ public class HospitalService {
   }
 
   public List<Admission> admissions() {
-    return admissions.findAll().stream()
-        .filter(this::visible)
-        .sorted(Comparator.comparing((Admission a) -> a.getAdmissionDateTime()).reversed())
-        .toList();
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    return admissions.findVisibleAdmissions(
+        DepartmentContext.id(),
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId,
+        Sort.by(Sort.Order.desc("admissionDateTime")).and(Sort.by(Sort.Order.desc("id"))));
+  }
+
+  public List<Admission> admissions(
+      String status,
+      Instant fromDate,
+      Instant toDateExclusive,
+      Long doctorId,
+      Pageable pageable) {
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    return admissions.searchAdmissions(
+        DepartmentContext.id(),
+        status != null,
+        status,
+        fromDate != null,
+        fromDate,
+        toDateExclusive != null,
+        toDateExclusive,
+        doctorId != null,
+        doctorId,
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId,
+        pageable);
+  }
+
+  public long admissionCount(
+      String status, Instant fromDate, Instant toDateExclusive, Long doctorId) {
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    return admissions.countSearchAdmissions(
+        DepartmentContext.id(),
+        status != null,
+        status,
+        fromDate != null,
+        fromDate,
+        toDateExclusive != null,
+        toDateExclusive,
+        doctorId != null,
+        doctorId,
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId);
   }
 
   public Room room(Long id) {

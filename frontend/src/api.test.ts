@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  allPages,
   activeDepartment,
   api,
   bindAccount,
@@ -210,5 +211,46 @@ describe("department scope", () => {
     expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBe("12");
     bindAccount(null);
     setActiveDepartment(null);
+  });
+});
+
+describe("paged API responses", () => {
+  afterEach(() => setActiveDepartment(null));
+  it("loads every bounded page while preserving request filters", async () => {
+    setActiveDepartment(null);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [{ id: 1 }],
+          page: 0,
+          size: 100,
+          totalElements: 2,
+          totalPages: 2,
+          hasNext: true,
+          nextPage: 1,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [{ id: 2 }],
+          page: 1,
+          size: 100,
+          totalElements: 2,
+          totalPages: 2,
+          hasNext: false,
+          nextPage: null,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(allPages<{ id: number }>("/admissions?status=ACTIVE")).resolves.toEqual([
+      { id: 1 },
+      { id: 2 },
+    ]);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/admissions?status=ACTIVE&size=100&page=0",
+      "/api/v1/admissions?status=ACTIVE&size=100&page=1",
+    ]);
   });
 });

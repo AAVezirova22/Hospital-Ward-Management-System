@@ -87,6 +87,15 @@ export interface AdmissionView {
   procedures: ProcedureView[];
   totalCost: number;
 }
+export interface PageResult<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
+}
 export interface DashboardReport {
   activeAdmissions: number;
   occupiedBeds: number;

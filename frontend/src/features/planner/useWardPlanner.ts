@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, fullName, activeDepartment, type User } from "../../api";
+import { allPages, api, fullName, activeDepartment, type User } from "../../api";
 import type { AdmissionView, RoomCapacity, ArrivalPlan } from "../../api/contracts";
 import {
   executableOrder,
@@ -17,8 +17,8 @@ export function useWardPlanner(user: User) {
     refetchInterval: 15000,
   });
   const admissionsQuery = useQuery({
-    queryKey: ["/admissions", activeDepartment()],
-    queryFn: () => api<AdmissionView[]>("/admissions"),
+    queryKey: ["/admissions?status=ACTIVE", activeDepartment()],
+    queryFn: () => allPages<AdmissionView>("/admissions?status=ACTIVE"),
     refetchInterval: 15000,
   });
   const rooms = roomsQuery.data ?? [],
