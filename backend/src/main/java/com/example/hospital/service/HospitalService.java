@@ -4,9 +4,12 @@ import com.example.hospital.api.*;
 import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
+import com.example.hospital.security.DepartmentContext;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -111,10 +114,69 @@ public class HospitalService {
   }
 
   public List<Admission> admissions() {
-    return admissions.findAll().stream()
-        .filter(this::visible)
-        .sorted(Comparator.comparing((Admission a) -> a.getAdmissionDateTime()).reversed())
-        .toList();
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    return admissions.findVisibleAdmissions(
+        DepartmentContext.id(),
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId,
+        Sort.by(Sort.Order.desc("admissionDateTime")).and(Sort.by(Sort.Order.desc("id"))));
+  }
+
+  public List<Admission> admissions(
+      String status,
+      Instant fromDate,
+      Instant toDateExclusive,
+      Long doctorId,
+      Pageable pageable) {
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    return admissions.searchAdmissions(
+        DepartmentContext.id(),
+        status != null,
+        status,
+        fromDate != null,
+        fromDate,
+        toDateExclusive != null,
+        toDateExclusive,
+        doctorId != null,
+        doctorId,
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId,
+        pageable);
+  }
+
+  public long admissionCount(
+      String status, Instant fromDate, Instant toDateExclusive, Long doctorId) {
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    return admissions.countSearchAdmissions(
+        DepartmentContext.id(),
+        status != null,
+        status,
+        fromDate != null,
+        fromDate,
+        toDateExclusive != null,
+        toDateExclusive,
+        doctorId != null,
+        doctorId,
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId);
   }
 
   public Room room(Long id) {
