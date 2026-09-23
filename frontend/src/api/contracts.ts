@@ -4,6 +4,15 @@ export interface Entity {
   createdAt: string;
   updatedAt: string;
 }
+export interface PageResult<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
+}
 export interface Patient extends Entity {
   patientIdentifier: string;
   firstName: string;
@@ -11,6 +20,22 @@ export interface Patient extends Entity {
   dateOfBirth: string;
   address: string | null;
   phoneNumber: string | null;
+}
+export interface PatientDirectoryItem {
+  id: number;
+  patientIdentifier: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+}
+export interface PatientDirectoryPage {
+  items: PatientDirectoryItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
 }
 export interface Doctor extends Entity {
   doctorIdentifier: string;
@@ -71,6 +96,15 @@ export interface AdmissionView {
   procedures: ProcedureView[];
   totalCost: number;
 }
+export interface PageResult<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
+}
 export interface DashboardReport {
   activeAdmissions: number;
   occupiedBeds: number;
@@ -79,6 +113,7 @@ export interface DashboardReport {
   activeDoctors: number;
   proceduresToday: number;
   scope: string;
+  timeZone: string;
 }
 export interface OperationalActivity {
   id: number;
@@ -86,6 +121,17 @@ export interface OperationalActivity {
   timestamp: string;
   admissionId: number;
   source: string;
+}
+export interface OverdueDischarge {
+  admissionId: number;
+  admissionNumber: string;
+  patientId: number;
+  patientIdentifier: string;
+  patientName: string;
+  attendingDoctorId: number;
+  attendingDoctorName: string;
+  expectedDischargeDate: string;
+  daysOverdue: number;
 }
 export interface OperationsReport {
   trends: {
@@ -98,12 +144,14 @@ export interface OperationsReport {
   averageStayDays: number;
   longStayPatients: number;
   expectedDischargesToday: number;
+  overdueDischarges: OverdueDischarge[];
   thresholds: {
     longStayDays: number;
     warningPercent: number;
     criticalPercent: number;
   };
   scope: string;
+  timeZone: string;
   asOf: string;
 }
 export interface DischargeReminderOutcome {
@@ -129,12 +177,14 @@ export interface ProcedureReport {
   byDoctor: Record<string, number>;
   from: string;
   to: string;
+  timeZone: string;
 }
 export interface WorkspaceDepartment {
   id: number;
   name: string;
   role: string;
   hasJoinCode: boolean;
+  timeZone: string;
 }
 export interface WorkspaceHospital {
   id: number;
@@ -145,5 +195,6 @@ export interface WorkspaceHospital {
 }
 export interface WorkspaceList {
   activeDepartmentId: number;
+  timeZone: string;
   hospitals: WorkspaceHospital[];
 }

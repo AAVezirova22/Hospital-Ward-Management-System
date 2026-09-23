@@ -1,32 +1,82 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
+import {
+  api,
+  activeDepartment,
+  downloadFile,
+  fullName,
+  money,
+  date,
+  patientHref,
+  type Row,
+  type User,
+} from "../../api";
 import {
   Link,
-  useUser,
   useData,
+  useAllPages,
   ErrorBox,
   Empty,
-  Status,
-  Modal,
   Title,
 } from "../../components/workspace";
 import { Download } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { ProcedureCharts, CapacityChart } from "./ReportCharts";
+import type {
+  Patient,
+  PatientDirectoryPage,
+  WorkspaceList,
+} from "../../api/contracts";
+import { dateInTimeZone } from "../../date-time";
+
 export function Reports() {
-  const today = new Date().toISOString().slice(0, 10);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<unknown>(null);
+
+  const workspaces = useQuery<WorkspaceList>({
+    queryKey: ["/workspaces", activeDepartment()],
+    queryFn: () => api("/workspaces"),
+  });
+
+  const timeZone = workspaces.data?.timeZone ?? "UTC";
+  const today = dateInTimeZone(new Date(), timeZone);
   const [from, setFrom] = useUrlState("from", today.slice(0, 8) + "01"),
     [to, setTo] = useUrlState("to", today),
     [patientId, setPatient] = useUrlState("patientId"),
     [doctorId, setDoctor] = useUrlState("doctorId"),
     [roomId, setRoom] = useUrlState("roomId"),
     [mode, setMode] = useUrlState("mode", "procedures");
-  const { data: patients } = useData("/patients"),
-    { data: doctors } = useData("/doctors"),
-    { data: rooms } = useData("/rooms");
+const [patientSearch, setPatientSearch] = useState("");
+const [patientPage, setPatientPage] = useState(0);
+
+const patientDirectoryQuery = useData(
+  `/patients?q=${encodeURIComponent(patientSearch)}&page=${patientPage}&size=20`,
+);
+
+const patients = patientDirectoryQuery.data as
+  | PatientDirectoryPage
+  | undefined;
+
+const selectedPatient = patients?.items.find(
+  (p) => String(p.id) === patientId,
+);
+
+const selectedPatientQuery = useQuery({
+  queryKey: ["/patients", patientId, activeDepartment()],
+  queryFn: () =>
+    api<{ patient: Patient }>(
+      `/patients/${encodeURIComponent(patientId)}`,
+    ),
+  enabled: Boolean(patientId) && !selectedPatient,
+});
+
+const selectedPatientRecord =
+  selectedPatient ?? selectedPatientQuery.data?.patient;
+
+const { data: doctors } = useAllPages<Row>("/doctors"),
+  { data: rooms } = useAllPages<Row>("/rooms");
   const params = new URLSearchParams({
     from,
     to,
@@ -44,6 +94,34 @@ export function Reports() {
             ...(roomId ? { roomId } : {}),
           });
   const { data, error, isLoading } = useData(path);
+  const exportCsv = async () => {
+    const department = activeDepartment();
+    if (!department) {
+      setExportError(new Error("Choose a department before exporting."));
+      return;
+    }
+    setExporting(true);
+    setExportError(null);
+    try {
+      const { blob, filename } = await downloadFile(
+        "/reports/procedures.csv?" + params,
+        department,
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setExportError(e);
+    } finally {
+      setExporting(false);
+    }
+  };
   return (
     <>
       <Title
@@ -67,6 +145,7 @@ export function Reports() {
         ))}
       </div>
       <div className="report-filters">
+        <small className="muted">Calendar dates use {timeZone}.</small>
         {mode === "procedures" && (
           <>
             <label>
@@ -86,20 +165,63 @@ export function Reports() {
               />
             </label>
             <label>
+              Find patient
+              <input
+                aria-label="Search patients for reports"
+                value={patientSearch}
+                onChange={(e) => {
+                  setPatientSearch(e.target.value);
+                  setPatientPage(0);
+                }}
+                placeholder="Name or patient ID"
+              />
+            </label>
+            <label>
               Patient
               <select
                 value={patientId}
                 onChange={(e) => setPatient(e.target.value)}
               >
                 <option value="">All permitted patients</option>
-                {Array.isArray(patients) &&
-                  patients.map((p: Row) => (
-                    <option value={p.id} key={p.id}>
-                      {fullName(p)}
-                    </option>
-                  ))}
+                {patientId && !selectedPatient && (
+                  <option value={patientId}>
+                    {selectedPatientRecord
+                      ? fullName(selectedPatientRecord)
+                      : selectedPatientQuery.error
+                        ? "Selected patient unavailable"
+                        : "Loading selected patient…"}
+                  </option>
+                )}
+                {patients?.items.map((p) => (
+                  <option value={p.id} key={p.id}>
+                    {fullName(p)}
+                  </option>
+                ))}
               </select>
             </label>
+            {patients && patients.totalPages > 1 && (
+              <div className="table-pagination">
+                <span>
+                  Page {patients.page + 1} of {patients.totalPages}
+                </span>
+                <button
+                  className="secondary"
+                  disabled={patients.page === 0}
+                  onClick={() => setPatientPage(patients.page - 1)}
+                >
+                  Previous
+                </button>
+                <button
+                  className="secondary"
+                  disabled={!patients.hasNext}
+                  onClick={() =>
+                    setPatientPage(patients.nextPage ?? patients.page + 1)
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </>
         )}
         {mode !== "capacity" && (
@@ -134,17 +256,23 @@ export function Reports() {
           </label>
         )}
         {mode === "procedures" && (
-          <a
+          <button
+            type="button"
             className="secondary"
-            href={"/api/v1/reports/procedures.csv?" + params}
-            download
+            onClick={() => void exportCsv()}
+            disabled={exporting}
+            aria-busy={exporting}
           >
             <Download size={16} />
-            Export CSV
-          </a>
+            {exporting ? "Preparing CSV…" : "Export CSV"}
+          </button>
         )}
       </div>
+      <ErrorBox
+        error={error || patientDirectoryQuery.error || selectedPatientQuery.error}
+      />
       <ErrorBox error={error} />
+      <ErrorBox error={exportError} />
       {isLoading ? (
         <div className="skeleton">Calculating report…</div>
       ) : (
@@ -190,7 +318,7 @@ export function Reports() {
                           <td>{fullName(v.patient)}</td>
                           <td>{v.procedure.procedureName}</td>
                           <td>{fullName(v.doctor)}</td>
-                          <td>{date(v.record.performedAt)}</td>
+                          <td>{date(v.record.performedAt, timeZone)}</td>
                           <td>{money(v.record.priceAtExecution)}</td>
                         </tr>
                       ))}

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Bell } from "../icons";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { api, activeDepartment } from "../api";
+import { api, allPages, activeDepartment } from "../api";
 import type {
   DischargeReminderOutcome,
   RoomCapacity,
@@ -15,7 +15,7 @@ export function NotificationCenter() {
     [notices, setNotices] = useState<string[]>([]);
   const rooms = useQuery({
     queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => api<RoomCapacity[]>("/rooms"),
+    queryFn: () => allPages<RoomCapacity>("/rooms"),
     refetchInterval: 30000,
   });
   const operations = useQuery({
@@ -84,7 +84,7 @@ export function NotificationCenter() {
                 {operations.data.expectedDischargesToday} expected discharges
                 today
               </Link>
-              <small>Scheduled dates in your local time</small>
+              <small>Scheduled dates use {operations.data.timeZone}</small>
             </p>
           )}
           {(reminders.data ?? []).map((reminder) => (

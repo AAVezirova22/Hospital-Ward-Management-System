@@ -6,7 +6,6 @@ import com.example.hospital.security.DepartmentContext;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,11 +18,14 @@ public class ReportService {
   private final HospitalService hospital;
   private final Actor actor;
   private final JdbcTemplate jdbc;
+  private final DepartmentTimeService departmentTime;
 
-  public ReportService(HospitalService hospital, Actor actor, JdbcTemplate jdbc) {
+  public ReportService(HospitalService hospital, Actor actor, JdbcTemplate jdbc,
+      DepartmentTimeService departmentTime) {
     this.hospital = hospital;
     this.actor = actor;
     this.jdbc = jdbc;
+    this.departmentTime = departmentTime;
   }
 
   public Map<String, Object> dashboard() {
@@ -66,8 +68,10 @@ public class ReportService {
             "select count(*) from doctors where department_id=? and active=true",
             Long.class,
             departmentId);
-    var start = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
-    var end = LocalDate.now(ZoneOffset.UTC).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+    var zone = departmentTime.zoneId();
+    var today = LocalDate.now(zone);
+    var start = today.atStartOfDay(zone).toInstant();
+    var end = today.plusDays(1).atStartOfDay(zone).toInstant();
     Long proceduresToday =
         doctorId == null
             ? jdbc.queryForObject(
@@ -97,7 +101,9 @@ public class ReportService {
         "proceduresToday",
         proceduresToday == null ? 0 : proceduresToday,
         "scope",
-        actor.doctor() ? "Your assigned admissions; department bed capacity" : "Department");
+        actor.doctor() ? "Your assigned admissions; department bed capacity" : "Department",
+        "timeZone",
+        zone.getId());
   }
 
   public List<Map<String, Object>> census(Long roomId, Long doctorId) {
@@ -130,8 +136,9 @@ public class ReportService {
       throw new ApiException(400, "INVALID_PERIOD", "Start date must be before end date.");
     if (patientId != null) hospital.accessible(patientId);
     long departmentId = DepartmentContext.id();
-    var start = Timestamp.from(from.atStartOfDay().toInstant(ZoneOffset.UTC));
-    var end = Timestamp.from(to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC));
+    var zone = departmentTime.zoneId();
+    var start = Timestamp.from(from.atStartOfDay(zone).toInstant());
+    var end = Timestamp.from(to.plusDays(1).atStartOfDay(zone).toInstant());
     var sql = new StringBuilder(
         """
         select pp.id rec_id, pp.admission_id, pp.medical_procedure_id, pp.performed_by_doctor_id,
@@ -225,6 +232,7 @@ public class ReportService {
     report.put("byDoctor", grouped);
     report.put("from", from);
     report.put("to", to);
+    report.put("timeZone", zone.getId());
     return report;
   }
 

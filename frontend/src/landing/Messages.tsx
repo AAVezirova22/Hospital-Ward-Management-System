@@ -52,16 +52,15 @@ export function Messages() {
   return (
     <section className="film-msg" id="workflow" ref={ref}>
       <div className="film-msg-copy">
-        <h2>From Messages and files, into a confirmed workflow.</h2>
+        <h2>From files and requests, into a confirmed workflow.</h2>
         <p>
-          Forward a spreadsheet from iMessage, drop a folder of setup files, or
-          type a command. Medcore drafts the admissions, transfers, and
-          procedures. A person still has to confirm. The message path is
-          designed against a linked staff account; confirmation always happens
-          in Medcore, never as a stray yes in a thread.
+          Upload a spreadsheet, connect a folder, or type a request in the
+          Medcore workspace. The assistant drafts admissions, transfers, and
+          procedures for review. A person confirms each workflow in Medcore
+          before records change.
         </p>
         <ol className="film-msg-steps">
-          <li>Source arrives: iMessage, upload, or a connected folder.</li>
+          <li>Source arrives: an upload, a connected folder, or a typed request.</li>
           <li>Assistant proposes named steps with source fields.</li>
           <li>
             You confirm. The same business services as the rest of the app run
