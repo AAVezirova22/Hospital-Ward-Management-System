@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  activeDepartment,
   api,
   bindAccount,
   login,
@@ -64,6 +65,26 @@ describe("department scope", () => {
         headers: expect.objectContaining({ "X-Department-Id": "12" }),
       }),
     );
+  });
+  it("retries workspace listing without a stale selected department", async () => {
+    setActiveDepartment(12);
+    const workspaces = { activeDepartmentId: -1, hospitals: [] };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json(
+          { code: "DEPARTMENT_ACCESS_DENIED", message: "Denied" },
+          { status: 403 },
+        ),
+      )
+      .mockResolvedValueOnce(Response.json(workspaces));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api("/workspaces")).resolves.toEqual(workspaces);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBe("12");
+    expect(fetchMock.mock.calls[1][1].headers["X-Department-Id"]).toBeUndefined();
+    expect(activeDepartment()).toBeNull();
   });
   it("does not retry assistant writes in another department after access is denied", async () => {
     setActiveDepartment(12);
