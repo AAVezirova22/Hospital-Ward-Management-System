@@ -18,7 +18,7 @@ The bootstrap password must be at least 12 characters and at most 72 UTF-8 bytes
 
 The cinematic redesign, verification results, and AI connection status are documented in [the redesign notes](docs/redesign.md).
 
-Demo seeding is enabled by default. An empty database gets `admin`, `staff`, and `doctor` accounts using the same bootstrap password, three doctors, eight rooms, 28 synthetic patients, 14 active and 12 discharged admissions, procedures, transfer history and audit activity. Dates are relative to seeding. Set `DEMO_SEED=false` for an empty workspace with only the administrator. Set `DEMO_MODE=true` only for a dedicated synthetic environment to enable role entry and an explicit destructive reset. Bootstrap runs once inside a transaction; restarts preserve records.
+Demo seeding is enabled by default. An empty database gets `admin`, `staff`, and `doctor` accounts using the same bootstrap password, three doctors, eight rooms, 28 synthetic patients, 14 active and 12 discharged admissions, procedures, transfer history and audit activity. Dates are relative to seeding. Set `DEMO_SEED=false` for an empty workspace with only the administrator. Set `DEMO_MODE=true` only for a dedicated synthetic environment to enable role entry and an explicit destructive reset; it also requires `APP_ENVIRONMENT=demo`, otherwise the backend refuses to start. Bootstrap runs once inside a transaction; restarts preserve records.
 
 The database volume survives container restarts. `docker compose down` preserves data. Next.js rewrites same-origin `/api` requests to Java over the Compose network. Database and API ports are not exposed publicly; the web interface binds to loopback.
 

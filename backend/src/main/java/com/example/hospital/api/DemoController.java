@@ -23,21 +23,25 @@ public class DemoController {
   private final DemoService demo;
   private final AppUserRepository users;
   private final String demoToken;
+  private final String environment;
   private final boolean publicLogin;
 
   public DemoController(
       DemoService demo,
       AppUserRepository users,
       @Value("${app.demo-token:}") String demoToken,
-      @Value("${app.demo-public-login}") boolean publicLogin) {
-    this.demo = demo;
-    this.users = users;
-    this.demoToken = demoToken;
-    this.publicLogin = publicLogin;
+@Value("${app.environment:development}") String environment,
+@Value("${app.demo-public-login}") boolean publicLogin) {
+  this.demo = demo;
+  this.users = users;
+  this.demoToken = demoToken;
+  this.environment = environment;
+  this.publicLogin = publicLogin;
+}
   }
 
   @GetMapping("/status")
-  public Object status() { return Map.of("enabled", demo.enabled()); }
+  public Object status() { return Map.of("enabled", demo.enabled(), "environment", environment); }
 
   public record DemoLogin(String role) {}
 
@@ -62,6 +66,7 @@ public class DemoController {
     SecurityContextHolder.setContext(context);
     if (user.getSessionStamp() == null || user.getSessionStamp().isBlank()) user.setSessionStamp(SessionStamps.next());
     request.getSession(true).setAttribute("credentialStamp", user.getSessionStamp());
+    com.example.hospital.security.SessionLifetime.markAuthenticated(request.getSession());
     request.getSession().setAttribute("accountId", user.getId());
     new HttpSessionSecurityContextRepository().saveContext(context, request, response);
     user.setLastLoginAt(Instant.now());

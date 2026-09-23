@@ -60,11 +60,12 @@ public class SecurityConfig {
       AppUserRepository users,
       WorkspaceAccess workspaces,
       LoginBackoff backoff,
+      SessionLifetime lifetime)
       ClientAddressResolver clientAddresses)
       throws Exception {
     http.authorizeHttpRequests(
             a ->
-                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health",
+                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health", "/api/v1/health/live", "/api/v1/health/ready",
                     "/api/v1/demo/status", "/api/v1/demo/login", "/api/v1/registration/status",
                     "/api/v1/registration/hospitals",
                     "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend",
@@ -91,6 +92,7 @@ public class SecurityConfig {
                             u.setSessionStamp(SessionStamps.next());
                           users.save(u);
                           r.getSession().setAttribute("credentialStamp", u.getSessionStamp());
+                          SessionLifetime.markAuthenticated(r.getSession());
                           r.getSession().setAttribute("accountId", u.getId());
                           s.setContentType("application/json");
                           json.writeValue(s.getWriter(), com.example.hospital.api.Views.account(u));
@@ -177,7 +179,7 @@ public class SecurityConfig {
             },
             UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(
-            new DepartmentScopeFilter(users, workspaces, json),
+            new DepartmentScopeFilter(users, workspaces, json, lifetime),
             AuthorizationFilter.class);
     return http.build();
   }

@@ -18,12 +18,14 @@ public class DepartmentScopeFilter extends OncePerRequestFilter {
   private final AppUserRepository users;
   private final WorkspaceAccess workspaces;
   private final ObjectMapper json;
+  private final SessionLifetime lifetime;
 
   public DepartmentScopeFilter(
-      AppUserRepository users, WorkspaceAccess workspaces, ObjectMapper json) {
+      AppUserRepository users, WorkspaceAccess workspaces, ObjectMapper json, SessionLifetime lifetime) {
     this.users = users;
     this.workspaces = workspaces;
     this.json = json;
+    this.lifetime = lifetime;
   }
 
   @Override
@@ -32,8 +34,22 @@ public class DepartmentScopeFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     var auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth != null && auth.isAuthenticated() && !auth.getName().equals("anonymousUser")) {
-      var u = users.findByUsername(auth.getName());
       var session = r.getSession(false);
+      if (session != null && lifetime.expired(session)) {
+        SecurityContextHolder.clearContext();
+        session.invalidate();
+        s.setStatus(401);
+        s.setContentType("application/json");
+        json.writeValue(
+            s.getWriter(),
+            Errors.body(
+                401,
+                "SESSION_EXPIRED",
+                "Your session reached its maximum length. Please sign in again.",
+                r.getRequestURI()));
+        return;
+      }
+      var u = users.findByUsername(auth.getName());
       var stamp = session == null ? null : session.getAttribute("credentialStamp");
       if (u.isEmpty()
           || !u.get().isEnabled()

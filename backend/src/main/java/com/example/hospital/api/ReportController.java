@@ -1,5 +1,6 @@
 package com.example.hospital.api;
 
+import com.example.hospital.service.AuditService;
 import com.example.hospital.service.ReportService;
 import com.example.hospital.service.DischargeReminderService;
 import java.time.LocalDate;
@@ -13,11 +14,17 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/reports")
 public class ReportController {
   private final ReportService reports;
-  private final DischargeReminderService reminders;
+private final AuditService audit;
+private final DischargeReminderService reminders;
 
-  public ReportController(ReportService reports, DischargeReminderService reminders) {
-    this.reports = reports;
-    this.reminders = reminders;
+public ReportController(
+    ReportService reports,
+    AuditService audit,
+    DischargeReminderService reminders) {
+  this.reports = reports;
+  this.audit = audit;
+  this.reminders = reminders;
+}
   }
 
   @GetMapping("/dashboard")
@@ -77,6 +84,15 @@ public class ReportController {
               + r.get("priceAtExecution")
               + "\r\n");
     }
+    // Records who exported what scope; the exported rows themselves are never stored.
+    var filters = new java.util.LinkedHashMap<String, Object>();
+    filters.put("export", "procedures.csv");
+    filters.put("from", from);
+    filters.put("to", to);
+    filters.put("patientId", patientId);
+    filters.put("doctorId", doctorId);
+    filters.put("rows", ((List<?>) report.get("rows")).size());
+    audit.log("DATA_EXPORTED", "Report", null, "UI", filters);
     return ResponseEntity.ok()
         .header(
             "Content-Disposition",

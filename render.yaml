@@ -14,7 +14,7 @@ services:
     plan: 0.5c-512mb
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /api/v1/health/ready
     envVars:
       - key: DATABASE_HOST
         fromDatabase: { name: hospital-ward-demo-db, property: host }
@@ -29,6 +29,9 @@ services:
       # Required to create the initial administrator on an empty database.
       - key: BOOTSTRAP_PASSWORD
         sync: false
+      # Dedicated synthetic database: required for DEMO_MODE=true.
+      - key: APP_ENVIRONMENT
+        value: demo
       - key: DEMO_SEED
         value: "true"
       - key: DEMO_MODE
