@@ -6,18 +6,51 @@ import { z } from "zod";
 import { api } from "../../api";
 
 const signupSchema = z.object({
-  firstName: z.string().trim().min(1).max(100),
-  lastName: z.string().trim().min(1).max(100),
-  dateOfBirth: z.string().min(1),
-  hospitalId: z.coerce.number().int().positive(),
-  email: z.string().trim().email().max(254),
-  username: z.string().regex(/^[a-zA-Z0-9._-]{3,64}$/),
-  password: z.string().min(12).max(72),
-  requestedRole: z.enum(["PATIENT", "DOCTOR"]),
+  firstName: z
+    .string()
+    .trim()
+    .min(1, "Enter your first name.")
+    .max(100, "Use 100 characters or fewer."),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, "Enter your last name.")
+    .max(100, "Use 100 characters or fewer."),
+  dateOfBirth: z.string().min(1, "Enter your date of birth."),
+  hospitalId: z.coerce
+    .number()
+    .int("Select a valid hospital.")
+    .positive("Select a hospital."),
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email address.")
+    .max(254, "Email addresses must be 254 characters or fewer."),
+  username: z
+    .string()
+    .regex(
+      /^[a-zA-Z0-9._-]{3,64}$/,
+      "Use 3-64 letters, numbers, dots, underscores, or hyphens.",
+    ),
+  password: z
+    .string()
+    .min(12, "Use at least 12 characters.")
+    .max(72, "Use no more than 72 characters."),
+  requestedRole: z.enum(["PATIENT", "DOCTOR"], {
+    error: "Choose an account request.",
+  }),
 });
 
 type SignupValues = z.infer<typeof signupSchema>;
 type SignupInput = z.input<typeof signupSchema>;
+
+function FieldFeedback({ id, message }: { id: string; message?: string }) {
+  return message ? (
+    <small id={id} className="invalid">
+      {message}
+    </small>
+  ) : null;
+}
 
 export function Registration({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false),
@@ -42,6 +75,7 @@ export function Registration({ onBack }: { onBack: () => void }) {
   return (
     <form
       className="login-form registration-form"
+      noValidate
       onSubmit={handleSubmit(async (values) => {
         if (busy) return;
         setBusy(true);
@@ -76,73 +110,193 @@ export function Registration({ onBack }: { onBack: () => void }) {
       ) : (
         <>
           <div className="registration-names">
-            <label>
-              First name
-              <input autoComplete="given-name" maxLength={100} {...register("firstName")} />
-            </label>
-            <label>
-              Last name
-              <input autoComplete="family-name" maxLength={100} {...register("lastName")} />
-            </label>
+            <div className="registration-field">
+              <label htmlFor="registration-first-name">
+                First name
+                <input
+                  id="registration-first-name"
+                  autoComplete="given-name"
+                  maxLength={100}
+                  aria-invalid={Boolean(errors.firstName)}
+                  aria-describedby={
+                    errors.firstName
+                      ? "registration-first-name-error"
+                      : undefined
+                  }
+                  {...register("firstName")}
+                />
+              </label>
+              <FieldFeedback
+                id="registration-first-name-error"
+                message={errors.firstName?.message}
+              />
+            </div>
+            <div className="registration-field">
+              <label htmlFor="registration-last-name">
+                Last name
+                <input
+                  id="registration-last-name"
+                  autoComplete="family-name"
+                  maxLength={100}
+                  aria-invalid={Boolean(errors.lastName)}
+                  aria-describedby={
+                    errors.lastName ? "registration-last-name-error" : undefined
+                  }
+                  {...register("lastName")}
+                />
+              </label>
+              <FieldFeedback
+                id="registration-last-name-error"
+                message={errors.lastName?.message}
+              />
+            </div>
           </div>
-          <label>
-            Date of birth
-            <input
-              type="date"
-              max={new Date(Date.now() - 86400000).toISOString().slice(0, 10)}
-              autoComplete="bday"
-              {...register("dateOfBirth")}
+          <div className="registration-field">
+            <label htmlFor="registration-date-of-birth">
+              Date of birth
+              <input
+                id="registration-date-of-birth"
+                type="date"
+                max={new Date(Date.now() - 86400000).toISOString().slice(0, 10)}
+                autoComplete="bday"
+                aria-invalid={Boolean(errors.dateOfBirth)}
+                aria-describedby={
+                  errors.dateOfBirth
+                    ? "registration-date-of-birth-error"
+                    : undefined
+                }
+                {...register("dateOfBirth")}
+              />
+            </label>
+            <FieldFeedback
+              id="registration-date-of-birth-error"
+              message={errors.dateOfBirth?.message}
             />
-          </label>
-          <label>
-            Hospital
-            <select {...register("hospitalId")} defaultValue="">
-              <option value="" disabled>
-                Select your hospital
-              </option>
-              {hospitals.map((hospital) => (
-                <option key={hospital.id} value={hospital.id}>
-                  {hospital.name}
+          </div>
+          <div className="registration-field">
+            <label htmlFor="registration-hospital">
+              Hospital
+              <select
+                id="registration-hospital"
+                aria-invalid={Boolean(errors.hospitalId)}
+                aria-describedby={
+                  errors.hospitalId ? "registration-hospital-error" : undefined
+                }
+                {...register("hospitalId")}
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Select your hospital
                 </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Email
-            <input type="email" autoComplete="email" maxLength={254} {...register("email")} />
-          </label>
-          <label>
-            Username
-            <input
-              autoComplete="username"
-              maxLength={64}
-              title="3–64 letters, numbers, dots, underscores or hyphens"
-              {...register("username")}
+                {hospitals.map((hospital) => (
+                  <option key={hospital.id} value={hospital.id}>
+                    {hospital.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <FieldFeedback
+              id="registration-hospital-error"
+              message={errors.hospitalId?.message}
             />
-          </label>
-          <label>
-            Password
-            <input type="password" autoComplete="new-password" {...register("password")} />
-          </label>
-          <small>At least 12 characters, at most 72 UTF-8 bytes.</small>
-          <label>
-            Account request
-            <select {...register("requestedRole")}>
-              <option value="PATIENT">Patient account</option>
-              <option value="DOCTOR">
-                Patient account + doctor access request
-              </option>
-            </select>
-          </label>
+          </div>
+          <div className="registration-field">
+            <label htmlFor="registration-email">
+              Email
+              <input
+                id="registration-email"
+                type="email"
+                autoComplete="email"
+                maxLength={254}
+                aria-invalid={Boolean(errors.email)}
+                aria-describedby={
+                  errors.email ? "registration-email-error" : undefined
+                }
+                {...register("email")}
+              />
+            </label>
+            <FieldFeedback
+              id="registration-email-error"
+              message={errors.email?.message}
+            />
+          </div>
+          <div className="registration-field">
+            <label htmlFor="registration-username">
+              Username
+              <input
+                id="registration-username"
+                autoComplete="username"
+                maxLength={64}
+                title="3–64 letters, numbers, dots, underscores or hyphens"
+                aria-invalid={Boolean(errors.username)}
+                aria-describedby={
+                  errors.username ? "registration-username-error" : undefined
+                }
+                {...register("username")}
+              />
+            </label>
+            <FieldFeedback
+              id="registration-username-error"
+              message={errors.username?.message}
+            />
+          </div>
+          <div className="registration-field">
+            <label htmlFor="registration-password">
+              Password
+              <input
+                id="registration-password"
+                type="password"
+                autoComplete="new-password"
+                aria-invalid={Boolean(errors.password)}
+                aria-describedby={
+                  errors.password
+                    ? "registration-password-error registration-password-hint"
+                    : "registration-password-hint"
+                }
+                {...register("password")}
+              />
+            </label>
+            <FieldFeedback
+              id="registration-password-error"
+              message={errors.password?.message}
+            />
+            <small id="registration-password-hint">
+              At least 12 characters, at most 72 UTF-8 bytes.
+            </small>
+          </div>
+          <div className="registration-field">
+            <label htmlFor="registration-requested-role">
+              Account request
+              <select
+                id="registration-requested-role"
+                aria-invalid={Boolean(errors.requestedRole)}
+                aria-describedby={
+                  errors.requestedRole
+                    ? "registration-requested-role-error"
+                    : undefined
+                }
+                {...register("requestedRole")}
+              >
+                <option value="PATIENT">Patient account</option>
+                <option value="DOCTOR">
+                  Patient account + doctor access request
+                </option>
+              </select>
+            </label>
+            <FieldFeedback
+              id="registration-requested-role-error"
+              message={errors.requestedRole?.message}
+            />
+          </div>
           {requestedRole === "DOCTOR" && (
             <p className="registration-note">
               Confirm your email first. An administrator reviews doctor requests
               and links approved accounts to a doctor profile.
             </p>
           )}
-          {(error || errors.firstName || errors.username || errors.password || errors.email) && (
+          {(error || Object.keys(errors).length > 0) && (
             <p className="error" role="alert">
-              {error || "Check the highlighted fields and try again."}
+              {error || "Please correct the highlighted fields and try again."}
             </p>
           )}
           <button className="primary" disabled={busy || hospitals.length === 0}>
@@ -258,4 +412,3 @@ export function ResendConfirmation() {
     </details>
   );
 }
-
