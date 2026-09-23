@@ -88,6 +88,7 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 409 | `ALREADY_ADMITTED` / `ADMISSION_CLOSED` | Invalid admission lifecycle transition |
 | 409 | `ACTION_EXPIRED` / `ACTION_CONSUMED` | Expired or previously resolved proposal |
 | 409 | `DATA_CONFLICT` | Uniqueness, optimistic lock or lock contention conflict |
+| 401 | `SESSION_EXPIRED` | The session passed its maximum lifetime; sign in again |
 | 429 | `AI_RATE_LIMIT` | Assistant quota or in-flight request limit |
 | 429 | `RATE_LIMITED` | Confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
@@ -105,3 +106,6 @@ Rate-limited endpoints (`POST /assistant/messages`, registration confirmation re
 
 Clients should wait at least `Retry-After` seconds after a `429` and must not retry a rejected request sooner; the rejected request had no effect. An assistant request rejected because another one is still running returns `Retry-After: 1` without budget headers.
 
+## Session lifetime
+
+Sessions end after 30 minutes of inactivity and, regardless of activity, `SESSION_MAX_LIFETIME` after sign-in (default `12h`). The request that crosses the limit returns `401 SESSION_EXPIRED` and the session is invalidated; the client should fetch a new CSRF token and send the user to sign in again. Pending unsaved form input is not preserved by the server.
