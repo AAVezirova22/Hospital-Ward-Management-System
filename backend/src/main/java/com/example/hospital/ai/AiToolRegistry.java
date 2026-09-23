@@ -17,14 +17,17 @@ public class AiToolRegistry {
   private final AiActionService actions;
   private final Actor actor;
   private final WorkspaceService workspaces;
+  private final DepartmentTimeService departmentTime;
 
   public AiToolRegistry(
-      HospitalService h, ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces) {
+      HospitalService h, ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces,
+      DepartmentTimeService departmentTime) {
     this.h = h;
     this.reports = reports;
     actions = a;
     this.actor = actor;
     this.workspaces = workspaces;
+    this.departmentTime = departmentTime;
   }
 
   public record Response(
@@ -194,6 +197,7 @@ public class AiToolRegistry {
       case "getAdmissions" -> {
         var from = dateArg(a.get("from"));
         var to = dateArg(a.get("to"));
+        var zone = departmentTime.zoneId();
         if (from.isAfter(to)) throw new IllegalArgumentException();
         yield response(
             "REPORT_RESULT",
@@ -204,21 +208,23 @@ public class AiToolRegistry {
                     .filter(
                         ad ->
                             !ad.getAdmissionDateTime().isBefore(
-                                    from.atStartOfDay().toInstant(ZoneOffset.UTC))
+                                    from.atStartOfDay(zone).toInstant())
                                 && ad.getAdmissionDateTime().isBefore(
-                                    to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)))
+                                    to.plusDays(1).atStartOfDay(zone).toInstant()))
                     .map(h::admissionView)
                     .toList()));
       }
-      case "getProcedureStatistics" ->
-          response(
-              "REPORT_RESULT",
-              "Procedure totals calculated from saved records.",
-              reports.procedures(
-                  dateArg(a.getOrDefault("from", LocalDate.now(ZoneOffset.UTC).toString())),
-                  dateArg(a.getOrDefault("to", LocalDate.now(ZoneOffset.UTC).toString())),
-                  null,
-                  null));
+      case "getProcedureStatistics" -> {
+        var today = departmentTime.today();
+        yield response(
+            "REPORT_RESULT",
+            "Procedure totals calculated from saved records.",
+            reports.procedures(
+                dateArg(a.getOrDefault("from", today.toString())),
+                dateArg(a.getOrDefault("to", today.toString())),
+                null,
+                null));
+      }
       case "getDashboardSummary" ->
           response("REPORT_RESULT", "Current department operations.", reports.dashboard());
       case "listWorkspaces" ->

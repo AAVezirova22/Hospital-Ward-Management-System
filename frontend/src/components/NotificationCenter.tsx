@@ -70,7 +70,7 @@ export function NotificationCenter() {
                 {operations.data.expectedDischargesToday} expected discharges
                 today
               </Link>
-              <small>Scheduled dates in your local time</small>
+              <small>Scheduled dates use {operations.data.timeZone}</small>
             </p>
           )}
           {rooms.data && (

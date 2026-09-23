@@ -11,12 +11,6 @@ import {
   date,
   patientHref,
   type Row,
-} from "../../api";
-  fullName,
-  money,
-  date,
-  patientHref,
-  type Row,
   type User,
 } from "../../api";
 import {
@@ -30,11 +24,24 @@ import {
 import { Download } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { ProcedureCharts, CapacityChart } from "./ReportCharts";
-import type { Patient, PatientDirectoryPage } from "../../api/contracts";
+import type {
+  Patient,
+  PatientDirectoryPage,
+  WorkspaceList,
+} from "../../api/contracts";
+import { dateInTimeZone } from "../../date-time";
+
 export function Reports() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<unknown>(null);
-  const today = new Date().toISOString().slice(0, 10);
+
+  const workspaces = useQuery<WorkspaceList>({
+    queryKey: ["/workspaces", activeDepartment()],
+    queryFn: () => api("/workspaces"),
+  });
+
+  const timeZone = workspaces.data?.timeZone ?? "UTC";
+  const today = dateInTimeZone(new Date(), timeZone);
   const [from, setFrom] = useUrlState("from", today.slice(0, 8) + "01"),
     [to, setTo] = useUrlState("to", today),
     [patientId, setPatient] = useUrlState("patientId"),
@@ -138,6 +145,7 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
         ))}
       </div>
       <div className="report-filters">
+        <small className="muted">Calendar dates use {timeZone}.</small>
         {mode === "procedures" && (
           <>
             <label>
@@ -310,7 +318,7 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
                           <td>{fullName(v.patient)}</td>
                           <td>{v.procedure.procedureName}</td>
                           <td>{fullName(v.doctor)}</td>
-                          <td>{date(v.record.performedAt)}</td>
+                          <td>{date(v.record.performedAt, timeZone)}</td>
                           <td>{money(v.record.priceAtExecution)}</td>
                         </tr>
                       ))}

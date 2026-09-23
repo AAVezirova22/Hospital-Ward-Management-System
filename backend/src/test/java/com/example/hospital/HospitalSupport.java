@@ -73,6 +73,10 @@ abstract class HospitalSupport {
   }
 
   ResultActions request(String who, String method, String path, Object body) throws Exception {
+    return request(who, method, path, body, null);
+  }
+
+  ResultActions request(String who, String method, String path, Object body, Long departmentId) throws Exception {
     MockHttpServletRequestBuilder b =
         switch (method) {
           case "POST" -> post(path);
@@ -80,6 +84,7 @@ abstract class HospitalSupport {
           default -> get(path);
         };
     b.with(user(who)).with(csrf());
+    if (departmentId != null) b.header("X-Department-Id", departmentId);
     if (body != null)
       b.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body));
     return mvc.perform(b);

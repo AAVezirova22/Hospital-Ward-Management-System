@@ -113,6 +113,7 @@ export interface DashboardReport {
   activeDoctors: number;
   proceduresToday: number;
   scope: string;
+  timeZone: string;
 }
 export interface OperationalActivity {
   id: number;
@@ -138,6 +139,7 @@ export interface OperationsReport {
     criticalPercent: number;
   };
   scope: string;
+  timeZone: string;
   asOf: string;
 }
 export interface ArrivalPlan {
@@ -151,12 +153,14 @@ export interface ProcedureReport {
   byDoctor: Record<string, number>;
   from: string;
   to: string;
+  timeZone: string;
 }
 export interface WorkspaceDepartment {
   id: number;
   name: string;
   role: string;
   hasJoinCode: boolean;
+  timeZone: string;
 }
 export interface WorkspaceHospital {
   id: number;
@@ -167,5 +171,6 @@ export interface WorkspaceHospital {
 }
 export interface WorkspaceList {
   activeDepartmentId: number;
+  timeZone: string;
   hospitals: WorkspaceHospital[];
 }
