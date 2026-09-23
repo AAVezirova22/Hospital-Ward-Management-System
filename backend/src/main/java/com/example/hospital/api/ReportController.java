@@ -1,19 +1,30 @@
 package com.example.hospital.api;
 
+import com.example.hospital.service.AuditService;
 import com.example.hospital.service.ReportService;
+import com.example.hospital.service.DischargeReminderService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/reports")
 public class ReportController {
   private final ReportService reports;
+private final AuditService audit;
+private final DischargeReminderService reminders;
 
-  public ReportController(ReportService reports) {
-    this.reports = reports;
+public ReportController(
+    ReportService reports,
+    AuditService audit,
+    DischargeReminderService reminders) {
+  this.reports = reports;
+  this.audit = audit;
+  this.reminders = reminders;
+}
   }
 
   @GetMapping("/dashboard")
@@ -30,6 +41,12 @@ public class ReportController {
   @GetMapping("/capacity")
   public Object capacity() {
     return reports.capacity();
+  }
+
+  @GetMapping("/discharge-reminders")
+  @PreAuthorize("hasAnyRole('ADMIN', 'MEDICAL_STAFF', 'DOCTOR')")
+  public Object dischargeReminders() {
+    return reminders.recentOutcomes();
   }
 
   @GetMapping("/procedures")
@@ -67,6 +84,15 @@ public class ReportController {
               + r.get("priceAtExecution")
               + "\r\n");
     }
+    // Records who exported what scope; the exported rows themselves are never stored.
+    var filters = new java.util.LinkedHashMap<String, Object>();
+    filters.put("export", "procedures.csv");
+    filters.put("from", from);
+    filters.put("to", to);
+    filters.put("patientId", patientId);
+    filters.put("doctorId", doctorId);
+    filters.put("rows", ((List<?>) report.get("rows")).size());
+    audit.log("DATA_EXPORTED", "Report", null, "UI", filters);
     return ResponseEntity.ok()
         .header(
             "Content-Disposition",

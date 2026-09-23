@@ -6,7 +6,9 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 
 | Method | Path | Request / result |
 | --- | --- | --- |
-| GET | `/health` | Process health |
+| GET | `/health` | Readiness alias (kept for existing probes) |
+| GET | `/health/live` | Liveness: process is serving; no dependency checks |
+| GET | `/health/ready` | Readiness: database reachable and migrations applied; `503` when not ready |
 | GET | `/auth/csrf` | `{token, headerName}` |
 | POST | `/auth/login` | Form-encoded `username`, `password`; returns account without hash |
 | GET | `/auth/me` | Current account |
@@ -16,6 +18,9 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST / PUT | `/patients` / `/patients/{id}` | PatientInput |
 | GET / POST / PUT | `/doctors` / `/doctors/{id}` | DoctorInput; writes admin-only |
 | GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET supports `minFree` and repeated `requiredCapabilities` tags |
+| GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET supports `minFree` |
+| POST | `/rooms/{id}/holds` | `{bedCount, reason, startsAt, endsAt}`; admin/staff; timed maintenance reservation |
+| DELETE | `/rooms/{roomId}/holds/{holdId}` | Admin/staff; cancels a reservation and returns 204 |
 | GET / POST / PUT | `/procedures` / `/procedures/{id}` | ProcedureInput; catalogue |
 | GET | `/admissions` / `/admissions/{id}` | Scoped stays with patient/doctor/room/procedure details |
 | POST | `/admissions` | `{patientId, doctorId, roomId, requiredRoomCapabilities?}` |
@@ -41,18 +46,24 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 
 Room `capabilities` and admission `requiredRoomCapabilities` are arrays of up to 30 tags; each tag is trimmed, lowercased and limited to 64 characters. A room must support every requirement when an admission or transfer is saved. Requirements remain attached to an admission for future transfers. Room search filters on every requested tag; the assistant also returns excluded rooms with missing-tag or availability reasons. Removing a capability required by an active occupant returns `409 ROOM_CAPABILITY_IN_USE`.
+Room responses include `occupiedBeds`, `heldBeds`, `activeHeldBeds`, `availableBeds`, and current/upcoming `holds`. A hold uses a half-open `[startsAt, endsAt)` window. Upcoming holds reserve placement capacity immediately and release it automatically at `endsAt`; overlapping holds are checked against current occupancy and room capacity. `minFree`, admission, transfer, the planner, and reports all use the same reserved capacity.
 
 ## Reports
 
 | Path | Parameters | Result |
 | --- | --- | --- |
+| `/reports/dashboard` | None | Scoped active admissions, occupied/held/available department capacity, doctors, today's procedures |
 | `/reports/dashboard` | None | Scoped active admissions, department capacity, doctors, today's procedures |
+| `/reports/operations` | None | Operations metrics and an `overdueDischarges` worklist for active admissions scheduled before today; doctors see only their assigned admissions |
 | `/reports/census` | Optional `roomId`, `doctorId` | Currently hospitalized patients, scoped by role |
 | `/reports/capacity` | None | Room occupancy and availability |
+| `/reports/discharge-reminders` | None | Recent delivery outcomes for the active department; doctors only see admissions assigned to them |
 | `/reports/procedures` | Required ISO dates `from`, `to`; optional `patientId`, `doctorId` | Rows, exact decimal total, totals grouped by performing doctor |
-| `/reports/procedures.csv` | Same as procedure report | Download containing numeric record, admission and procedure IDs, timestamp and historical cost |
+| `/reports/procedures.csv` | Same as procedure report | Download containing numeric record, admission and procedure IDs, timestamp and historical cost. Each download writes a `DATA_EXPORTED` audit event with the export type, date range, patient/doctor filters, department, actor, time and row count; the exported rows are not stored |
 
 Report dates are inclusive and interpreted in UTC. Future or inverted invalid date input is validated where applicable; `from > to` is rejected. CSV values are numeric identifiers, ISO timestamps and decimals; user-entered text is omitted to avoid spreadsheet-formula injection.
+
+Discharge reminder outcomes include the expected date, reminder window, status, recipient count, attempt count, provider message ID and a safe error code. They omit recipient addresses and patient or admission identifiers. `ACCEPTED` means the email provider accepted the request; it does not confirm inbox delivery.
 
 ## Assistant
 
@@ -90,4 +101,24 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 409 | `ALREADY_ADMITTED` / `ADMISSION_CLOSED` | Invalid admission lifecycle transition |
 | 409 | `ACTION_EXPIRED` / `ACTION_CONSUMED` | Expired or previously resolved proposal |
 | 409 | `DATA_CONFLICT` | Uniqueness, optimistic lock or lock contention conflict |
+| 401 | `SESSION_EXPIRED` | The session passed its maximum lifetime; sign in again |
 | 429 | `AI_RATE_LIMIT` | Assistant quota or in-flight request limit |
+| 429 | `RATE_LIMITED` | Confirmation-email resend limit |
+| 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
+
+## Rate-limit headers
+
+Rate-limited endpoints (`POST /assistant/messages`, registration confirmation resends) return the remaining budget on every checked response:
+
+| Header | Meaning |
+| --- | --- |
+| `RateLimit-Limit` | Requests allowed in the current window |
+| `RateLimit-Remaining` | Requests left in the window after this one |
+| `RateLimit-Reset` | Seconds until the window resets |
+| `Retry-After` | On `429` only: seconds to wait before retrying |
+
+Clients should wait at least `Retry-After` seconds after a `429` and must not retry a rejected request sooner; the rejected request had no effect. An assistant request rejected because another one is still running returns `Retry-After: 1` without budget headers.
+
+## Session lifetime
+
+Sessions end after 30 minutes of inactivity and, regardless of activity, `SESSION_MAX_LIFETIME` after sign-in (default `12h`). The request that crosses the limit returns `401 SESSION_EXPIRED` and the session is invalidated; the client should fetch a new CSRF token and send the user to sign in again. Pending unsaved form input is not preserved by the server.

@@ -4,6 +4,8 @@ import com.example.hospital.security.DepartmentContext;
 import jakarta.annotation.PreDestroy;
 import java.util.Set;
 import java.util.concurrent.*;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -43,9 +45,14 @@ public class OperationsStream {
     group.remove(emitter);
     if (group.isEmpty()) clients.remove(departmentId, group);
   }
-  @PreDestroy public void close() {
+  /** Ends open streams as shutdown begins so graceful shutdown does not wait on idle clients. */
+  @EventListener(ContextClosedEvent.class)
+  public void shuttingDown() {
     clients.values().forEach(group -> group.forEach(SseEmitter::complete));
     clients.clear();
+  }
+  @PreDestroy public void close() {
+    shuttingDown();
     scheduler.shutdownNow();
   }
 }

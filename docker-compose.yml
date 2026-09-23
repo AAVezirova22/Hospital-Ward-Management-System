@@ -14,8 +14,10 @@ services:
       retries: 15
   backend:
     build: ./backend
+    # Longer than SHUTDOWN_GRACE_PERIOD so in-flight requests finish before SIGKILL.
+    stop_grace_period: 30s
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/api/v1/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/api/v1/health/ready"]
       interval: 10s
       timeout: 3s
       start_period: 30s
@@ -27,15 +29,25 @@ services:
       BOOTSTRAP_PASSWORD: ${BOOTSTRAP_PASSWORD:?Set BOOTSTRAP_PASSWORD}
       DEMO_SEED: ${DEMO_SEED:-true}
       DEMO_MODE: ${DEMO_MODE:-false}
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
+      DEMO_PUBLIC_LOGIN: ${DEMO_PUBLIC_LOGIN:-false}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:8088}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
       REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-true}
+      DISCHARGE_REMINDERS_ENABLED: ${DISCHARGE_REMINDERS_ENABLED:-false}
+      DISCHARGE_REMINDER_WINDOWS: ${DISCHARGE_REMINDER_WINDOWS:-7,3,1}
+      DISCHARGE_REMINDER_POLL_INTERVAL_MS: ${DISCHARGE_REMINDER_POLL_INTERVAL_MS:-300000}
+      DISCHARGE_REMINDER_RETRY_DELAY_MS: ${DISCHARGE_REMINDER_RETRY_DELAY_MS:-3600000}
+      DISCHARGE_REMINDER_SENDING_LEASE_MS: ${DISCHARGE_REMINDER_SENDING_LEASE_MS:-900000}
+      DISCHARGE_REMINDER_MAX_ATTEMPTS: ${DISCHARGE_REMINDER_MAX_ATTEMPTS:-5}
+      DISCHARGE_REMINDER_OUTCOMES_LIMIT: ${DISCHARGE_REMINDER_OUTCOMES_LIMIT:-50}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       AI_MODE: ${AI_MODE:-local}
       AI_URL: ${AI_URL:-}
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-}
+      SHUTDOWN_GRACE_PERIOD: ${SHUTDOWN_GRACE_PERIOD:-20s}
     depends_on:
       db:
         condition: service_healthy

@@ -4,6 +4,8 @@ import com.example.hospital.repository.AppUserRepository;
 import com.example.hospital.security.SessionStamps;
 import com.example.hospital.service.DemoService;
 import jakarta.servlet.http.*;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -21,18 +23,25 @@ public class DemoController {
   private final DemoService demo;
   private final AppUserRepository users;
   private final String demoToken;
+  private final String environment;
+  private final boolean publicLogin;
 
   public DemoController(
       DemoService demo,
       AppUserRepository users,
-      @Value("${app.demo-token:}") String demoToken) {
-    this.demo = demo;
-    this.users = users;
-    this.demoToken = demoToken;
+      @Value("${app.demo-token:}") String demoToken,
+@Value("${app.environment:development}") String environment,
+@Value("${app.demo-public-login}") boolean publicLogin) {
+  this.demo = demo;
+  this.users = users;
+  this.demoToken = demoToken;
+  this.environment = environment;
+  this.publicLogin = publicLogin;
+}
   }
 
   @GetMapping("/status")
-  public Object status() { return Map.of("enabled", demo.enabled()); }
+  public Object status() { return Map.of("enabled", demo.enabled(), "environment", environment); }
 
   public record DemoLogin(String role) {}
 
@@ -57,6 +66,7 @@ public class DemoController {
     SecurityContextHolder.setContext(context);
     if (user.getSessionStamp() == null || user.getSessionStamp().isBlank()) user.setSessionStamp(SessionStamps.next());
     request.getSession(true).setAttribute("credentialStamp", user.getSessionStamp());
+    com.example.hospital.security.SessionLifetime.markAuthenticated(request.getSession());
     request.getSession().setAttribute("accountId", user.getId());
     new HttpSessionSecurityContextRepository().saveContext(context, request, response);
     user.setLastLoginAt(Instant.now());
@@ -83,9 +93,22 @@ public class DemoController {
         throw new ApiException(403, "DEMO_TOKEN_REQUIRED", "Demo login requires a valid demonstration token.");
       return;
     }
-    String ip = request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
-    if (!(ip.equals("127.0.0.1") || ip.equals("::1") || ip.equals("https://example.net/id/garnet") || ip.startsWith("0:")))
-      throw new ApiException(403, "DEMO_TOKEN_REQUIRED", "Demo login is limited to loopback unless DEMO_TOKEN is set.");
+    if (publicLogin) return;
+    if (!isLoopbackAddress(request.getRemoteAddr()))
+      throw new ApiException(
+          403,
+          "DEMO_TOKEN_REQUIRED",
+          "Demo login is limited to loopback unless DEMO_TOKEN or DEMO_PUBLIC_LOGIN is set.");
+  }
+
+  private static boolean isLoopbackAddress(String address) {
+    if (address == null) return false;
+    if (!address.contains(":") && !address.matches("[0-9.]+")) return false;
+    try {
+      return InetAddress.getByName(address).isLoopbackAddress();
+    } catch (UnknownHostException ignored) {
+      return false;
+    }
   }
 
   private void requireSeedIdentities() {

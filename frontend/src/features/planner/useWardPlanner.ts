@@ -1,7 +1,19 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, fullName, activeDepartment, type User } from "../../api";
-import type { AdmissionView, RoomCapacity, ArrivalPlan } from "../../api/contracts";
+import {
+  api,
+  allPages,
+  fullName,
+  activeDepartment,
+  type User,
+} from "../../api";
+
+import type {
+  AdmissionView,
+  RoomCapacity,
+  ArrivalPlan,
+} from "../../api/contracts";
+
 import { missingCapabilities } from "../../room-capabilities";
 import {
   executableOrder,
@@ -14,12 +26,12 @@ export function useWardPlanner(user: User) {
   const client = useQueryClient();
   const roomsQuery = useQuery({
     queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => api<RoomCapacity[]>("/rooms"),
+    queryFn: () => allPages<RoomCapacity>("/rooms"),
     refetchInterval: 15000,
   });
   const admissionsQuery = useQuery({
-    queryKey: ["/admissions", activeDepartment()],
-    queryFn: () => api<AdmissionView[]>("/admissions"),
+    queryKey: ["/admissions?status=ACTIVE", activeDepartment()],
+    queryFn: () => allPages<AdmissionView>("/admissions?status=ACTIVE"),
     refetchInterval: 15000,
   });
   const rooms = roomsQuery.data ?? [],
@@ -52,7 +64,7 @@ export function useWardPlanner(user: User) {
   });
   const conflicts = projectRooms(rooms, plan).some(
     (r) =>
-      r.projectedBeds > r.bedCount ||
+      r.projectedBeds > r.bedCount - (r.heldBeds ?? 0) ||
       r.projectedBeds < 0 ||
       (!r.active && plan.some((p) => p.toRoomId === r.id)) ||
       plan.some(

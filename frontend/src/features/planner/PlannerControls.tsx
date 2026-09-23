@@ -15,6 +15,8 @@ export function PlannerControls({
   current,
   roomName,
   dischargeDate,
+  timeZone,
+  today,
   arrivals,
   simulation,
   onSelect,
@@ -37,6 +39,8 @@ export function PlannerControls({
   current?: AdmissionView;
   roomName: (id: number) => string;
   dischargeDate: string;
+  timeZone: string;
+  today: string;
   arrivals: number;
   simulation?: ArrivalPlan;
   onSelect: (id: number | undefined, discharge?: string) => void;
@@ -67,7 +71,7 @@ export function PlannerControls({
   return (
     <aside className="panel planner-controls">
       <h2>{canWrite ? "Plan a placement" : "Ward overview"}</h2>
-      <p>Capacity slots represent occupancy, not assigned bed numbers.</p>
+      <p>Held beds stay out of current and upcoming placement capacity.</p>
       {canWrite ? (
         <>
           <label>
@@ -109,9 +113,16 @@ export function PlannerControls({
               onChange={(e) => onDestination(e.target.value)}
             >
               <option value="">Choose a room</option>
-              {placeableRooms.map((r) => (
-                <option key={r.id} value={r.id} disabled={!r.active}>
-                  Room {r.roomNumber} · {r.availableBeds} free now
+                  {placeableRooms.map((r) => (
+                    <option
+                      key={r.id}
+                      value={r.id}
+                      disabled={!r.active || r.availableBeds <= 0}
+                    >
+                      Room {r.roomNumber} ·{" "}
+                      {r.active ? `${r.availableBeds} free now` : "Inactive"}
+                    </option>
+                  ))}
                 </option>
               ))}
             </select>
@@ -155,10 +166,10 @@ export function PlannerControls({
             <details>
               <summary>Plan discharge date</summary>
               <label>
-                Expected discharge (UTC)
+                Expected discharge ({timeZone})
                 <input
                   type="date"
-                  min={new Date().toISOString().slice(0, 10)}
+                  min={today}
                   value={dischargeDate}
                   onChange={(e) => onDischargeDate(e.target.value)}
                 />

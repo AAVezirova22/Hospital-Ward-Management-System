@@ -9,6 +9,10 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AuditService {
+  /** Published for every audit row so other features can react after the change commits. */
+  public record Recorded(
+      long departmentId, Long userId, String event, String entity, Long entityId, String source) {}
+
   private final AuditEventRepository events;
   private final Actor actor;
   private final org.springframework.context.ApplicationEventPublisher publisher;
@@ -42,6 +46,9 @@ public class AuditService {
     String json = payload.toString();
     e.setMetadata(json.length() > 500 ? json.substring(0, 500) : json);
     events.save(e);
+    publisher.publishEvent(
+        new Recorded(
+            e.getDepartmentId() == null ? -1L : e.getDepartmentId(), e.getUserId(), event, entity, id, source));
     publisher.publishEvent(new OperationsStream.Changed(com.example.hospital.security.DepartmentContext.id()));
   }
 }

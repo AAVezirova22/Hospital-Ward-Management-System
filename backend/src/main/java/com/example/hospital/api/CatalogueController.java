@@ -9,14 +9,21 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1")
 public class CatalogueController {
   private final CatalogueService catalogue;
+  private final com.example.hospital.service.BedHoldService bedHolds;
 
-  public CatalogueController(CatalogueService catalogue) {
+  public CatalogueController(
+      CatalogueService catalogue, com.example.hospital.service.BedHoldService bedHolds) {
     this.catalogue = catalogue;
+    this.bedHolds = bedHolds;
   }
 
   @GetMapping("/doctors")
-  public Object doctors() {
-    return catalogue.doctors().stream().map(Views::doctor).toList();
+  public Object doctors(
+      @RequestParam(defaultValue = "") String q,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size,
+      @RequestParam(required = false) Boolean active) {
+    return catalogue.doctorPage(q, page, size, active);
   }
 
   @PostMapping("/doctors")
@@ -33,8 +40,14 @@ public class CatalogueController {
   @GetMapping("/rooms")
   public Object rooms(
       @RequestParam(defaultValue = "0") int minFree,
-      @RequestParam(required = false) java.util.List<String> requiredCapabilities) {
-    return catalogue.rooms(minFree, requiredCapabilities);
+      @RequestParam(required = false) java.util.List<String> requiredCapabilities),
+      @RequestParam(defaultValue = "") String q,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size,
+      @RequestParam(required = false) Boolean active,
+      @RequestParam(defaultValue = "0") int minFree,
+      @RequestParam(required = false) Long roomId) {
+    return catalogue.roomPage(q, page, size, active, minFree, roomId, minFree, requiredCapabilities);
   }
 
   @PostMapping("/rooms")
@@ -48,9 +61,25 @@ public class CatalogueController {
     return Views.room(catalogue.saveRoom(id, in));
   }
 
+  @PostMapping("/rooms/{id}/holds")
+  @ResponseStatus(HttpStatus.CREATED)
+  public Object addBedHold(@PathVariable Long id, @Valid @RequestBody BedHoldInput in) {
+    return bedHolds.create(id, in);
+  }
+
+  @DeleteMapping("/rooms/{roomId}/holds/{holdId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void cancelBedHold(@PathVariable Long roomId, @PathVariable Long holdId) {
+    bedHolds.cancel(roomId, holdId);
+  }
+
   @GetMapping("/procedures")
-  public Object procedures() {
-    return catalogue.procedures().stream().map(Views::procedure).toList();
+  public Object procedures(
+      @RequestParam(defaultValue = "") String q,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size,
+      @RequestParam(required = false) Boolean active) {
+    return catalogue.procedurePage(q, page, size, active);
   }
 
   @PostMapping("/procedures")

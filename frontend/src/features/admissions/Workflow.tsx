@@ -6,7 +6,7 @@ import { api, fullName, money, date, type Row, type User } from "../../api";
 import {
   Link,
   useUser,
-  useData,
+  useAllPages,
   ErrorBox,
   Empty,
   Status,
@@ -29,9 +29,9 @@ export function Workflow({
 }) {
   const user = useUser(),
     client = useQueryClient();
-  const { data: doctors } = useData("/doctors"),
-    { data: rooms } = useData("/rooms"),
-    { data: procedures } = useData("/procedures");
+  const { data: doctors } = useAllPages<Row>("/doctors?active=true"),
+    { data: rooms } = useAllPages<Row>("/rooms?active=true&minFree=1"),
+    { data: procedures } = useAllPages<Row>("/procedures?active=true");
   const [values, setValues] = useState<Row>({
       doctorId: active?.doctor.id || user.doctorId || "",
       roomId: "",

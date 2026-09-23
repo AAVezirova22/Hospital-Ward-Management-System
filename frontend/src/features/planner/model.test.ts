@@ -13,6 +13,7 @@ const room = (
   bedCount = 2,
   active = true,
   capabilities: string[] = [],
+  heldBeds = 0,
 ) =>
   ({
     id,
@@ -21,8 +22,9 @@ const room = (
     bedCount,
     active,
     capabilities,
+    heldBeds,
     roomNumber: `Ward ${id}`,
-    availableBeds: bedCount - occupiedBeds,
+    availableBeds: bedCount - occupiedBeds - heldBeds,
   }) as RoomCapacity;
 const transfer = (id: number, fromRoomId: number, toRoomId: number) =>
   ({
@@ -126,5 +128,21 @@ describe("ward planning", () => {
         [oxygenTransfer, isolationTransfer],
       ),
     ).toEqual([oxygenTransfer, isolationTransfer]);
+  it("keeps held capacity unavailable during projections and transfers", () => {
+    const heldRoom = room(2, 0, 2, true, 1);
+    const view = {
+      admission: { id: 1, status: "ACTIVE" },
+      assignment: { roomId: 1 },
+    } as AdmissionView;
+    expect(validateTransfer(view, heldRoom, [room(1, 1), heldRoom], [])).toBeNull();
+    expect(
+      validateTransfer(view, heldRoom, [room(1, 1), heldRoom], [transfer(2, 1, 2)]),
+    ).toMatch(/capacity/);
+    expect(
+      executableOrder([room(1, 1), heldRoom], [transfer(1, 1, 2)]),
+    ).toEqual([transfer(1, 1, 2)]);
+    expect(
+      executableOrder([room(1, 1), room(2, 0, 2, true, 2)], [transfer(1, 1, 2)]),
+    ).toBeNull();
   });
 });

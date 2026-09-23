@@ -34,13 +34,15 @@ public class Errors {
 
   @ExceptionHandler(ApiException.class)
   ResponseEntity<?> api(ApiException e, HttpServletRequest r) {
-    return ResponseEntity.status(e.getStatus())
-        .body(body(e.getStatus(), e.code, e.getMessage(), r.getRequestURI()));
+    var response = ResponseEntity.status(e.getStatus());
+    e.headers().forEach((name, value) -> response.header(name, value));
+    return response.body(body(e.getStatus(), e.code, e.getMessage(), r.getRequestURI()));
   }
 
   @ExceptionHandler({
     MethodArgumentNotValidException.class,
     HttpMessageNotReadableException.class,
+    jakarta.validation.ConstraintViolationException.class,
     IllegalArgumentException.class,
     org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class
   })
@@ -103,6 +105,36 @@ public class Errors {
       message = "This patient already has an active admission.";
     }
     return ResponseEntity.status(409).body(body(409, code, message, r.getRequestURI()));
+  }
+
+  @ExceptionHandler({
+    QueryTimeoutException.class,
+    org.springframework.transaction.TransactionTimedOutException.class
+  })
+  ResponseEntity<?> timeout(Exception e, HttpServletRequest r) {
+    return ResponseEntity.status(503)
+        .header("Retry-After", "5")
+        .body(
+            body(
+                503,
+                "DATABASE_TIMEOUT",
+                "The request took too long and was cancelled without saving changes. Try again or narrow the request.",
+                r.getRequestURI()));
+  }
+
+  @ExceptionHandler({
+    DataAccessResourceFailureException.class,
+    org.springframework.transaction.CannotCreateTransactionException.class
+  })
+  ResponseEntity<?> unavailable(Exception e, HttpServletRequest r) {
+    return ResponseEntity.status(503)
+        .header("Retry-After", "5")
+        .body(
+            body(
+                503,
+                "DATABASE_UNAVAILABLE",
+                "The database is busy or unreachable. Try again shortly.",
+                r.getRequestURI()));
   }
 
   private static String detail(Throwable e) {

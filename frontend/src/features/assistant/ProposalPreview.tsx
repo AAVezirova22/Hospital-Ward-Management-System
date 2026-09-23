@@ -65,8 +65,8 @@ export function ProposalPreview({
       </div>
       {destination && typeof destination.occupiedBeds === "number" && (
         <p>
-          After transfer: {destination.occupiedBeds + 1} /{" "}
-          {destination.bedCount} occupied.
+          After transfer: {destination.occupiedBeds + 1} occupied ·{" "}
+          {destination.heldBeds} held of {destination.bedCount} beds.
         </p>
       )}
       {requiredRoomCapabilities.length > 0 && (

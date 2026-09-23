@@ -17,14 +17,17 @@ public class AiToolRegistry {
   private final AiActionService actions;
   private final Actor actor;
   private final WorkspaceService workspaces;
+  private final DepartmentTimeService departmentTime;
 
   public AiToolRegistry(
-      HospitalService h, ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces) {
+      HospitalService h, ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces,
+      DepartmentTimeService departmentTime) {
     this.h = h;
     this.reports = reports;
     actions = a;
     this.actor = actor;
     this.workspaces = workspaces;
+    this.departmentTime = departmentTime;
   }
 
   public record Response(
@@ -130,7 +133,7 @@ public class AiToolRegistry {
             || List.of("him", "her", "patient", "his", "her current summary")
                 .contains(q.toLowerCase()))
         && selected != null) return h.patient(selected);
-    var matches = h.patients(q == null ? "" : q);
+    var matches = h.patientMatches(q == null ? "" : q, 2);
     if (matches.size() != 1)
       throw new ApiException(
           400,
@@ -177,11 +180,21 @@ public class AiToolRegistry {
                   + " inside the open department unless you ask for listWorkspaces. I cannot make"
                   + " clinical decisions or change permissions.",
               Map.of());
-      case "searchPatients" ->
-          response(
-              "PATIENT_LIST",
-              "Matching patients within your access.",
-              Map.of("department", h.scopeLabel(), "patients", h.patients(a.getOrDefault("query", "")).stream().map(Views.PatientDirectory::of).toList()));
+      case "searchPatients" -> {
+        var page = h.patients(a.getOrDefault("query", ""), 0, 25);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("department", h.scopeLabel());
+        data.put("patients", page.getContent().stream().map(Views.PatientDirectory::of).toList());
+        data.put("totalElements", page.getTotalElements());
+        data.put("hasNext", page.hasNext());
+        data.put("nextPage", page.hasNext() ? page.getNumber() + 1 : null);
+        yield response(
+            "PATIENT_LIST",
+            page.hasNext()
+                ? "Showing the first 25 matches within your access. Narrow the query to see more."
+                : "Matching patients within your access.",
+            data);
+      }
       case "getPatientSummary" ->
           response(
               "PATIENT_SUMMARY",
@@ -247,6 +260,7 @@ public class AiToolRegistry {
       case "getAdmissions" -> {
         var from = dateArg(a.get("from"));
         var to = dateArg(a.get("to"));
+        var zone = departmentTime.zoneId();
         if (from.isAfter(to)) throw new IllegalArgumentException();
         yield response(
             "REPORT_RESULT",
@@ -257,21 +271,23 @@ public class AiToolRegistry {
                     .filter(
                         ad ->
                             !ad.getAdmissionDateTime().isBefore(
-                                    from.atStartOfDay().toInstant(ZoneOffset.UTC))
+                                    from.atStartOfDay(zone).toInstant())
                                 && ad.getAdmissionDateTime().isBefore(
-                                    to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)))
+                                    to.plusDays(1).atStartOfDay(zone).toInstant()))
                     .map(h::admissionView)
                     .toList()));
       }
-      case "getProcedureStatistics" ->
-          response(
-              "REPORT_RESULT",
-              "Procedure totals calculated from saved records.",
-              reports.procedures(
-                  dateArg(a.getOrDefault("from", LocalDate.now(ZoneOffset.UTC).toString())),
-                  dateArg(a.getOrDefault("to", LocalDate.now(ZoneOffset.UTC).toString())),
-                  null,
-                  null));
+      case "getProcedureStatistics" -> {
+        var today = departmentTime.today();
+        yield response(
+            "REPORT_RESULT",
+            "Procedure totals calculated from saved records.",
+            reports.procedures(
+                dateArg(a.getOrDefault("from", today.toString())),
+                dateArg(a.getOrDefault("to", today.toString())),
+                null,
+                null));
+      }
       case "getDashboardSummary" ->
           response("REPORT_RESULT", "Current department operations.", reports.dashboard());
       case "listWorkspaces" ->

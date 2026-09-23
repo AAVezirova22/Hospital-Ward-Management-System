@@ -7,7 +7,7 @@ import "../src/landing/phone-scene.css";
 export const metadata: Metadata = {
   title: { absolute: "Medcore | More presence. Less process." },
   description:
-    "One connected workspace for your ward, your team, and your workflows. Hospital operations with file-powered AI, iMessage, and human-confirmed changes.",
+    "One connected workspace for your ward, your team, and your workflows. Hospital operations with file-powered AI and human-confirmed changes.",
 };
 
 export default async function Home() {

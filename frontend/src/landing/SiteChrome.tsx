@@ -206,8 +206,8 @@ const tour = [
     alt: "Care professional at work",
   },
   {
-    title: "Stay connected with iMessage.",
-    text: "Reach Medcore from a conversation. Keep your workflow moving between the ward and your workspace, with a human in control of changes.",
+    title: "Review a workflow before it runs.",
+    text: "The assistant works inside your Medcore workspace. Explore an illustrative request, then prepare a real workflow, review its steps, and confirm any changes.",
     image: "/landing/stills/presence.webp",
     alt: "Two care professionals reviewing a tablet together",
   },

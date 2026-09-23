@@ -1,4 +1,11 @@
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: ${SHUTDOWN_GRACE_PERIOD:20s}
+  task:
+    scheduling:
+      shutdown:
+        await-termination: true
+        await-termination-period: 10s
   servlet:
     multipart:
       max-file-size: 5MB
@@ -7,6 +14,21 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:hospital}}
     username: ${DATABASE_USER:hospital}
     password: ${DATABASE_PASSWORD:}
+    hikari:
+      pool-name: hospital-db
+      # Per instance. Keep instances x maximum-pool-size below PostgreSQL max_connections minus
+      # reserved/admin connections; see docs/deployment.md.
+      maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+      minimum-idle: ${DATABASE_POOL_MIN_IDLE:2}
+      # Wait for a pooled connection before failing the request with DATABASE_UNAVAILABLE.
+      connection-timeout: ${DATABASE_POOL_TIMEOUT_MS:5000}
+      data-source-properties:
+        connectTimeout: ${DATABASE_CONNECT_TIMEOUT_SECONDS:10}
+        # Server-side cap on any single statement; exceeded statements fail with DATABASE_TIMEOUT.
+        options: -c statement_timeout=${DATABASE_STATEMENT_TIMEOUT_MS:15000}
+  transaction:
+    # Upper bound for the database work of one API request.
+    default-timeout: ${API_TRANSACTION_TIMEOUT:30s}
   jpa:
     open-in-view: false
     hibernate:
@@ -19,6 +41,9 @@ spring:
       accept-float-as-int: false
 server:
   port: ${PORT:8080}
+  # Finish in-flight requests on SIGTERM; work still running after the grace period is aborted
+  # and its open transaction rolls back when the connection closes.
+  shutdown: graceful
   servlet:
     session:
       timeout: 30m
@@ -29,8 +54,11 @@ server:
   error:
     include-message: never
 app:
+  # development | demo | staging | production. DEMO_MODE requires demo; production forbids demo flags.
+  environment: ${APP_ENVIRONMENT:development}
   demo: ${DEMO_MODE:false}
   demo-token: ${DEMO_TOKEN:}
+  demo-public-login: ${DEMO_PUBLIC_LOGIN:false}
   public-url: ${PUBLIC_APP_URL:}
   registration:
     enabled: ${REGISTRATION_ENABLED:true}
@@ -38,7 +66,25 @@ app:
   email:
     resend-key: ${RESEND_API_KEY:}
     from: ${EMAIL_FROM:}
+    outbox:
+      poll-interval-ms: ${EMAIL_OUTBOX_POLL_INTERVAL_MS:5000}
+      initial-delay-ms: ${EMAIL_OUTBOX_INITIAL_DELAY_MS:5000}
+      batch-size: ${EMAIL_OUTBOX_BATCH_SIZE:10}
+  discharge-reminders:
+    enabled: ${DISCHARGE_REMINDERS_ENABLED:false}
+    windows: ${DISCHARGE_REMINDER_WINDOWS:7,3,1}
+    poll-interval-ms: ${DISCHARGE_REMINDER_POLL_INTERVAL_MS:300000}
+    retry-delay-ms: ${DISCHARGE_REMINDER_RETRY_DELAY_MS:3600000}
+    sending-lease-ms: ${DISCHARGE_REMINDER_SENDING_LEASE_MS:900000}
+    max-attempts: ${DISCHARGE_REMINDER_MAX_ATTEMPTS:5}
+    outcomes-limit: ${DISCHARGE_REMINDER_OUTCOMES_LIMIT:50}
   seed: ${DEMO_SEED:true}
+  session:
+    # Hard limit from sign-in, independent of the idle timeout; users then sign in again.
+    max-lifetime: ${SESSION_MAX_LIFETIME:12h}
+  diagnostics:
+    # Log statements at or above this many milliseconds (redacted); 0 disables the log.
+    slow-query-ms: ${SLOW_QUERY_MS:500}
   bootstrap-password: ${BOOTSTRAP_PASSWORD:}
   ai:
     mode: ${AI_MODE:local}
@@ -48,6 +94,20 @@ app:
     timeout-seconds: 15
     rate-limit: 20
     action-ttl-seconds: 300
+    context-max-turns: ${AI_CONTEXT_MAX_TURNS:6}
+    context-max-chars: ${AI_CONTEXT_MAX_CHARS:40000}
+    context-ttl: ${AI_CONTEXT_TTL:30m}
+    context-cleanup-interval: ${AI_CONTEXT_CLEANUP_INTERVAL:1m}
+  security:
+    login-backoff:
+      max-entries: ${LOGIN_BACKOFF_MAX_ENTRIES:10000}
+      max-username-length: ${LOGIN_BACKOFF_MAX_USERNAME_LENGTH:64}
+      first-lock-threshold: ${LOGIN_BACKOFF_FIRST_LOCK_THRESHOLD:5}
+      first-lock-duration: ${LOGIN_BACKOFF_FIRST_LOCK_DURATION:30s}
+      extended-lock-threshold: ${LOGIN_BACKOFF_EXTENDED_LOCK_THRESHOLD:8}
+      extended-lock-duration: ${LOGIN_BACKOFF_EXTENDED_LOCK_DURATION:5m}
+      idle-ttl: ${LOGIN_BACKOFF_IDLE_TTL:24h}
+      cleanup-interval: ${LOGIN_BACKOFF_CLEANUP_INTERVAL:1m}
 
 logging:
   level:

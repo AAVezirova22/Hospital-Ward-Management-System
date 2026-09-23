@@ -12,7 +12,19 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-@SpringBootTest(properties={"app.demo=true","app.seed=true","app.bootstrap-password=IntegrationPassword123!","server.servlet.session.cookie.secure=false", "spring.flyway.default-schema=demo_verification", "spring.jpa.properties.hibernate.default_schema=demo_verification", "spring.datasource.hikari.connection-init-sql=SET search_path TO demo_verification"})
+@SpringBootTest(
+    properties = {
+      "app.demo=true",
+      "app.environment=demo",
+      "app.demo-token=",
+      "app.demo-public-login=true",
+      "app.seed=true",
+      "app.bootstrap-password=IntegrationPassword123!",
+      "server.servlet.session.cookie.secure=false",
+      "spring.flyway.default-schema=demo_verification",
+      "spring.jpa.properties.hibernate.default_schema=demo_verification",
+      "spring.datasource.hikari.connection-init-sql=SET search_path TO demo_verification"
+    })
 @AutoConfigureMockMvc
 class DemoOperationsIntegrationTest {
  @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalSupport.database(r);}
@@ -28,8 +40,15 @@ class DemoOperationsIntegrationTest {
   result.getRequest().getAsyncContext().complete();
  }
  @Test void demoLoginIsCsrfProtectedAndPreservesRequestedRole() throws Exception {
-  mvc.perform(post("/api/v1/demo/login").contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ADMIN\"}")).andExpect(status().isForbidden());
-  var result=mvc.perform(post("/api/v1/demo/login").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"DOCTOR\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.role").value("DOCTOR")).andReturn();
+  org.springframework.test.web.servlet.request.RequestPostProcessor throughProxy = request -> {
+   request.setRemoteAddr("198.51.100.17");
+   request.addHeader("X-Forwarded-For", "127.0.0.1");
+   return request;
+  };
+  mvc.perform(post("/api/v1/demo/login").with(throughProxy).contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ADMIN\"}"))
+   .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+  var result=mvc.perform(post("/api/v1/demo/login").with(throughProxy).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"DOCTOR\"}"))
+   .andExpect(status().isOk()).andExpect(jsonPath("$.role").value("DOCTOR")).andReturn();
   var session=(org.springframework.mock.web.MockHttpSession)result.getRequest().getSession(false);
   mvc.perform(get("/api/v1/auth/me").session(session)).andExpect(status().isOk()).andExpect(jsonPath("$.role").value("DOCTOR"));
   mvc.perform(get("/api/v1/users").session(session)).andExpect(status().isForbidden());
@@ -47,7 +66,7 @@ class DemoOperationsIntegrationTest {
   mvc.perform(post("/api/v1/demo/reset").with(user("admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"confirmation\":\"reset\"}")).andExpect(status().isBadRequest());
   mvc.perform(post("/api/v1/workspaces/hospitals").with(user("admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Transient Clinic\",\"departmentName\":\"Overflow\"}")).andExpect(status().isCreated());
   mvc.perform(post("/api/v1/demo/reset").with(user("admin")).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"confirmation\":\"RESET DEMO\"}")).andExpect(status().isOk());
-  mvc.perform(get("/api/v1/patients").with(user("admin"))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(28));
+  mvc.perform(get("/api/v1/patients").with(user("admin"))).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(20)).andExpect(jsonPath("$.totalElements").value(28)).andExpect(jsonPath("$.hasNext").value(true));
   mvc.perform(get("/api/v1/reports/dashboard").with(user("admin"))).andExpect(status().isOk()).andExpect(jsonPath("$.activeAdmissions").value(14));
   var workspaces=json.readTree(mvc.perform(get("/api/v1/workspaces").with(user("admin"))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
   assertThat(workspaces.get("hospitals")).hasSize(1);

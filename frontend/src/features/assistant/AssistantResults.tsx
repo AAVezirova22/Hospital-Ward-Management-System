@@ -25,6 +25,9 @@ export function AiReport({ data: d }: { data: Row }) {
           <strong>{d.availableBeds}</strong>Available beds
         </span>
         <span>
+          <strong>{d.heldBeds ?? 0}</strong>Beds held for maintenance
+        </span>
+        <span>
           <strong>{d.proceduresToday}</strong>Procedures today
         </span>
       </div>

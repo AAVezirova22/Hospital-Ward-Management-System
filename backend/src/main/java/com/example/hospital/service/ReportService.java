@@ -6,7 +6,6 @@ import com.example.hospital.security.DepartmentContext;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,11 +18,14 @@ public class ReportService {
   private final HospitalService hospital;
   private final Actor actor;
   private final JdbcTemplate jdbc;
+  private final DepartmentTimeService departmentTime;
 
-  public ReportService(HospitalService hospital, Actor actor, JdbcTemplate jdbc) {
+  public ReportService(HospitalService hospital, Actor actor, JdbcTemplate jdbc,
+      DepartmentTimeService departmentTime) {
     this.hospital = hospital;
     this.actor = actor;
     this.jdbc = jdbc;
+    this.departmentTime = departmentTime;
   }
 
   public Map<String, Object> dashboard() {
@@ -45,29 +47,19 @@ public class ReportService {
             "select count(*) from room_assignments ra join rooms r on r.id=ra.room_id where r.department_id=? and ra.released_at is null",
             Long.class,
             departmentId);
-    Long totalBeds =
-        jdbc.queryForObject(
-            "select coalesce(sum(bed_count),0) from rooms where department_id=? and active=true",
-            Long.class,
-            departmentId);
-    Long availableBeds =
-        jdbc.queryForObject(
-            """
-            select coalesce(sum(r.bed_count),0) - (
-              select count(*) from room_assignments ra join rooms x on x.id=ra.room_id
-              where x.department_id=? and ra.released_at is null and x.active=true)
-            from rooms r where r.department_id=? and r.active=true
-            """,
-            Long.class,
-            departmentId,
-            departmentId);
+    var rooms = hospital.rooms(0).stream().filter(r -> Boolean.TRUE.equals(r.get("active"))).toList();
+    long totalBeds = rooms.stream().mapToLong(r -> ((Number) r.get("bedCount")).longValue()).sum();
+    long heldBeds = rooms.stream().mapToLong(r -> ((Number) r.get("heldBeds")).longValue()).sum();
+    long availableBeds = rooms.stream().mapToLong(r -> ((Number) r.get("availableBeds")).longValue()).sum();
     Long activeDoctors =
         jdbc.queryForObject(
             "select count(*) from doctors where department_id=? and active=true",
             Long.class,
             departmentId);
-    var start = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
-    var end = LocalDate.now(ZoneOffset.UTC).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+    var zone = departmentTime.zoneId();
+    var today = LocalDate.now(zone);
+    var start = today.atStartOfDay(zone).toInstant();
+    var end = today.plusDays(1).atStartOfDay(zone).toInstant();
     Long proceduresToday =
         doctorId == null
             ? jdbc.queryForObject(
@@ -89,15 +81,19 @@ public class ReportService {
         "occupiedBeds",
         occupiedBeds == null ? 0 : occupiedBeds,
         "totalBeds",
-        totalBeds == null ? 0 : totalBeds,
+        totalBeds,
+        "heldBeds",
+        heldBeds,
         "availableBeds",
-        availableBeds == null ? 0 : availableBeds,
+        availableBeds,
         "activeDoctors",
         activeDoctors == null ? 0 : activeDoctors,
         "proceduresToday",
         proceduresToday == null ? 0 : proceduresToday,
         "scope",
-        actor.doctor() ? "Your assigned admissions; department bed capacity" : "Department");
+        actor.doctor() ? "Your assigned admissions; department bed capacity" : "Department",
+        "timeZone",
+        zone.getId());
   }
 
   public List<Map<String, Object>> census(Long roomId, Long doctorId) {
@@ -130,8 +126,9 @@ public class ReportService {
       throw new ApiException(400, "INVALID_PERIOD", "Start date must be before end date.");
     if (patientId != null) hospital.accessible(patientId);
     long departmentId = DepartmentContext.id();
-    var start = Timestamp.from(from.atStartOfDay().toInstant(ZoneOffset.UTC));
-    var end = Timestamp.from(to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC));
+    var zone = departmentTime.zoneId();
+    var start = Timestamp.from(from.atStartOfDay(zone).toInstant());
+    var end = Timestamp.from(to.plusDays(1).atStartOfDay(zone).toInstant());
     var sql = new StringBuilder(
         """
         select pp.id rec_id, pp.admission_id, pp.medical_procedure_id, pp.performed_by_doctor_id,
@@ -225,6 +222,7 @@ public class ReportService {
     report.put("byDoctor", grouped);
     report.put("from", from);
     report.put("to", to);
+    report.put("timeZone", zone.getId());
     return report;
   }
 
