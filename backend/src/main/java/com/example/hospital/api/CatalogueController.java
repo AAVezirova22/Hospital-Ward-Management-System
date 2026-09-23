@@ -9,9 +9,12 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1")
 public class CatalogueController {
   private final CatalogueService catalogue;
+  private final com.example.hospital.service.BedHoldService bedHolds;
 
-  public CatalogueController(CatalogueService catalogue) {
+  public CatalogueController(
+      CatalogueService catalogue, com.example.hospital.service.BedHoldService bedHolds) {
     this.catalogue = catalogue;
+    this.bedHolds = bedHolds;
   }
 
   @GetMapping("/doctors")
@@ -44,6 +47,18 @@ public class CatalogueController {
   @PutMapping("/rooms/{id}")
   public Object editRoom(@PathVariable Long id, @Valid @RequestBody RoomInput in) {
     return Views.room(catalogue.saveRoom(id, in));
+  }
+
+  @PostMapping("/rooms/{id}/holds")
+  @ResponseStatus(HttpStatus.CREATED)
+  public Object addBedHold(@PathVariable Long id, @Valid @RequestBody BedHoldInput in) {
+    return bedHolds.create(id, in);
+  }
+
+  @DeleteMapping("/rooms/{roomId}/holds/{holdId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void cancelBedHold(@PathVariable Long roomId, @PathVariable Long holdId) {
+    bedHolds.cancel(roomId, holdId);
   }
 
   @GetMapping("/procedures")
