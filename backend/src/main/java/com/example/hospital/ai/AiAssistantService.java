@@ -14,6 +14,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.example.hospital.security.DepartmentContext;
 
 @Service
@@ -27,13 +28,14 @@ public class AiAssistantService {
   private final AuditService audit;
   private final RateLimitService rates;
   private final int limit;
+  @Value("${app.ai.context-max-turns:6}") private int contextMaxTurns = 6;
+  @Value("${app.ai.context-max-chars:40000}") private int contextMaxChars = 40000;
+  @Value("${app.ai.context-ttl:30m}") private Duration contextTtl = Duration.ofMinutes(30);
   @Autowired private AiSourceService sources;
   @Autowired private ObjectMapper json;
-  private record Conversation(long departmentId, Instant expiresAt, List<Map<String, Object>> turns) {}
   private static final class Window {
     private boolean busy;
   }
-  private final ConcurrentHashMap<String, Conversation> conversations = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Long, Window> windows = new ConcurrentHashMap<>();
 
 
@@ -77,9 +79,10 @@ public class AiAssistantService {
 
   public void clear(String key) {
     var s = session(key);
-    conversations.remove(key);
     s.setSelectedPatientId(null);
-    sessions.save(s); /* Only metadata is persisted; no conversation text to erase. */
+    s.setConversationContext(null);
+    s.setConversationExpiresAt(null);
+    sessions.save(s);
   }
 
   public AiToolRegistry.Response message(MessageInput in) {
@@ -115,13 +118,13 @@ public class AiAssistantService {
       if (in.selectedPatientId() != null) {
         h.patient(in.selectedPatientId());
         s.setSelectedPatientId(in.selectedPatientId());
-        sessions.save(s);
+        s = sessions.save(s);
       } else if (in.route() != null && in.route().startsWith("/app/patients/")) {
         String ref = in.route().substring("/app/patients/".length()).split("[?#]")[0];
         if (!ref.isBlank()) {
           try {
             s.setSelectedPatientId(h.patientByRef(java.net.URLDecoder.decode(ref, java.nio.charset.StandardCharsets.UTF_8)).getId());
-            sessions.save(s);
+            s = sessions.save(s);
           } catch (RuntimeException ignored) {
             // Route may be the directory itself.
           }
@@ -137,10 +140,9 @@ public class AiAssistantService {
             "File-based workflow planning requires a configured external AI model. Local command mode only understands the documented commands.",
             Map.of(), null, null);
       } else {
-        conversations.values().removeIf(c -> !c.expiresAt().isAfter(Instant.now()));
-        var previous = conversations.get(s.getSessionKey());
+        var previous = loadConversation(s);
         List<Map<String, Object>> observations = new ArrayList<>();
-        if (previous != null && previous.departmentId() == DepartmentContext.id()) observations.addAll(previous.turns());
+        observations.addAll(previous);
         result = null;
         for (int step = 0; step < 8; step++) {
           var context = new AiModelClient.Context(u.getRole(),
@@ -171,12 +173,7 @@ public class AiAssistantService {
               "The task needs more steps. Narrow the request into smaller workflows.", Map.of(), null, null);
         }
         if (!local && result != null && !result.responseType().equals("FILE_REQUEST")) {
-          List<Map<String, Object>> turns = new ArrayList<>();
-          if (previous != null && previous.departmentId() == DepartmentContext.id()) turns.addAll(previous.turns());
-          turns.add(Map.of("previousUserRequest", in.message(), "assistantResponse", result.message()));
-          while (turns.size() > 6) turns.removeFirst();
-          if (conversations.size() < 1000 || conversations.containsKey(s.getSessionKey()))
-            conversations.put(s.getSessionKey(), new Conversation(DepartmentContext.id(), Instant.now().plusSeconds(1800), turns));
+          rememberConversation(s, previous, in.message(), result.message());
         }
       }
       interaction.setStatus(Set.of("CONFIRMATION_CARD", "WORKFLOW_PROPOSAL").contains(result.responseType()) ? "CONFIRMATION_REQUIRED" : "SUCCESS");
@@ -207,6 +204,58 @@ public class AiAssistantService {
       synchronized (window) {
         window.busy = false;
       }
+    }
+  }
+
+  private List<Map<String, Object>> loadConversation(AiSession session) {
+    String stored = session.getConversationContext();
+    Instant expiresAt = session.getConversationExpiresAt();
+    if (stored == null
+        || stored.length() > contextMaxChars
+        || expiresAt == null
+        || !expiresAt.isAfter(Instant.now())
+        || !Objects.equals(session.getDepartmentId(), DepartmentContext.id())) return List.of();
+    try {
+      List<Map<String, Object>> decoded =
+          json.readValue(stored, new TypeReference<List<Map<String, Object>>>() {});
+      List<Map<String, Object>> turns = new ArrayList<>();
+      for (Map<String, Object> turn : decoded) {
+        if (turn == null) continue;
+        Object request = turn.get("previousUserRequest");
+        Object response = turn.get("assistantResponse");
+        if (request instanceof String userText
+            && userText.length() <= 2000
+            && response instanceof String assistantText
+            && assistantText.length() <= 4000)
+          turns.add(Map.of("previousUserRequest", userText, "assistantResponse", assistantText));
+      }
+      while (turns.size() > contextMaxTurns) turns.removeFirst();
+      return turns;
+    } catch (Exception exception) {
+      return List.of();
+    }
+  }
+
+  private void rememberConversation(
+      AiSession session,
+      List<Map<String, Object>> previous,
+      String request,
+      String response) {
+    List<Map<String, Object>> turns = new ArrayList<>(previous);
+    turns.add(Map.of("previousUserRequest", request, "assistantResponse", response));
+    while (turns.size() > contextMaxTurns) turns.removeFirst();
+    try {
+      String stored = json.writeValueAsString(turns);
+      while (stored.length() > contextMaxChars && turns.size() > 1) {
+        turns.removeFirst();
+        stored = json.writeValueAsString(turns);
+      }
+      if (stored.length() > contextMaxChars) return;
+      session.setConversationContext(stored);
+      session.setConversationExpiresAt(Instant.now().plus(contextTtl));
+      sessions.save(session);
+    } catch (Exception exception) {
+      throw new IllegalStateException("Unable to store assistant conversation context.", exception);
     }
   }
 }

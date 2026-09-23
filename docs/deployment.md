@@ -5,7 +5,7 @@ The repository includes a Render Blueprint in `render.yaml`. It declares managed
 
 The paid database avoids Free Postgres's 30-day expiration and keeps its data across web-service deploys and restarts while the database resource exists. Deleting or replacing the database can remove data. Render's point-in-time recovery window is 3 days on Hobby and 7 days on Pro or higher; logical backup exports are retained for 7 days. Download backups elsewhere for longer retention and back up before changing database configuration ([Render Postgres backups](https://render.com/docs/postgresql-backups), [Free plan limits](https://render.com/docs/free)).
 
-The paid web services do not spin down after 15 minutes of inactivity, unlike Free web services. Deploys and platform maintenance can still restart them, so this avoids free-tier idle cold starts without promising uninterrupted availability. The Blueprint does not attach persistent disks to the web services, so their filesystems are ephemeral; durable operational records belong in Postgres. Assistant upload content and raw conversations are not persisted.
+The paid web services do not spin down after 15 minutes of inactivity, unlike Free web services. Deploys and platform maintenance can still restart them, so this avoids free-tier idle cold starts without promising uninterrupted availability. The Blueprint does not attach persistent disks to the web services, so their filesystems are ephemeral; durable operational records belong in Postgres. Assistant uploads and extracted source text are not persisted. The database keeps only the bounded, expiring assistant context described below.
 
 ## Configure a new deployment
 
@@ -15,6 +15,14 @@ The paid web services do not spin down after 15 minutes of inactivity, unlike Fr
 4. The Blueprint wires PostgreSQL host, port, database, user and password from the database resource. `DATABASE_URL`, when present, takes precedence and must be a JDBC PostgreSQL URL. Remove old H2 `/tmp` overrides before switching an existing service.
 5. Keep `COOKIE_SECURE=true` behind HTTPS. The frontend proxies same-origin `/api` requests; no browser CORS exception is needed.
 6. Confirm `/api/v1/health` returns `UP`, then enter the administrator demo. Verify patient count, active admissions, room capacity, procedure reports and planner simulation before presenting.
+
+## Assistant context retention
+
+When an external AI model is configured, PostgreSQL stores up to six recent user/assistant text pairs per assistant session, with a 40,000-character cap and a rolling 30-minute expiry. The `ai_sessions` row scopes that context to its owner and department; clearing the session removes it, and a scheduled cleanup scrubs expired text. These pairs can contain patient information, so restrict database and backup access accordingly. Uploaded files, extracted source text and raw tool results remain in process memory or are discarded after the request.
+
+## Multiple backend instances
+
+All API instances must use the same PostgreSQL database. Assistant conversation context and rate-limit windows are shared there, but Spring Security's servlet session, uploaded source text, the one-in-flight assistant guard and login-failure backoff remain in each instance's memory. Configure load-balancer affinity by the `JSESSIONID` cookie and preserve that cookie through the frontend `/api` proxy so a browser keeps its login, CSRF state and uploaded sources on one API instance. The servlet session expires after 30 minutes of inactivity; affinity must cover the active session. A backend restart or failover loses the login, in-flight guard and uploaded sources, while the persisted recent conversation context remains available. The one-in-flight guard is per instance, so separate sessions for the same account can still make simultaneous requests on different instances. Run one API instance if the deployment cannot preserve cookie affinity or needs a global in-flight limit.
 
 ## Public demo entry
 
