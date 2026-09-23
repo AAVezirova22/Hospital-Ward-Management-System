@@ -1,13 +1,21 @@
 package com.example.hospital;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 class CataloguePaginationIntegrationTest extends HospitalSupport {
   @Autowired JdbcTemplate jdbc;
@@ -139,6 +147,55 @@ class CataloguePaginationIntegrationTest extends HospitalSupport {
     assertThat(result.get("items").size()).isEqualTo(1);
   }
 
+  @Test
+  void catalogueSearchAndCountsStayInsideTheSelectedDepartment() throws Exception {
+    long homeDepartment =
+        result(request("admin", "GET", "/api/v1/workspaces", null), 200)
+            .get("activeDepartmentId")
+            .asLong();
+    JsonNode newDepartment =
+        result(
+            request(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "Catalogue Isolation " + unique(), "departmentName", "Imaging")),
+            201);
+    long otherDepartment = newDepartment.get("departmentId").asLong();
+    String marker = "dept-" + unique();
+    for (String catalogue : List.of("doctors", "rooms", "procedures")) {
+      JsonNode home = createScopedCatalogue(catalogue, marker, "home", homeDepartment);
+      JsonNode away = createScopedCatalogue(catalogue, marker, "away", otherDepartment);
+      assertOnlyCatalogueItem(homeDepartment, marker, catalogue, home);
+      assertOnlyCatalogueItem(otherDepartment, marker, catalogue, away);
+    }
+  }
+
+  private JsonNode createScopedCatalogue(
+      String catalogue, String marker, String suffix, long department) throws Exception {
+    String identifier = marker + "-" + catalogue + "-" + suffix;
+    Object input =
+        switch (catalogue) {
+          case "doctors" ->
+              Map.of(
+                  "doctorIdentifier", identifier,
+                  "firstName", suffix,
+                  "lastName", marker,
+                  "specialty", marker,
+                  "active", true);
+          case "rooms" -> Map.of("roomNumber", identifier, "bedCount", 2, "active", true);
+          case "procedures" ->
+              Map.of(
+                  "procedureCode", identifier,
+                  "procedureName", suffix + " " + marker,
+                  "currentCost", 10,
+                  "active", true);
+          default -> throw new IllegalArgumentException("Unsupported catalogue");
+        };
+    return result(
+        scopedRequest("admin", "POST", "/api/v1/" + catalogue, input, department), 201);
+  }
+
   private JsonNode createDoctor(String marker, String firstName, String lastName, boolean active)
       throws Exception {
     return result(
@@ -177,6 +234,28 @@ class CataloguePaginationIntegrationTest extends HospitalSupport {
             "/api/v1/rooms",
             Map.of("roomNumber", roomNumber, "bedCount", beds, "active", active)),
         201);
+  }
+
+  private void assertOnlyCatalogueItem(
+      long department, String marker, String catalogue, JsonNode expected) throws Exception {
+    JsonNode page =
+        result(
+            scopedRequest(
+                "admin", "GET", "/api/v1/" + catalogue + "?q=" + marker, null, department),
+            200);
+    assertThat(page.get("totalElements").asLong()).isEqualTo(1);
+    assertThat(page.get("items").get(0).get("id").asLong())
+        .isEqualTo(expected.get("id").asLong());
+  }
+
+  private ResultActions scopedRequest(
+      String who, String method, String path, Object body, long department) throws Exception {
+    MockHttpServletRequestBuilder request =
+        "POST".equals(method) ? post(path) : get(path);
+    request.with(user(who)).with(csrf()).header("X-Department-Id", department);
+    if (body != null)
+      request.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body));
+    return mvc.perform(request);
   }
 
   private void occupyRoom(JsonNode room) throws Exception {
