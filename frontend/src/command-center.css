@@ -24,6 +24,18 @@
   margin-left: auto;
   font-size: 10px;
 }
+.ward-patient.restricted {
+  border: 1px solid var(--line);
+  background: var(--accent-soft);
+  color: var(--muted);
+}
+.ward-patient.restricted > span {
+  display: grid;
+  gap: 4px;
+}
+.ward-patient.restricted small {
+  margin-left: 0;
+}
 .ward-patient.vacant {
   background: transparent;
   border: 1px dashed var(--line);

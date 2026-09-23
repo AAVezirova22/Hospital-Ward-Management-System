@@ -849,6 +849,10 @@ kbd {
 .room-card-top {
   color: var(--muted);
 }
+.room-card-top > div {
+  display: flex;
+  gap: 10px;
+}
 .room-card-top b {
   color: var(--text);
   font-size: 16px;
@@ -865,6 +869,47 @@ kbd {
   background: var(--accent-soft);
   color: var(--mint);
   border-color: color-mix(in srgb, var(--mint) 30%, transparent);
+}
+.beds .held {
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+  color: var(--gold);
+  border-color: color-mix(in srgb, var(--gold) 38%, transparent);
+}
+.room-holds {
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.room-holds summary {
+  cursor: pointer;
+}
+.room-holds p {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 0;
+}
+.room-holds small,
+.room-hold-list small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.room-hold-list {
+  margin-top: 24px;
+}
+.room-hold-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.room-hold-list article > div {
+  display: grid;
+  gap: 5px;
 }
 .available {
   color: var(--mint);

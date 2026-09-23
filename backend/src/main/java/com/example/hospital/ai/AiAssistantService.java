@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.example.hospital.security.DepartmentContext;
+import com.example.hospital.service.DepartmentTimeService;
 
 @Service
 public class AiAssistantService {
@@ -33,6 +34,8 @@ public class AiAssistantService {
   @Value("${app.ai.context-ttl:30m}") private Duration contextTtl = Duration.ofMinutes(30);
   @Autowired private AiSourceService sources;
   @Autowired private ObjectMapper json;
+  @Autowired private DepartmentTimeService departmentTime;
+  private record Conversation(long departmentId, Instant expiresAt, List<Map<String, Object>> turns) {}
   private static final class Window {
     private boolean busy;
   }
@@ -147,7 +150,8 @@ public class AiAssistantService {
         for (int step = 0; step < 8; step++) {
           var context = new AiModelClient.Context(u.getRole(),
               in.route() == null ? "/app/dashboard" : in.route(), s.getSelectedPatientId(),
-              local ? tools.definitions() : tools.agentDefinitions(), sourceData, connected, observations);
+              local ? tools.definitions() : tools.agentDefinitions(), sourceData, connected, observations,
+              departmentTime == null ? "UTC" : departmentTime.timeZone());
           var call = model.complete(in.message(), context);
           interaction.setToolNames(call.name());
           if (call.name().equals("readConnectedFiles")) {

@@ -1,14 +1,23 @@
 "use client";
 import { RefreshCw, CheckCircle2 } from "../../icons";
-import { api, type User } from "../../api";
+import { activeDepartment, api, type User } from "../../api";
 import { WardMap } from "./WardMap";
 import { PlanReview } from "./PlanReview";
 import { PlannerControls } from "./PlannerControls";
 import { executableOrder } from "./model";
 import { LoadingState } from "../../components/LoadingState";
 import { useWardPlanner } from "./useWardPlanner";
+import { useQuery } from "@tanstack/react-query";
+import type { WorkspaceList } from "../../api/contracts";
+import { dateInTimeZone } from "../../date-time";
 
 export function WardPlanner({ user }: { user: User }) {
+  const workspaces = useQuery<WorkspaceList>({
+    queryKey: ["/workspaces", activeDepartment()],
+    queryFn: () => api("/workspaces"),
+  });
+  const timeZone = workspaces.data?.timeZone ?? "UTC";
+  const today = dateInTimeZone(new Date(), timeZone);
   const {
     client,
     roomsQuery,
@@ -142,6 +151,8 @@ export function WardPlanner({ user }: { user: User }) {
           current={current}
           roomName={roomName}
           dischargeDate={dischargeDate}
+          timeZone={timeZone}
+          today={today}
           arrivals={arrivals}
           simulation={simulation}
           onSelect={(id, discharge) => {

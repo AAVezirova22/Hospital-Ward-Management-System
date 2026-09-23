@@ -1,30 +1,44 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
+import React, { useState } from "react";
+import { fullName, patientHref, type Row } from "../../api";
 import {
   Link,
   useUser,
   useData,
   ErrorBox,
   Empty,
-  Status,
-  Modal,
   Title,
 } from "../../components/workspace";
+import type { PatientDirectoryItem, PatientDirectoryPage } from "../../api/contracts";
 import { Plus, Search, ArrowUpRight } from "../../icons";
 import { EntityForm } from "../administration/EntityForm";
 import { DataTable } from "../../components/data-table/DataTable";
 import { useUrlState } from "../../components/useUrlState";
 import { LoadingState } from "../../components/LoadingState";
 export function Patients() {
-  const user = useUser();
-  const [search, setSearch] = useUrlState("q");
-  const [edit, setEdit] = useState<Row | null>(null);
-  const { data, error, isLoading } = useData(
-    "/patients?q=" + encodeURIComponent(search),
-  );
+const user = useUser();
+const [search, setSearch] = useUrlState("q");
+const [activeAdmission, setActiveAdmission] = useUrlState("activeAdmission");
+const [doctorId, setDoctor] = useUrlState("doctorId");
+const [roomId, setRoom] = useUrlState("roomId");
+const [pageSelection, setPageSelection] = useState({ search: "", page: 0 });
+const page = pageSelection.search === search ? pageSelection.page : 0;
+const [edit, setEdit] = useState<Row | null>(null);
+
+const params = new URLSearchParams();
+if (search) params.set("q", search);
+if (activeAdmission) params.set("activeAdmission", activeAdmission);
+if (doctorId) params.set("doctorId", doctorId);
+if (roomId) params.set("roomId", roomId);
+params.set("page", String(page));
+params.set("size", "20");
+
+const { data, error, isLoading } = useData(
+  "/patients?" + params.toString(),
+);
+const directory = data as PatientDirectoryPage | undefined;
+const { data: doctors } = useData("/doctors");
+const { data: rooms } = useData("/rooms");
   return (
     <>
       <Title
@@ -45,14 +59,71 @@ export function Patients() {
           aria-label="Search patients"
           placeholder="Search by name or patient ID"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+          }}
         />
-        <span>{Array.isArray(data) ? data.length : 0} records</span>
+        <span>{directory?.totalElements ?? 0} records</span>
+      </div>
+      <div className="report-filters patient-directory-filters">
+        <label>
+          Admission status
+          <select
+            aria-label="Admission status"
+            value={activeAdmission}
+            onChange={(e) => setActiveAdmission(e.target.value)}
+          >
+            <option value="">Any admission status</option>
+            <option value="true">Currently admitted</option>
+            <option value="false">Not currently admitted</option>
+          </select>
+        </label>
+        {user.role !== "DOCTOR" && (
+          <label>
+            Assigned doctor
+            <select
+              aria-label="Assigned doctor"
+              value={doctorId}
+              onChange={(e) => setDoctor(e.target.value)}
+            >
+              <option value="">All doctors</option>
+              {Array.isArray(doctors) &&
+                doctors.map((doctor: Row) => (
+                  <option value={doctor.id} key={doctor.id}>
+                    {fullName(doctor)}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+        <label>
+          Current room
+          <select
+            aria-label="Current room"
+            value={roomId}
+            onChange={(e) => setRoom(e.target.value)}
+          >
+            <option value="">All rooms</option>
+            {Array.isArray(rooms) &&
+              rooms.map((room: Row) => (
+                <option value={room.id} key={room.id}>
+                  {room.roomNumber}
+                </option>
+              ))}
+          </select>
+        </label>
       </div>
       <ErrorBox error={error} />
       <div className="panel table-panel">
-        <DataTable<import("../../api/contracts").Patient>
-          rows={Array.isArray(data) ? data : []}
+        <DataTable<PatientDirectoryItem>
+          rows={directory?.items ?? []}
+          serverPagination={{
+            page: directory?.page ?? page,
+            totalPages: directory?.totalPages ?? 0,
+            totalElements: directory?.totalElements ?? 0,
+            onPageChange: (nextPage) =>
+              setPageSelection({ search, page: nextPage }),
+          }}
           rowKey={(p) => p.id}
           columns={[
             {
@@ -96,7 +167,7 @@ export function Patients() {
         {isLoading ? (
           <LoadingState label="Loading patients" />
         ) : (
-          Array.isArray(data) && data.length === 0 && <Empty />
+          directory?.items.length === 0 && <Empty />
         )}
       </div>
       {edit && (

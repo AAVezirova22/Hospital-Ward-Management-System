@@ -39,6 +39,14 @@ app:
   email:
     resend-key: ${RESEND_API_KEY:}
     from: ${EMAIL_FROM:}
+  discharge-reminders:
+    enabled: ${DISCHARGE_REMINDERS_ENABLED:false}
+    windows: ${DISCHARGE_REMINDER_WINDOWS:7,3,1}
+    poll-interval-ms: ${DISCHARGE_REMINDER_POLL_INTERVAL_MS:300000}
+    retry-delay-ms: ${DISCHARGE_REMINDER_RETRY_DELAY_MS:3600000}
+    sending-lease-ms: ${DISCHARGE_REMINDER_SENDING_LEASE_MS:900000}
+    max-attempts: ${DISCHARGE_REMINDER_MAX_ATTEMPTS:5}
+    outcomes-limit: ${DISCHARGE_REMINDER_OUTCOMES_LIMIT:50}
   seed: ${DEMO_SEED:true}
   bootstrap-password: ${BOOTSTRAP_PASSWORD:}
   ai:

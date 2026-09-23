@@ -79,8 +79,18 @@ class AiWorkflowIntegrationTest {
     long department = result.get("departmentId").asLong();
     var patients = body(mvc.perform(get("/api/v1/patients").with(user("admin")).header("X-Department-Id", department)));
     assertThat(patients.toString()).contains("P-" + marker);
-    var admissions = body(mvc.perform(get("/api/v1/admissions").with(user("admin")).header("X-Department-Id", department)));
-    assertThat(admissions.size()).isEqualTo(1);
+    var admissions =
+        json.readTree(
+            mvc.perform(
+                    get("/api/v1/admissions")
+                        .with(user("admin"))
+                        .header("X-Department-Id", department))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    assertThat(admissions.get("items").size()).isEqualTo(1);
+    assertThat(admissions.get("totalElements").asLong()).isEqualTo(1);
     var home = body(mvc.perform(get("/api/v1/patients").with(user("admin")).header("X-Department-Id", "1")));
     assertThat(home.toString()).doesNotContain("P-" + marker);
     postJson("admin", "/ai-actions/" + action + "/confirm", Map.of()).andExpect(status().isConflict());

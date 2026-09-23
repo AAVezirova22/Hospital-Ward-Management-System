@@ -113,7 +113,7 @@ The local interpreter supports these documented command patterns and falls back 
 
 - Session login/logout, CSRF protection, password hashing, current-account revalidation and three roles.
 - Patient demographics and search; doctor, room, procedure and user administration.
-- Admission, attending-doctor assignment, room-transfer history, discharge and bed release.
+- Admission, attending-doctor assignment, room-transfer history, discharge, bed release, and scheduled maintenance holds that preserve room capacity.
 - Transactional capacity checks, active-admission uniqueness and optimistic version checks.
 - Procedure recording with immutable historical prices and operational notes.
 - Dashboard, hospitalized-patient census, room capacity, filters by doctor/room, procedure period/patient reports, grouped totals and CSV export.
@@ -143,6 +143,6 @@ The supplied specification is preserved verbatim in [docs/plan.md](docs/plan.md)
 
 ## Demo, accounts and messaging
 
-The workspace includes a staged ward planner, read-only arrival simulations, operational alerts and trends, report chart drill-downs, keyboard command search, assistant placement previews, and a projector presentation route. Patients can register and confirm their email through Resend. Doctor applicants require email verification and administrator approval; patient accounts only see their own care history.
+The workspace includes a staged ward planner, read-only arrival simulations, operational alerts and trends, report chart drill-downs, keyboard command search, assistant placement previews, configurable upcoming-discharge reminders, and a projector presentation route. Patients can register and confirm their email through Resend. Doctor applicants require email verification and administrator approval; patient accounts only see their own care history.
 
 See [deployment and email setup](docs/deployment.md) for the seeded PostgreSQL Render Blueprint and required private environment settings. See [iMessage integration options](docs/imessage-integration.md) for existing gateways and the future account-linking design. iMessage is documented, not connected.

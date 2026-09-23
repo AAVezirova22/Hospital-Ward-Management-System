@@ -1,48 +1,51 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, type Row, type User } from "../../api";
-import {
-  Link,
-  useUser,
-  useData,
-  ErrorBox,
-  Empty,
-  Status,
-  Modal,
-  Title,
-} from "../../components/workspace";
-import { BedDouble, ArrowUpRight } from "../../icons";
+import { BedDouble } from "../../icons";
+import { date, type Row } from "../../api";
+
 export function RoomCard({
   room: r,
   compact = false,
   onEdit,
+  onManageHolds,
 }: {
   room: Row;
   compact?: boolean;
   onEdit?: () => void;
+  onManageHolds?: () => void;
 }) {
+  const held = r.heldBeds ?? 0;
+  const holds = Array.isArray(r.holds) ? r.holds : [];
+  const now = Date.now();
   return (
     <div className={"room-card " + (!r.availableBeds ? "full" : "")}>
       <div className="room-card-top">
         <span>
           ROOM <b>{r.roomNumber}</b>
         </span>
-        {onEdit ? (
-          <button className="text-button" onClick={onEdit}>
-            Edit
-          </button>
-        ) : (
-          <BedDouble size={16} />
-        )}
+        <div>
+          {onEdit && (
+            <button className="text-button" onClick={onEdit}>
+              Edit
+            </button>
+          )}
+          {onManageHolds ? (
+            <button className="text-button" onClick={onManageHolds}>
+              Manage holds
+            </button>
+          ) : !onEdit ? (
+            <BedDouble size={16} />
+          ) : null}
+        </div>
       </div>
-      <div className="beds">
-        {Array.from({ length: Math.min(r.bedCount, 12) }, (_, i) => (
-          <span key={i} className={i < r.occupiedBeds ? "occupied" : ""}>
-            <BedDouble size={compact ? 19 : 24} />
-          </span>
-        ))}
+      <div className="beds" aria-label={`${r.bedCount} bed capacity slots`}>
+        {Array.from({ length: Math.min(r.bedCount, 12) }, (_, i) => {
+          const state = i < r.occupiedBeds ? "occupied" : i < r.occupiedBeds + held ? "held" : "";
+          return (
+            <span key={i} className={state}>
+              <BedDouble size={compact ? 19 : 24} />
+            </span>
+          );
+        })}
         {r.bedCount > 12 && <small>+{r.bedCount - 12}</small>}
       </div>
       <div className="room-card-bottom">
@@ -50,13 +53,26 @@ export function RoomCard({
           {r.active
             ? r.availableBeds
               ? `${r.availableBeds} available`
-              : "At capacity"
+              : "No placement capacity"
             : "Inactive"}
         </span>
         <small>
-          {r.occupiedBeds} / {r.bedCount}
+          {r.occupiedBeds} occupied · {held} held / {r.bedCount}
         </small>
       </div>
+      {holds.length > 0 && (
+        <details className="room-holds">
+          <summary>{holds.length} maintenance hold{holds.length === 1 ? "" : "s"}</summary>
+          {holds.map((hold: Row) => (
+            <p key={hold.id}>
+              <strong>{hold.bedCount} bed{hold.bedCount === 1 ? "" : "s"}: {hold.reason}</strong>
+              <small>
+                {Date.parse(hold.startsAt) <= now ? "Active" : "Scheduled"} · {date(hold.startsAt)} to {date(hold.endsAt)}
+              </small>
+            </p>
+          ))}
+        </details>
+      )}
     </div>
   );
 }
