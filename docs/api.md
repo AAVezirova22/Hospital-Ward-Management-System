@@ -45,6 +45,7 @@ DTO definitions and exact field constraints are in `api/Inputs.java`. All edits 
 | Path | Parameters | Result |
 | --- | --- | --- |
 | `/reports/dashboard` | None | Scoped active admissions, department capacity, doctors, today's procedures |
+| `/reports/operations` | None | Operations metrics and an `overdueDischarges` worklist for active admissions scheduled before today; doctors see only their assigned admissions |
 | `/reports/census` | Optional `roomId`, `doctorId` | Currently hospitalized patients, scoped by role |
 | `/reports/capacity` | None | Room occupancy and availability |
 | `/reports/procedures` | Required ISO dates `from`, `to`; optional `patientId`, `doctorId` | Rows, exact decimal total, totals grouped by performing doctor |

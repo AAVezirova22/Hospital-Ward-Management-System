@@ -6,6 +6,7 @@ import com.example.hospital.domain.*;
 import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -90,13 +91,66 @@ public class OperationsService {
     Long expected = doctorId == null
         ? jdbc.queryForObject("select count(*) from admissions where department_id=? and status='ACTIVE' and expected_discharge_date=?", Long.class, departmentId, today)
         : jdbc.queryForObject("select count(*) from admissions where department_id=? and status='ACTIVE' and expected_discharge_date=? and attending_doctor_id=?", Long.class, departmentId, today, doctorId);
+    var overdueDischarges = overdueDischarges(departmentId, doctorId, today);
     return Map.of("trends", trends, "activity", recent,
         "averageStayDays", averageStay == null ? 0 : averageStay,
         "longStayPatients", longStay == null ? 0 : longStay,
         "expectedDischargesToday", expected == null ? 0 : expected,
+        "overdueDischarges", overdueDischarges,
         "thresholds", Map.of("longStayDays", longStayDays, "warningPercent", warning, "criticalPercent", critical),
         "scope", actor.doctor() ? "Assigned admissions" : "Department", "timeZone", zone.getId(), "asOf", now);
   }
+
+  private List<OverdueDischarge> overdueDischarges(long departmentId, Long doctorId, LocalDate today) {
+    var sql = new StringBuilder("""
+        select a.id as admission_id,
+               a.admission_number,
+               a.patient_id,
+               p.patient_identifier,
+               p.first_name || ' ' || p.last_name as patient_name,
+               a.attending_doctor_id,
+               d.first_name || ' ' || d.last_name as attending_doctor_name,
+               a.expected_discharge_date
+          from admissions a
+          join patients p on p.id = a.patient_id and p.department_id = a.department_id
+          join doctors d on d.id = a.attending_doctor_id and d.department_id = a.department_id
+         where a.department_id = ?
+           and a.status = 'ACTIVE'
+           and a.expected_discharge_date < ?
+        """);
+    var parameters = new ArrayList<Object>();
+    parameters.add(departmentId);
+    parameters.add(today);
+    if (doctorId != null) {
+      sql.append(" and a.attending_doctor_id = ?");
+      parameters.add(doctorId);
+    }
+    sql.append(" order by a.expected_discharge_date asc, a.id asc");
+    return jdbc.query(sql.toString(), (rs, row) -> {
+      var expectedDate = rs.getObject("expected_discharge_date", LocalDate.class);
+      return new OverdueDischarge(
+          rs.getLong("admission_id"),
+          rs.getString("admission_number"),
+          rs.getLong("patient_id"),
+          rs.getString("patient_identifier"),
+          rs.getString("patient_name"),
+          rs.getLong("attending_doctor_id"),
+          rs.getString("attending_doctor_name"),
+          expectedDate,
+          ChronoUnit.DAYS.between(expectedDate, today));
+    }, parameters.toArray());
+  }
+
+  public record OverdueDischarge(
+      long admissionId,
+      String admissionNumber,
+      long patientId,
+      String patientIdentifier,
+      String patientName,
+      long attendingDoctorId,
+      String attendingDoctorName,
+      LocalDate expectedDischargeDate,
+      long daysOverdue) {}
 
   public record ArrivalPlan(int arrivals, List<Map<String, Object>> placements, int unplaced) {}
 
