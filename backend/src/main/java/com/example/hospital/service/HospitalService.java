@@ -125,6 +125,12 @@ public class HospitalService {
     return assignments.countByRoomIdAndReleasedAtIsNull(id);
   }
 
+  public Long roomIdForAdmission(Long admissionId) {
+    return assignments.findByAdmissionIdAndReleasedAtIsNull(admissionId)
+        .map(RoomAssignment::getRoomId)
+        .orElseThrow(ApiException::missing);
+  }
+
   public String scopeLabel() {
     long departmentId = com.example.hospital.security.DepartmentContext.id();
     var rows =
