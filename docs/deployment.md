@@ -36,7 +36,7 @@ An empty database is seeded once with 28 synthetic patients, 14 active and 12 di
 
 Reset is deliberately destructive inside the dedicated demo: it deletes all accounts and operational records, clears proposals and verification tokens, and recreates the scenario in a transaction. IDs are not reused; old sessions cannot inherit newly seeded accounts. Do not enable `DEMO_MODE` on a database containing real patient data or accounts that must be retained. To retain registered accounts, disable demo reset by setting `DEMO_MODE=false`; ordinary sign-in and registration remain available.
 
-An existing database is never silently reseeded. Back it up before changing database configuration. Pointing at a new PostgreSQL database does not migrate old H2 records.
+An existing database is never silently reseeded. Back it up before changing database configuration. Pointing at a new PostgreSQL database does not migrate old H2 records. Follow the [database backup security and recovery runbook](database-backup-security.md) to protect independent copies, separate database roles and verify restores.
 
 ## Email registration
 
