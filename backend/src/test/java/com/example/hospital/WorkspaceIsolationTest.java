@@ -14,8 +14,9 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -154,6 +155,48 @@ class WorkspaceIsolationTest {
     assertThat(away.get("activeAdmissions").asInt()).isZero();
     assertThat(away.get("totalBeds").asInt()).isZero();
     assertThat(home.get("totalBeds").asInt()).isGreaterThan(away.get("totalBeds").asInt());
+  }
+
+  @Test
+  void csvUsesTheValidatedHeaderInsteadOfAnotherTabsSessionDepartment() throws Exception {
+    var created =
+        body(
+            call(
+                "admin",
+                "POST",
+                "/api/v1/workspaces/hospitals",
+                Map.of("name", "CSV Clinic " + unique(), "departmentName", "Imaging"),
+                1L),
+            201);
+    long other = created.get("departmentId").asLong();
+    var sharedSession = new MockHttpSession();
+    sharedSession.setAttribute("departmentId", other);
+    String path =
+        "/api/v1/reports/procedures.csv?from=2020-01-01&to=2030-01-01";
+
+    var firstTabResponse =
+        mvc.perform(
+                get(path)
+                    .with(user("admin"))
+                    .session(sharedSession)
+                    .header("X-Department-Id", "1"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse();
+    assertThat(firstTabResponse.getHeader("Content-Disposition"))
+        .contains("procedure-report-department-1.csv");
+
+    var secondTabResponse =
+        mvc.perform(
+                get(path)
+                    .with(user("admin"))
+                    .session(sharedSession)
+                    .header("X-Department-Id", Long.toString(other)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse();
+    assertThat(secondTabResponse.getHeader("Content-Disposition"))
+        .contains("procedure-report-department-" + other + ".csv");
   }
 
   @Test

@@ -49,7 +49,8 @@ public class SecurityConfig {
       ObjectMapper json,
       AppUserRepository users,
       WorkspaceAccess workspaces,
-      LoginBackoff backoff)
+      LoginBackoff backoff,
+      ClientAddressResolver clientAddresses)
       throws Exception {
     http.authorizeHttpRequests(
             a ->
@@ -73,7 +74,7 @@ public class SecurityConfig {
                     .successHandler(
                         (r, s, a) -> {
                           var u = users.findByUsername(a.getName()).orElseThrow();
-                          backoff.success(a.getName());
+                          backoff.success(a.getName(), clientAddresses.sourceAddress(r));
                           u.setLastLoginAt(Instant.now());
                           if (u.getSessionStamp() == null || u.getSessionStamp().isBlank())
                             u.setSessionStamp(SessionStamps.next());
@@ -85,7 +86,8 @@ public class SecurityConfig {
                         })
                     .failureHandler(
                         (r, s, e) -> {
-                          backoff.failure(r.getParameter("username"));
+                          backoff.failure(
+                              r.getParameter("username"), clientAddresses.sourceAddress(r));
                           s.setStatus(401);
                           s.setContentType("application/json");
                           json.writeValue(
@@ -145,8 +147,9 @@ public class SecurityConfig {
                   HttpServletRequest r, HttpServletResponse s, FilterChain c)
                   throws ServletException, IOException {
                 if ("POST".equalsIgnoreCase(r.getMethod())
-                    && "/api/v1/auth/login".equals(r.getServletPath())
-                    && backoff.blocked(r.getParameter("username"))) {
+                    && (r.getContextPath() + "/api/v1/auth/login").equals(r.getRequestURI())
+                    && backoff.blocked(
+                        r.getParameter("username"), clientAddresses.sourceAddress(r))) {
                   s.setStatus(401);
                   s.setContentType("application/json");
                   json.writeValue(
