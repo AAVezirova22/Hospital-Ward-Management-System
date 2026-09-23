@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { api, fullName, money, date, patientHref, type Row, type User } from "../../api";
+import { api, activeDepartment, fullName, money, date, patientHref, type Row, type User } from "../../api";
 import {
   Link,
   useUser,
@@ -16,8 +16,15 @@ import {
 import { Download } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { ProcedureCharts, CapacityChart } from "./ReportCharts";
+import type { WorkspaceList } from "../../api/contracts";
+import { dateInTimeZone } from "../../date-time";
 export function Reports() {
-  const today = new Date().toISOString().slice(0, 10);
+  const workspaces = useQuery<WorkspaceList>({
+    queryKey: ["/workspaces", activeDepartment()],
+    queryFn: () => api("/workspaces"),
+  });
+  const timeZone = workspaces.data?.timeZone ?? "UTC";
+  const today = dateInTimeZone(new Date(), timeZone);
   const [from, setFrom] = useUrlState("from", today.slice(0, 8) + "01"),
     [to, setTo] = useUrlState("to", today),
     [patientId, setPatient] = useUrlState("patientId"),
@@ -67,6 +74,7 @@ export function Reports() {
         ))}
       </div>
       <div className="report-filters">
+        <small className="muted">Calendar dates use {timeZone}.</small>
         {mode === "procedures" && (
           <>
             <label>
@@ -190,7 +198,7 @@ export function Reports() {
                           <td>{fullName(v.patient)}</td>
                           <td>{v.procedure.procedureName}</td>
                           <td>{fullName(v.doctor)}</td>
-                          <td>{date(v.record.performedAt)}</td>
+                          <td>{date(v.record.performedAt, timeZone)}</td>
                           <td>{money(v.record.priceAtExecution)}</td>
                         </tr>
                       ))}

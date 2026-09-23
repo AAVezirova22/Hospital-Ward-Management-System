@@ -135,7 +135,7 @@ export function OperationsOverview({
               ? "Comparison unavailable"
               : `${admissionChange > 0 ? "+" : ""}${admissionChange} vs yesterday`}
           </p>
-          <small>{d.scope} · UTC</small>
+          <small>{d.scope} · {d.timeZone}</small>
           <Sparkline
             values={d.trends.slice(-7).map((t) => t.admissions)}
             label="Seven-day admissions"
@@ -155,7 +155,7 @@ export function OperationsOverview({
         <article className="operation-stat">
           <span>Expected discharges today</span>
           <strong>{d.expectedDischargesToday}</strong>
-          <p>Staff-scheduled dates · UTC</p>
+          <p>Staff-scheduled dates · {d.timeZone}</p>
           <small>Scheduled dates, not a discharge forecast</small>
         </article>
       </div>
@@ -262,7 +262,7 @@ export function OperationsOverview({
                     <span className="muted">
                       {v ? v.admission.admissionNumber : ""}
                     </span>
-                    <small>{date(e.timestamp)}</small>
+                    <small>{date(e.timestamp, d.timeZone)}</small>
                   </li>
                 );
               })}
@@ -274,7 +274,7 @@ export function OperationsOverview({
       {!presentation && (
         <section className="panel">
           <h2>Admissions and discharges</h2>
-          <p>{d.scope} · select a day to inspect the census</p>
+          <p>{d.scope} · {d.timeZone} · select a day to inspect the census</p>
           <div className="daily-chart">
             {d.trends.map((t) => (
               <button
@@ -310,7 +310,7 @@ export function OperationsOverview({
         </section>
       )}
       <small className="muted">
-        Updated {date(d.asOf)} · Historical census uses admission intervals, not
+        Updated {date(d.asOf, d.timeZone)} · Historical census uses admission intervals, not
         a forecast.
       </small>
     </div>

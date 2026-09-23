@@ -6,13 +6,14 @@ import {
   ChevronDown,
 } from "../icons";
 import { api, activeDepartment, setActiveDepartment } from "../api";
-import type { WorkspaceHospital, WorkspaceList } from "../api/contracts";
+import type { WorkspaceDepartment, WorkspaceHospital, WorkspaceList } from "../api/contracts";
 import { ErrorBox, Modal } from "./workspace";
 import { currentNames } from "./workspace-names";
 import {
   JoinForm,
   CreateHospitalForm,
   CreateDepartmentForm,
+  DepartmentTimeZoneForm,
 } from "./workspace-forms";
 import { WorkspaceList as HospitalList } from "./workspace-list";
 
@@ -41,7 +42,7 @@ export function WorkspaceSwitcher() {
   });
   const [open, setOpen] = useState(false);
   const [panel, setPanel] = useState<
-    "list" | "join" | "hospital" | "department"
+    "list" | "join" | "hospital" | "department" | "timezone"
   >("list");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<Error | null>(null);
@@ -49,6 +50,8 @@ export function WorkspaceSwitcher() {
   const [joinHint, setJoinHint] = useState("");
   const [hospitalName, setHospitalName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
+  const [timeZoneDepartment, setTimeZoneDepartment] = useState<WorkspaceDepartment>();
+  const [timeZone, setTimeZone] = useState("");
   const [hostHospital, setHostHospital] = useState<WorkspaceHospital>();
   const current = useMemo(() => currentNames(data), [data]);
   useEffect(() => {
@@ -138,6 +141,20 @@ export function WorkspaceSwitcher() {
       setBusy(false);
     }
   };
+  const saveTimeZone = async () => {
+    if (!timeZoneDepartment) return;
+    setBusy(true);
+    setFormError(null);
+    try {
+      await api(`/workspaces/departments/${timeZoneDepartment.id}/timezone`, "PUT", { timeZone });
+      await client.invalidateQueries();
+      setPanel("list");
+    } catch (e) {
+      setFormError(e as Error);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <>
       <button
@@ -151,7 +168,10 @@ export function WorkspaceSwitcher() {
         <BedDouble size={19} strokeWidth={1.5} />
         <div>
           {current.hospital?.name || "Hospital"}
-          <small>{current.department?.name || "Choose a department"}</small>
+          <small>
+            {current.department?.name || "Choose a department"}
+            {current.department?.timeZone ? ` · ${current.department.timeZone}` : ""}
+          </small>
         </div>
         <ChevronDown size={16} aria-hidden="true" />
       </button>
@@ -204,6 +224,12 @@ export function WorkspaceSwitcher() {
                 setHostHospital(hospital);
                 setDepartmentName("");
                 setPanel("department");
+              }}
+              onTimeZone={(department) => {
+                setTimeZoneDepartment(department);
+                setTimeZone(department.timeZone);
+                setFormError(null);
+                setPanel("timezone");
               }}
               onJoin={() => {
                 setJoinCode("");
@@ -264,6 +290,16 @@ export function WorkspaceSwitcher() {
                   ),
                 )
               }
+            />
+          )}
+          {panel === "timezone" && timeZoneDepartment && (
+            <DepartmentTimeZoneForm
+              departmentName={timeZoneDepartment.name}
+              timeZone={timeZone}
+              busy={busy}
+              onTimeZone={setTimeZone}
+              onBack={() => setPanel("list")}
+              onSave={() => void saveTimeZone()}
             />
           )}
         </Modal>

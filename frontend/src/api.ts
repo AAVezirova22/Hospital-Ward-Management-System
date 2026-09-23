@@ -226,10 +226,11 @@ export const money = (n: number) =>
   new Intl.NumberFormat("en", { style: "currency", currency: "EUR" }).format(
     n || 0,
   );
-export const date = (v: string) =>
+export const date = (v: string, timeZone?: string) =>
   v
     ? new Date(v).toLocaleString("en-GB", {
         dateStyle: "medium",
         timeStyle: "short",
+        ...(timeZone ? { timeZone } : {}),
       })
     : "Not recorded";
