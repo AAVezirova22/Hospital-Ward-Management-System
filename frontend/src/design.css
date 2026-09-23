@@ -95,7 +95,8 @@ textarea:focus {
   border-color: var(--mint);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-input[aria-invalid="true"] {
+input[aria-invalid="true"],
+select[aria-invalid="true"] {
   border-color: #c57e6f;
 }
 .primary,

@@ -143,6 +143,14 @@
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+.registration-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.registration-field > .invalid {
+  margin: 0;
+}
 .registration-form label {
   margin-top: 12px !important;
 }

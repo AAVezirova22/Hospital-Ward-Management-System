@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.ResultActions;
 
 class HospitalAuthTest extends HospitalSupport {
   @Test
@@ -48,9 +49,45 @@ class HospitalAuthTest extends HospitalSupport {
     mvc.perform(get("/api/v1/auth/me").session(session)).andExpect(status().isOk());
     mvc.perform(post("/api/v1/auth/logout").session(session).with(csrf()))
         .andExpect(status().isNoContent());
+    mvc.perform(get("/api/v1/auth/me").session(session)).andExpect(status().isUnauthorized());
     assertThat(users.findByUsername("admin").orElseThrow().getPasswordHash())
         .startsWith("$2a$")
         .doesNotContain("IntegrationPassword");
+  }
+
+  @Test
+  void loginFailuresFromOneSourceDoNotLockOutTheSameAccountFromAnotherSource()
+      throws Exception {
+    String username = "backoff" + unique();
+    result(
+        request(
+            "admin",
+            "POST",
+            "/api/v1/users",
+            Map.of(
+                "username",
+                username,
+                "password",
+                "UserPassword123!",
+                "role",
+                "MEDICAL_STAFF",
+                "enabled",
+                true)),
+        201);
+
+    String attackerAddress = "203.0.113.10";
+    String userAddress = "198.51.100.20";
+    for (int attempt = 0; attempt < 5; attempt++)
+      loginFrom(username, "WrongPassword123!", attackerAddress)
+          .andExpect(status().isUnauthorized())
+          .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+
+    loginFrom(username, "UserPassword123!", userAddress)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.username").value(username));
+    loginFrom(username, "UserPassword123!", attackerAddress)
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
   }
 
   @Test
@@ -106,5 +143,19 @@ class HospitalAuthTest extends HospitalSupport {
                 "enabled",
                 true))
         .andExpect(status().isBadRequest());
+  }
+
+  private ResultActions loginFrom(String username, String password, String sourceAddress)
+      throws Exception {
+    return mvc.perform(
+        post("/api/v1/auth/login")
+            .with(csrf())
+            .with(
+                request -> {
+                  request.setRemoteAddr(sourceAddress);
+                  return request;
+                })
+            .param("username", username)
+            .param("password", password));
   }
 }

@@ -2,14 +2,21 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, activeDepartment, fullName, money, date, patientHref, type Row } from "../../api";
+import { useState } from "react";
+import {
+  activeDepartment,
+  downloadFile,
+  fullName,
+  money,
+  date,
+  patientHref,
+  type Row,
+} from "../../api";
 import {
   Link,
-  useUser,
   useData,
   ErrorBox,
   Empty,
-  Status,
-  Modal,
   Title,
 } from "../../components/workspace";
 import { Download } from "../../icons";
@@ -17,6 +24,8 @@ import { useUrlState } from "../../components/useUrlState";
 import { ProcedureCharts, CapacityChart } from "./ReportCharts";
 import type { Patient, PatientDirectoryPage } from "../../api/contracts";
 export function Reports() {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<unknown>(null);
   const today = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = useUrlState("from", today.slice(0, 8) + "01"),
     [to, setTo] = useUrlState("to", today),
@@ -60,6 +69,34 @@ export function Reports() {
             ...(roomId ? { roomId } : {}),
           });
   const { data, error, isLoading } = useData(path);
+  const exportCsv = async () => {
+    const department = activeDepartment();
+    if (!department) {
+      setExportError(new Error("Choose a department before exporting."));
+      return;
+    }
+    setExporting(true);
+    setExportError(null);
+    try {
+      const { blob, filename } = await downloadFile(
+        "/reports/procedures.csv?" + params,
+        department,
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setExportError(e);
+    } finally {
+      setExporting(false);
+    }
+  };
   return (
     <>
       <Title
@@ -193,19 +230,23 @@ export function Reports() {
           </label>
         )}
         {mode === "procedures" && (
-          <a
+          <button
+            type="button"
             className="secondary"
-            href={"/api/v1/reports/procedures.csv?" + params}
-            download
+            onClick={() => void exportCsv()}
+            disabled={exporting}
+            aria-busy={exporting}
           >
             <Download size={16} />
-            Export CSV
-          </a>
+            {exporting ? "Preparing CSV…" : "Export CSV"}
+          </button>
         )}
       </div>
       <ErrorBox
         error={error || patientDirectoryQuery.error || selectedPatientQuery.error}
       />
+      <ErrorBox error={error} />
+      <ErrorBox error={exportError} />
       {isLoading ? (
         <div className="skeleton">Calculating report…</div>
       ) : (

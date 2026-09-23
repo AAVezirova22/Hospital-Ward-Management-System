@@ -13,7 +13,7 @@ import { EcgLine } from "./EcgLine";
 const STEPS = [
   {
     title: "Arrive",
-    copy: "A file, an iMessage, or a typed command lands in the assistant.",
+    copy: "A file or a typed request goes to the in-workspace assistant.",
   },
   {
     title: "Plan",

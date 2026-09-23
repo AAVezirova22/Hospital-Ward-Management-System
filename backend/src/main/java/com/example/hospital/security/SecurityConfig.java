@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Instant;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.*;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -18,11 +20,19 @@ import org.springframework.security.web.*;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration
 @EnableMethodSecurity
+@EnableScheduling
+@EnableConfigurationProperties(LoginBackoffProperties.class)
 public class SecurityConfig {
+  @Bean
+  Clock loginBackoffClock() {
+    return Clock.systemUTC();
+  }
+
   @Bean
   PasswordEncoder encoder() {
     return new BCryptPasswordEncoder(12);
@@ -49,14 +59,16 @@ public class SecurityConfig {
       ObjectMapper json,
       AppUserRepository users,
       WorkspaceAccess workspaces,
-      LoginBackoff backoff)
+      LoginBackoff backoff,
+      ClientAddressResolver clientAddresses)
       throws Exception {
     http.authorizeHttpRequests(
             a ->
                 a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health",
                     "/api/v1/demo/status", "/api/v1/demo/login", "/api/v1/registration/status",
                     "/api/v1/registration/hospitals",
-                    "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend")
+                    "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend",
+                    "/api/v1/registration/recover")
                     .permitAll()
                     .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout")
                     .authenticated()
@@ -73,7 +85,7 @@ public class SecurityConfig {
                     .successHandler(
                         (r, s, a) -> {
                           var u = users.findByUsername(a.getName()).orElseThrow();
-                          backoff.success(a.getName());
+                          backoff.success(a.getName(), clientAddresses.sourceAddress(r));
                           u.setLastLoginAt(Instant.now());
                           if (u.getSessionStamp() == null || u.getSessionStamp().isBlank())
                             u.setSessionStamp(SessionStamps.next());
@@ -85,7 +97,8 @@ public class SecurityConfig {
                         })
                     .failureHandler(
                         (r, s, e) -> {
-                          backoff.failure(r.getParameter("username"));
+                          backoff.failure(
+                              r.getParameter("username"), clientAddresses.sourceAddress(r));
                           s.setStatus(401);
                           s.setContentType("application/json");
                           json.writeValue(
@@ -145,8 +158,9 @@ public class SecurityConfig {
                   HttpServletRequest r, HttpServletResponse s, FilterChain c)
                   throws ServletException, IOException {
                 if ("POST".equalsIgnoreCase(r.getMethod())
-                    && "/api/v1/auth/login".equals(r.getServletPath())
-                    && backoff.blocked(r.getParameter("username"))) {
+                    && (r.getContextPath() + "/api/v1/auth/login").equals(r.getRequestURI())
+                    && backoff.blocked(
+                        r.getParameter("username"), clientAddresses.sourceAddress(r))) {
                   s.setStatus(401);
                   s.setContentType("application/json");
                   json.writeValue(

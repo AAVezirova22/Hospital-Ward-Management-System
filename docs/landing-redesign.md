@@ -15,7 +15,7 @@ The prior source combined a dark photographic hospital website, fictional specia
 | Capacity and staged drag-and-drop ward planning | `frontend/src/features/planner/` |
 | Uploads and connected folders for AI workflows | `frontend/src/features/assistant/AssistantSources.tsx` |
 | Reviewed multi-step workflows with confirmation | `frontend/src/features/assistant/WorkflowProposal.tsx`, `README.md` |
-| iMessage integration | Product owner confirmed working on 2026-09-20. Existing integration-options documentation predates that confirmation; gateway code is not present in this checkout. |
+| Messaging gateway | Not implemented in this checkout, as documented in `docs/imessage-integration.md`. Public copy describes the in-workspace assistant and file-based workflows only. |
 | Reporting, drill-downs, CSV exports | `frontend/src/features/reports/` |
 | Patient account and care history | `frontend/src/features/patients/PatientPortal.tsx` |
 
