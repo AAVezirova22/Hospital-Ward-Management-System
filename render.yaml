@@ -14,7 +14,7 @@ services:
     plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /api/v1/health/ready
     envVars:
       - key: DATABASE_HOST
         fromDatabase: { name: hospital-ward-demo-db, property: host }
