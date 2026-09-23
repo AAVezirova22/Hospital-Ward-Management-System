@@ -8,7 +8,12 @@ import { ArrowRight, ShieldCheck } from "../../icons";
 import { login, type User } from "../../api";
 import { ErrorBox } from "../../components/workspace";
 import { DemoAccess } from "../demo/DemoAccess";
-import { Registration, EmailVerification, ResendConfirmation } from "./Registration";
+import {
+  Registration,
+  EmailVerification,
+  ResendConfirmation,
+  RecoverRegistration,
+} from "./Registration";
 import { LoginScene } from "../../login-scene";
 
 export function Login({ onLogin }: { onLogin: (u: User) => void }) {
@@ -117,6 +122,7 @@ export function Login({ onLogin }: { onLogin: (u: User) => void }) {
           Create a patient account
         </button>
         <ResendConfirmation />
+        <RecoverRegistration />
         <DemoAccess onLogin={onLogin} />
       </motion.form>
     </LoginScene>

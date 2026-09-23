@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import Link from "next/link";
-import { api, date, activeDepartment, patientHref } from "../../api";
+import { api, allPages, date, activeDepartment, patientHref } from "../../api";
 import type {
   OperationsReport,
   RoomCapacity,
@@ -59,12 +59,28 @@ export function OperationsOverview({
   });
   const roomQuery = useQuery({
     queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => api<RoomCapacity[]>("/rooms"),
+    queryFn: () => allPages<RoomCapacity>("/rooms"),
     refetchInterval: 15000,
   });
   const admissionQuery = useQuery({
-    queryKey: ["/admissions", activeDepartment()],
-    queryFn: () => api<AdmissionView[]>("/admissions"),
+    queryKey: ["/admissions?status=ACTIVE", activeDepartment()],
+    queryFn: () => allPages<AdmissionView>("/admissions?status=ACTIVE"),
+    refetchInterval: 15000,
+  });
+  const recentAdmissionIds = Array.from(
+    new Set((ops.data?.activity ?? []).map((event) => event.admissionId)),
+  );
+  const activityAdmissionQuery = useQuery({
+    queryKey: ["/admissions/activity", activeDepartment(), recentAdmissionIds],
+    enabled: recentAdmissionIds.length > 0,
+    queryFn: async () => {
+      const results = await Promise.allSettled(
+        recentAdmissionIds.map((id) => api<AdmissionView>(`/admissions/${id}`)),
+      );
+      return results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
+    },
     refetchInterval: 15000,
   });
   if (ops.isLoading || roomQuery.isLoading) return <LoadingState />;
@@ -88,7 +104,8 @@ export function OperationsOverview({
   if (!ops.data || !roomQuery.data) return null;
   const d = ops.data,
     rooms = roomQuery.data,
-    admissions = admissionQuery.data ?? [];
+    admissions = admissionQuery.data ?? [],
+    activityAdmissions = activityAdmissionQuery.data ?? [];
   const activeRooms = rooms.filter((r) => r.active),
     beds = activeRooms.reduce((n, r) => n + r.bedCount, 0),
     occupied = activeRooms.reduce((n, r) => n + r.occupiedBeds, 0),
@@ -195,9 +212,9 @@ export function OperationsOverview({
       {selectedAdmission &&
         admissions.find((v) => v.admission.id === selectedAdmission) && (
           <BedDrawer
-            admission={
-              admissions.find((v) => v.admission.id === selectedAdmission)!
-            }
+            admission={admissions.find(
+              (v) => v.admission.id === selectedAdmission,
+            )!}
             onClose={() => setSelectedAdmission(undefined)}
           />
         )}
@@ -242,7 +259,7 @@ export function OperationsOverview({
             <summary>Live activity</summary>
             <ol className="operational-feed">
               {d.activity.slice(0, presentation ? 5 : 8).map((e) => {
-                const v = admissions.find(
+                const v = activityAdmissions.find(
                   (v) => v.admission.id === e.admissionId,
                 );
                 return (

@@ -2,8 +2,17 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api, fullName, activeDepartment, patientHref, type User } from "../../api";
+import {
+  api,
+  allPages,
+  fullName,
+  activeDepartment,
+  patientHref,
+  type User,
+} from "../../api";
 import type { Patient, RoomCapacity, Doctor } from "../../api/contracts";
+import { api, fullName, activeDepartment, patientHref, type User } from "../../api";
+import type { PatientDirectoryPage, RoomCapacity, Doctor } from "../../api/contracts";
 export function CommandResults({
   query,
   onClose,
@@ -15,17 +24,21 @@ export function CommandResults({
 }) {
   const router = useRouter(),
     [selected, setSelected] = useState(-1);
+  const patientQuery = query.trim().slice(0, 100);
   const patients = useQuery({
-    queryKey: ["/patients", activeDepartment()],
-    queryFn: () => api<Patient[]>("/patients"),
+    queryKey: ["/patients", activeDepartment(), patientQuery],
+    queryFn: () =>
+      api<PatientDirectoryPage>(
+        `/patients?q=${encodeURIComponent(patientQuery)}&size=25`,
+      ),
   });
   const rooms = useQuery({
     queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => api<RoomCapacity[]>("/rooms"),
+    queryFn: () => allPages<RoomCapacity>("/rooms"),
   });
   const doctors = useQuery({
     queryKey: ["/doctors", activeDepartment()],
-    queryFn: () => api<Doctor[]>("/doctors"),
+    queryFn: () => allPages<Doctor>("/doctors"),
   });
   const screens = [
     "dashboard",
@@ -46,7 +59,7 @@ export function CommandResults({
       detail: "Screen",
       href: `/app/${route}`,
     })),
-    ...(patients.data ?? []).map((p) => ({
+    ...(patients.data?.items ?? []).map((p) => ({
       label: fullName(p),
       detail: p.patientIdentifier,
       href: patientHref(p),
@@ -117,6 +130,9 @@ export function CommandResults({
       ))}
       {q && !matches.length && (
         <p>No matching records. Press Enter to ask the assistant.</p>
+      )}
+      {q && patients.data?.hasNext && (
+        <p>More patients match. Refine your search to narrow the results.</p>
       )}
       <small>
         ↑ ↓ to select · Enter to open · Type a request and send to ask the

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, fullName, type Row } from "../../api";
-import { useData, ErrorBox, Modal } from "../../components/workspace";
+import { useAllPages, ErrorBox, Modal } from "../../components/workspace";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -99,7 +99,7 @@ export function EntityForm({
     client = useQueryClient();
   const [error, setError] = useState<Error | null>(null),
     [busy, setBusy] = useState(false);
-  const { data: doctors } = useData("/doctors");
+  const { data: doctors } = useAllPages<Row>("/doctors?active=true");
   const defaults: Row = {
     active: true,
     enabled: true,

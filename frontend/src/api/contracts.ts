@@ -4,6 +4,15 @@ export interface Entity {
   createdAt: string;
   updatedAt: string;
 }
+export interface PageResult<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
+}
 export interface Patient extends Entity {
   patientIdentifier: string;
   firstName: string;
@@ -11,6 +20,22 @@ export interface Patient extends Entity {
   dateOfBirth: string;
   address: string | null;
   phoneNumber: string | null;
+}
+export interface PatientDirectoryItem {
+  id: number;
+  patientIdentifier: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+}
+export interface PatientDirectoryPage {
+  items: PatientDirectoryItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
 }
 export interface Doctor extends Entity {
   doctorIdentifier: string;
@@ -70,6 +95,15 @@ export interface AdmissionView {
   rooms: { assignment: RoomAssignment; room: RoomCapacity }[];
   procedures: ProcedureView[];
   totalCost: number;
+}
+export interface PageResult<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  nextPage: number | null;
 }
 export interface DashboardReport {
   activeAdmissions: number;
