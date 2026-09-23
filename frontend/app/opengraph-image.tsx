@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const alt =
-  "Medcore hospital operations workspace with ward planning and care history";
+  "Illustrative Medcore preview with sample ward metrics; not live operational data";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -169,8 +169,8 @@ export default function Image() {
               fontWeight: 700,
             }}
           >
-            <span>LIVE WARD PULSE</span>
-            <span style={{ color: "#bce8af" }}>07:42 UTC</span>
+            <span>ILLUSTRATIVE SAMPLE DATA</span>
+            <span style={{ color: "#bce8af" }}>NOT LIVE</span>
           </div>
           <div
             style={{

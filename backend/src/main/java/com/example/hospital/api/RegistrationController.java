@@ -4,7 +4,11 @@ import com.example.hospital.service.RegistrationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.util.HexFormat;
 import java.util.Map;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,6 +24,8 @@ public class RegistrationController {
       @NotNull Long hospitalId) {}
   public record Verify(@NotBlank @Pattern(regexp="[A-Za-z0-9_-]{43}") String token) {}
   public record Resend(@NotBlank @Email @Size(max=254) String email) {}
+  public record Recover(@NotBlank @Pattern(regexp="[a-zA-Z0-9._-]{3,64}") String username,
+      @NotBlank @Size(min=12,max=72) String password, @NotBlank @Email @Size(max=254) String email) {}
   @GetMapping("/status") public Object status() {return Map.of("enabled",registration.available());}
   @GetMapping("/hospitals") public Object hospitals() {return registration.hospitals();}
   @PostMapping("/signup") public Object signup(@Valid @RequestBody Signup in,HttpServletRequest request) {
@@ -29,13 +35,21 @@ public class RegistrationController {
   }
   @PostMapping("/verify") public Object verify(@Valid @RequestBody Verify in) {registration.verify(in.token());return Map.of("message","Email confirmed. You can now sign in. Doctor access requests will be reviewed by an administrator.");}
   @PostMapping("/resend") public Object resend(@Valid @RequestBody Resend in,HttpServletRequest request) {registration.limit(clientKey(request, in.email()));registration.resend(in.email());return Map.of("message","If an unverified account matches, a new confirmation email has been sent.");}
+  @PostMapping("/recover") public Object recover(@Valid @RequestBody Recover in,HttpServletRequest request) {
+    registration.limit(clientKey(request, in.email()));
+    registration.limit(clientKey(request, "username:" + in.username()));
+    registration.recover(in.username(),in.password(),in.email());
+    return Map.of("message","If the registration can be recovered, a fresh confirmation email has been sent.");
+  }
 
-  private static String clientKey(HttpServletRequest request, String email) {
-    String forwarded = request.getHeader("X-Forwarded-For");
-    String ip = request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
-    if (forwarded != null && !forwarded.isBlank() && (ip.startsWith("10.") || ip.startsWith("127.") || ip.equals("https://example.net/id/garnet") || ip.startsWith("172."))) {
-      ip = forwarded.split(",")[0].trim();
+  private static String clientKey(HttpServletRequest request, String identifier) {
+    String client = request.getRemoteAddr();
+    if (client == null || client.isBlank()) client = "unknown";
+    try {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+          .digest((client + ":" + identifier.trim().toLowerCase()).getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 is unavailable", e);
     }
-    return Integer.toHexString((ip + ":" + email.trim().toLowerCase()).hashCode());
   }
 }

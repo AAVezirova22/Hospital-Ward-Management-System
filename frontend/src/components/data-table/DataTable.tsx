@@ -6,21 +6,29 @@ export interface Column<T> {
   value?: (row: T) => string | number;
   render: (row: T) => ReactNode;
 }
+export interface ServerPagination {
+  page: number;
+  totalPages: number;
+  totalElements: number;
+  onPageChange: (page: number) => void;
+}
 export function DataTable<T>({
   rows,
   columns,
   rowKey,
   pageSize = 20,
+  serverPagination,
 }: {
   rows: T[];
   columns: Column<T>[];
   rowKey: (row: T) => string | number;
   pageSize?: number;
+  serverPagination?: ServerPagination;
 }) {
   const [sort, setSort] = useState<{ key: string; desc: boolean }>(),
     [page, setPage] = useState(0);
   const column = columns.find((c) => c.key === sort?.key),
-    ordered = column?.value
+    ordered = !serverPagination && column?.value
       ? [...rows].sort((a, b) => {
           const av = column.value!(a),
             bv = column.value!(b);
@@ -33,8 +41,16 @@ export function DataTable<T>({
           );
         })
       : rows;
-  const pages = Math.max(1, Math.ceil(rows.length / pageSize)),
-    current = Math.min(page, pages - 1);
+  const pages = Math.max(
+      1,
+      serverPagination?.totalPages ?? Math.ceil(rows.length / pageSize),
+    ),
+    current = serverPagination
+      ? Math.min(serverPagination.page, pages - 1)
+      : Math.min(page, pages - 1),
+    displayedRows = serverPagination
+      ? ordered
+      : ordered.slice(current * pageSize, (current + 1) * pageSize);
   return (
     <>
       <table className="responsive-records">
@@ -52,7 +68,7 @@ export function DataTable<T>({
                     : undefined
                 }
               >
-                {c.value ? (
+                {c.value && !serverPagination ? (
                   <button
                     className="table-sort"
                     onClick={() => {
@@ -74,9 +90,7 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {ordered
-            .slice(current * pageSize, (current + 1) * pageSize)
-            .map((row) => (
+          {displayedRows.map((row) => (
               <tr key={rowKey(row)}>
                 {columns.map((c) => (
                   <td key={c.key} data-label={c.label}>
@@ -89,19 +103,27 @@ export function DataTable<T>({
       </table>
       <div className="table-pagination">
         <span>
-          {rows.length} results · Page {current + 1} of {pages}
+          {(serverPagination?.totalElements ?? rows.length)} results · Page {current + 1} of {pages}
         </span>
         <button
           className="secondary"
           disabled={current === 0}
-          onClick={() => setPage(current - 1)}
+          onClick={() =>
+            serverPagination
+              ? serverPagination.onPageChange(serverPagination.page - 1)
+              : setPage(current - 1)
+          }
         >
           Previous
         </button>
         <button
           className="secondary"
           disabled={current + 1 >= pages}
-          onClick={() => setPage(current + 1)}
+          onClick={() =>
+            serverPagination
+              ? serverPagination.onPageChange(serverPagination.page + 1)
+              : setPage(current + 1)
+          }
         >
           Next
         </button>

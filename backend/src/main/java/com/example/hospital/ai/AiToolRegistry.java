@@ -107,7 +107,7 @@ public class AiToolRegistry {
             || List.of("him", "her", "patient", "his", "her current summary")
                 .contains(q.toLowerCase()))
         && selected != null) return h.patient(selected);
-    var matches = h.patients(q == null ? "" : q);
+    var matches = h.patientMatches(q == null ? "" : q, 2);
     if (matches.size() != 1)
       throw new ApiException(
           400,
@@ -153,11 +153,21 @@ public class AiToolRegistry {
                   + " inside the open department unless you ask for listWorkspaces. I cannot make"
                   + " clinical decisions or change permissions.",
               Map.of());
-      case "searchPatients" ->
-          response(
-              "PATIENT_LIST",
-              "Matching patients within your access.",
-              Map.of("department", h.scopeLabel(), "patients", h.patients(a.getOrDefault("query", "")).stream().map(Views.PatientDirectory::of).toList()));
+      case "searchPatients" -> {
+        var page = h.patients(a.getOrDefault("query", ""), 0, 25);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("department", h.scopeLabel());
+        data.put("patients", page.getContent().stream().map(Views.PatientDirectory::of).toList());
+        data.put("totalElements", page.getTotalElements());
+        data.put("hasNext", page.hasNext());
+        data.put("nextPage", page.hasNext() ? page.getNumber() + 1 : null);
+        yield response(
+            "PATIENT_LIST",
+            page.hasNext()
+                ? "Showing the first 25 matches within your access. Narrow the query to see more."
+                : "Matching patients within your access.",
+            data);
+      }
       case "getPatientSummary" ->
           response(
               "PATIENT_SUMMARY",

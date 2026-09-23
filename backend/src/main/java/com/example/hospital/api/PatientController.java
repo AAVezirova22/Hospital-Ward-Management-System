@@ -4,11 +4,25 @@ import com.example.hospital.api.PatientInput;
 import com.example.hospital.service.PatientService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1")
+@Validated
 public class PatientController {
+  public record DirectoryPage(
+      List<java.util.Map<String, Object>> items,
+      int page,
+      int size,
+      long totalElements,
+      int totalPages,
+      boolean hasNext,
+      Integer nextPage) {}
+
   private final PatientService patients;
 
   public PatientController(PatientService patients) {
@@ -24,6 +38,20 @@ public class PatientController {
     return patients.list(q, activeAdmission, doctorId, roomId).stream()
         .map(Views.PatientDirectory::of)
         .toList();
+  public DirectoryPage patients(
+      @RequestParam(defaultValue = "") @Size(max = 100) String q,
+      @RequestParam(defaultValue = "0") @Min(0) int page,
+      @RequestParam(defaultValue = "20") @Min(1) int size) {
+    var results = patients.list(q, page, size);
+    boolean hasNext = results.hasNext();
+    return new DirectoryPage(
+        results.getContent().stream().map(Views.PatientDirectory::of).toList(),
+        results.getNumber(),
+        results.getSize(),
+        results.getTotalElements(),
+        results.getTotalPages(),
+        hasNext,
+        hasNext ? results.getNumber() + 1 : null);
   }
 
   @GetMapping("/patients/{id}")

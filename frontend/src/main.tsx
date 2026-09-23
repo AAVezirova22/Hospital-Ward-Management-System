@@ -1,6 +1,10 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Activity } from "./icons";
 import { api, bindAccount, logout, type User } from "./api";
 import { Auth } from "./components/workspace";
@@ -9,6 +13,7 @@ import { Login } from "./features/auth/LoginScreen";
 import { PatientPortal } from "./features/patients/PatientPortal";
 import { CinematicProvider } from "./cinematic";
 import { Shell } from "./components/workspace-shell";
+import { createSessionExpiry } from "./session-expiry";
 
 function App({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
@@ -16,24 +21,39 @@ function App({ children }: { children: React.ReactNode }) {
     [loading, setLoading] = useState(true);
   const [awake, setAwake] = useState(false);
   const ready = useCallback(() => setAwake(true), []);
+  const [sessionExpiry] = useState(() =>
+    createSessionExpiry(() => {
+      setUser(null);
+      setLoading(false);
+      void qc.cancelQueries();
+      qc.clear();
+    }, logout),
+  );
+  const signOut = useCallback(() => sessionExpiry.expire(), [sessionExpiry]);
+  const acceptLogin = useCallback(
+    (next: User) => {
+      sessionExpiry.reset();
+      setUser(next);
+    },
+    [sessionExpiry],
+  );
   useEffect(() => {
     if (!awake) return;
     api<User>("/auth/me")
       .then((next) => {
+        if (sessionExpiry.isExpiring) return;
         bindAccount(next.id);
         setUser(next);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-    const expired = () => {
-      bindAccount(null);
-      setUser(null);
-      qc.clear();
-    };
+    const expired = () => void signOut();
     window.addEventListener("session-expired", expired);
     const switched = () => {
+      if (sessionExpiry.isExpiring) return;
       api<User>("/auth/me")
         .then((next) => {
+          if (sessionExpiry.isExpiring) return;
           bindAccount(next.id);
           setUser(next);
           void qc.invalidateQueries();
@@ -45,15 +65,7 @@ function App({ children }: { children: React.ReactNode }) {
       window.removeEventListener("session-expired", expired);
       window.removeEventListener("workspace-changed", switched);
     };
-  }, [awake]);
-  const signOut = async () => {
-    try {
-      await logout();
-    } finally {
-      setUser(null);
-      qc.clear();
-    }
-  };
+  }, [awake, qc, sessionExpiry, signOut]);
   if (!awake) return <WakeScreen onReady={ready} />;
   if (loading)
     return (
@@ -66,20 +78,10 @@ function App({ children }: { children: React.ReactNode }) {
     return <PatientPortal user={user} onLogout={signOut} />;
   return user ? (
     <Auth.Provider value={user}>
-      <Shell
-        children={children}
-        onLogout={async () => {
-          try {
-            await logout();
-          } finally {
-            setUser(null);
-            qc.clear();
-          }
-        }}
-      />
+      <Shell children={children} onLogout={signOut} />
     </Auth.Provider>
   ) : (
-    <Login onLogin={setUser} />
+    <Login onLogin={acceptLogin} />
   );
 }
 

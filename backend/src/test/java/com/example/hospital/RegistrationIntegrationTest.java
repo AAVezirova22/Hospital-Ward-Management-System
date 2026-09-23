@@ -15,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -25,17 +26,31 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties={"app.seed=true","app.bootstrap-password=IntegrationPassword123!","app.registration.enabled=true","server.servlet.session.cookie.secure=false"})
 @AutoConfigureMockMvc
 class RegistrationIntegrationTest {
+ private static final String RECOVERY_MESSAGE="If the registration can be recovered, a fresh confirmation email has been sent.";
  @DynamicPropertySource static void database(DynamicPropertyRegistry r){HospitalSupport.database(r);}
  @Autowired MockMvc mvc; @Autowired ObjectMapper json; @Autowired AppUserRepository users; @Autowired JdbcTemplate jdbc;
  @MockitoBean ConfirmationEmailService email;
  @BeforeEach void setup(){when(email.configured()).thenReturn(true);}
  String signup(String requestedRole) throws Exception {
    String name="signup_"+UUID.randomUUID().toString().substring(0,8);
-   var body=Map.of("username",name,"email",name+"@example.test","password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole",requestedRole,"hospitalId",1);
-   mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isOk());
+   signup(name,name+"@example.test",requestedRole);
    return name;
  }
+ void signup(String name,String address,String requestedRole) throws Exception {
+   var body=Map.of("username",name,"email",address,"password","RegistrationPassword123!","firstName","Maya","lastName","Koleva","dateOfBirth","1994-03-12","requestedRole",requestedRole,"hospitalId",1);
+   mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isOk());
+ }
  String capturedToken(){var token=ArgumentCaptor.forClass(String.class);verify(email).send(anyString(),anyString(),token.capture(),anyBoolean(),anyInt());return token.getValue();}
+ org.springframework.test.web.servlet.ResultActions recover(String username,String password,String address,String remoteAddress) throws Exception {
+   return recover(username,password,address,remoteAddress,null);
+ }
+ org.springframework.test.web.servlet.ResultActions recover(String username,String password,String address,String remoteAddress,String forwardedFor) throws Exception {
+   var body=Map.of("username",username,"password",password,"email",address);
+   return mvc.perform(post("/api/v1/registration/recover").with(csrf()).with(r->{r.setRemoteAddr(remoteAddress);if(forwardedFor!=null)r.addHeader("X-Forwarded-For",forwardedFor);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)));
+ }
+ void assertRecoveryMessage(String username,String password,String address,String remoteAddress) throws Exception {
+   recover(username,password,address,remoteAddress).andExpect(status().isOk()).andExpect(jsonPath("$.message").value(RECOVERY_MESSAGE));
+ }
  @Test void patientMustVerifyAndCannotAccessStaffEndpoints() throws Exception {
    String name=signup("PATIENT"),token=capturedToken();var before=users.findByUsername(name).orElseThrow();assertThat(before.isEnabled()).isFalse();assertThat(before.getRole()).isEqualTo("PATIENT");
    assertThat(jdbc.queryForObject("select token_hash from email_verifications where user_id=?",String.class,before.getId())).doesNotContain(token).hasSize(64);
@@ -75,5 +90,74 @@ class RegistrationIntegrationTest {
    mvc.perform(post("/api/v1/registration/signup").with(csrf()).with(r->{r.setRemoteAddr(name);return r;}).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isOk());
    Long patientId=users.findByUsername(name).orElseThrow().getPatientId();
    assertThat(jdbc.queryForObject("select department_id from patients where id=?", Long.class, patientId)).isEqualTo(departmentId);
+ }
+ @Test void expiredUnverifiedRegistrationCanChangeEmailAndVerifyAgain() throws Exception {
+   String name="recover_"+UUID.randomUUID().toString().substring(0,8), oldEmail=name+"@mistyped.example.test", newEmail=name+"@correct.example.test";
+   signup(name,oldEmail,"PATIENT");
+   String oldToken=capturedToken();
+   var before=users.findByUsername(name).orElseThrow();
+   long patientId=before.getPatientId();
+   jdbc.update("update email_verifications set expires_at=now()-interval '1 minute' where user_id=?",before.getId());
+   clearInvocations(email);
+
+   assertRecoveryMessage(name,"RegistrationPassword123!",newEmail,name);
+   var newToken=ArgumentCaptor.forClass(String.class);
+   verify(email).send(eq(newEmail),eq("Maya"),newToken.capture(),eq(false),eq(30));
+   var recovered=users.findByUsername(name).orElseThrow();
+   assertThat(recovered.getEmail()).isEqualTo(newEmail);
+   assertThat(recovered.isEnabled()).isFalse();
+   assertThat(recovered.isEmailVerified()).isFalse();
+   assertThat(recovered.getPatientId()).isEqualTo(patientId);
+   assertThat(jdbc.queryForObject("select count(*) from email_verifications where user_id=?",Integer.class,recovered.getId())).isEqualTo(1);
+   assertThat(jdbc.queryForObject("select token_hash from email_verifications where user_id=?",String.class,recovered.getId())).doesNotContain(newToken.getValue());
+
+   mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token",oldToken)))).andExpect(status().isBadRequest());
+   mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token",newToken.getValue())))).andExpect(status().isOk());
+   var verified=users.findByUsername(name).orElseThrow();
+   assertThat(verified.getEmail()).isEqualTo(newEmail);
+   assertThat(verified.isEmailVerified()).isTrue();
+   assertThat(verified.isEnabled()).isTrue();
+ }
+ @Test void recoveryUsesOneGenericResponseForUnknownWrongPasswordAndActiveRegistrations() throws Exception {
+   String name="active_"+UUID.randomUUID().toString().substring(0,8), oldEmail=name+"@example.test";
+   signup(name,oldEmail,"PATIENT");
+   capturedToken();
+   clearInvocations(email);
+
+   assertRecoveryMessage("missing_"+UUID.randomUUID().toString().substring(0,8),"RegistrationPassword123!","unknown@example.test","198.51.100.11");
+   assertRecoveryMessage(name,"DifferentPassword123!",name+"@wrong-password.test","198.51.100.12");
+   assertRecoveryMessage(name,"RegistrationPassword123!",name+"@active-link.test","198.51.100.13");
+   var unchanged=users.findByUsername(name).orElseThrow();
+   assertThat(unchanged.getEmail()).isEqualTo(oldEmail);
+   assertThat(unchanged.isEmailVerified()).isFalse();
+   assertThat(unchanged.isEnabled()).isFalse();
+   verify(email,never()).send(anyString(),anyString(),anyString(),anyBoolean(),anyInt());
+ }
+ @Test void recoveryCannotChangeVerifiedAccountOrUseAnEmailAlreadyClaimed() throws Exception {
+   String verifiedName="verified_"+UUID.randomUUID().toString().substring(0,8), verifiedEmail=verifiedName+"@example.test";
+   signup(verifiedName,verifiedEmail,"PATIENT");
+   String verifiedToken=capturedToken();
+   mvc.perform(post("/api/v1/registration/verify").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token",verifiedToken)))).andExpect(status().isOk());
+
+   String targetName="target_"+UUID.randomUUID().toString().substring(0,8), targetEmail=targetName+"@mistyped.example.test";
+   String ownerName="owner_"+UUID.randomUUID().toString().substring(0,8), ownedEmail=ownerName+"@example.test";
+   signup(targetName,targetEmail,"PATIENT");
+   signup(ownerName,ownedEmail,"PATIENT");
+   var target=users.findByUsername(targetName).orElseThrow();
+   jdbc.update("update email_verifications set expires_at=now()-interval '1 minute' where user_id=?",target.getId());
+   clearInvocations(email);
+
+   assertRecoveryMessage(verifiedName,"RegistrationPassword123!",verifiedName+"@replacement.test","198.51.100.14");
+   assertRecoveryMessage(targetName,"RegistrationPassword123!",ownedEmail,"198.51.100.15");
+   assertThat(users.findByUsername(verifiedName).orElseThrow().getEmail()).isEqualTo(verifiedEmail);
+   assertThat(users.findByUsername(verifiedName).orElseThrow().isEmailVerified()).isTrue();
+   assertThat(users.findByUsername(targetName).orElseThrow().getEmail()).isEqualTo(targetEmail);
+   verify(email,never()).send(anyString(),anyString(),anyString(),anyBoolean(),anyInt());
+ }
+ @Test void recoveryRequiresCsrfAndRateLimitsByUsernameAcrossEmailChanges() throws Exception {
+   var body=Map.of("username","rate_recovery_user","password","RegistrationPassword123!","email","first@example.test");
+   mvc.perform(post("/api/v1/registration/recover").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isForbidden());
+   assertRecoveryMessage("rate_recovery_user","RegistrationPassword123!","first@example.test","10.0.0.16");
+   recover("rate_recovery_user","RegistrationPassword123!","second@example.test","10.0.0.16","203.0.113.45").andExpect(status().isTooManyRequests());
  }
 }

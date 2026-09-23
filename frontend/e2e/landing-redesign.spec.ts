@@ -1,5 +1,40 @@
 import { expect, test } from "@playwright/test";
 
+test("social preview marks sample ward metrics as illustrative", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const openGraphImage = page.locator('meta[property="og:image"]');
+  const imageAlt = page.locator('meta[property="og:image:alt"]');
+  const twitterImage = page.locator('meta[name="twitter:image"]');
+  const twitterImageAlt = page.locator('meta[name="twitter:image:alt"]');
+
+  await expect(openGraphImage).toHaveAttribute(
+    "content",
+    /\/opengraph-image(?:\?.*)?$/,
+  );
+  await expect(imageAlt).toHaveAttribute("content", /illustrative.*sample.*not live/i);
+  await expect(twitterImage).toHaveAttribute(
+    "content",
+    /\/opengraph-image(?:\?.*)?$/,
+  );
+  await expect(twitterImageAlt).toHaveAttribute(
+    "content",
+    /illustrative.*sample.*not live/i,
+  );
+
+  const response = await page.request.get("/opengraph-image");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("image/png");
+  const image = await response.body();
+  expect(image.subarray(0, 8)).toEqual(
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  );
+  expect(image.readUInt32BE(16)).toBe(1200);
+  expect(image.readUInt32BE(20)).toBe(630);
+});
+
 test("sample workflow reviews, cancels, and confirms without making API writes", async ({
   page,
 }) => {
@@ -93,9 +128,10 @@ test("platform tabs work with keyboard and expose their corresponding routes", a
   );
 });
 
-test("iMessage examples respond to selection", async ({ page }) => {
+test("assistant examples respond to selection", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await page.waitForLoadState("networkidle");
   await page
     .getByRole("button", { name: "Start a workflow", exact: true })
     .click();
@@ -111,6 +147,30 @@ test("iMessage examples respond to selection", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Check the ward", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("landing copy does not advertise an unimplemented messaging integration", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await expect(page.locator("body")).not.toContainText(/iMessage/i);
+
+  const descriptions = await page
+    .locator(
+      'meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]',
+    )
+    .evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute("content") ?? ""),
+    );
+  expect(descriptions).not.toHaveLength(0);
+  expect(descriptions.join(" ")).not.toMatch(/iMessage|\bMessages\b/i);
+  await expect(page.locator(".mc-message-note")).toContainText(
+    "illustrative assistant preview",
+  );
+  await expect(page.locator(".mc-message-note")).toContainText(
+    "Medcore workspace",
+  );
 });
 
 test("mobile menu traps focus, follows anchors, and restores focus on Escape", async ({
