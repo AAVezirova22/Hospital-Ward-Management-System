@@ -60,10 +60,15 @@ public class AccountController {
     var filters = new AuditEventQueryService.Filters(
         eventType, actorId, entityType, entityId, source, from, to);
     var all = audit.page(filters, request);
-    return Map.of(
+    var headers = new org.springframework.http.HttpHeaders();
+    PageLinks.apply(headers,
+        org.springframework.web.servlet.support.ServletUriComponentsBuilder.fromCurrentRequest().build().toUri(),
+        safePage, safeSize, all.getTotalElements());
+    // Keeps its established body shape; navigation comes from the same headers as other collections.
+    return org.springframework.http.ResponseEntity.ok().headers(headers).body(Map.of(
         "page", safePage,
         "size", safeSize,
         "total", all.getTotalElements(),
-        "events", all.getContent().stream().map(Views::audit).toList());
+        "events", all.getContent().stream().map(Views::audit).toList()));
   }
 }

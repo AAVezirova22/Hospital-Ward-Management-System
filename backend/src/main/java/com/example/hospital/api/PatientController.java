@@ -14,15 +14,6 @@ import java.util.List;
 @RequestMapping("/api/v1")
 @Validated
 public class PatientController {
-  public record DirectoryPage(
-      List<java.util.Map<String, Object>> items,
-      int page,
-      int size,
-      long totalElements,
-      int totalPages,
-      boolean hasNext,
-      Integer nextPage) {}
-
   private final PatientService patients;
 
   public PatientController(PatientService patients) {
@@ -30,7 +21,7 @@ public class PatientController {
   }
 
   @GetMapping("/patients")
-  public DirectoryPage patients(
+  public PagedResult<java.util.Map<String, Object>> patients(
       @RequestParam(defaultValue = "") @Size(max = 100) String q,
       @RequestParam(required = false) Boolean activeAdmission,
       @RequestParam(required = false) Long doctorId,
@@ -38,15 +29,7 @@ public class PatientController {
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) int size) {
     var results = patients.list(q, activeAdmission, doctorId, roomId, page, size);
-    boolean hasNext = results.hasNext();
-    return new DirectoryPage(
-        results.getContent().stream().map(Views.PatientDirectory::of).toList(),
-        results.getNumber(),
-        results.getSize(),
-        results.getTotalElements(),
-        results.getTotalPages(),
-        hasNext,
-        hasNext ? results.getNumber() + 1 : null);
+    return PagedResult.of(results.map(Views.PatientDirectory::of));
   }
 
   @GetMapping("/patients/{id}")

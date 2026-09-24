@@ -31,6 +31,7 @@ public class WorkspaceService {
   public record Department(
       long id, String name, String role, boolean hasJoinCode, String timeZone, Instant accessExpiresAt) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
+  private record MembershipRole(long departmentId, String role, Long doctorId) {}
 public record DepartmentRole(
     long departmentId,
     String departmentName,

@@ -136,6 +136,7 @@ public class AiAssistantService {
     interaction.setModelIdentifier(model.identifier());
     interaction.setRequestType("MESSAGE");
     interaction.setStatus("FAILED");
+    AiUsage.start();
     AiSession s = null;
     try {
       if (in.retryToken() != null && !in.retryToken().isBlank())
@@ -247,6 +248,11 @@ public class AiAssistantService {
     } finally {
       interaction.setCompletedAt(Instant.now());
       interaction.setLatencyMs(Duration.between(interaction.getStartedAt(), interaction.getCompletedAt()).toMillis());
+      var usage = AiUsage.drain();
+      if (usage != null) {
+        interaction.setPromptTokens(usage.prompt());
+        interaction.setCompletionTokens(usage.completion());
+      }
       if (interaction.getSessionId() != null) interactions.save(interaction);
       synchronized (window) {
         window.busy = false;
