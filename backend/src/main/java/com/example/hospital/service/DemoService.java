@@ -47,7 +47,7 @@ public class DemoService {
     for (String table : new String[]{"email_outbox", "email_verifications", "ai_sessions", "ai_pending_actions", "ai_interactions",
         "audit_events", "access_reviews", "performed_procedures", "room_assignments", "admissions",
         "app_users", "patients", "doctors", "rooms", "medical_procedures",
-        "department_memberships", "hospital_memberships", "departments", "hospitals"}) {
+        "ownership_transfers", "department_memberships", "hospital_memberships", "departments", "hospitals"}) {
       jdbc.update("delete from " + table);
     }
     jdbc.update("delete from workflow_lock where id not in (0, 1)");
