@@ -7,6 +7,11 @@ import com.example.hospital.api.PagedResult;
 import com.example.hospital.api.RoomInput;
 import com.example.hospital.api.Views;
 import com.example.hospital.domain.Doctor;
+import com.example.hospital.domain.BedHold;
+import com.example.hospital.repository.BedHoldRepository;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.stream.Collectors;
 import com.example.hospital.domain.MedicalProcedure;
 import com.example.hospital.domain.Room;
 import com.example.hospital.repository.AdmissionRepository;
@@ -16,9 +21,8 @@ import com.example.hospital.repository.RoomRepository;
 import com.example.hospital.repository.RoomAssignmentRepository;
 import com.example.hospital.repository.WorkflowLockRepository;
 import com.example.hospital.security.Actor;
+import java.util.Comparator;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.springframework.data.domain.PageRequest;
@@ -38,6 +42,7 @@ public class CatalogueService {
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
   private final AuditService audit;
+  private final BedHoldRepository bedHolds;
 
   public CatalogueService(
       HospitalService hospital,
@@ -48,7 +53,8 @@ public class CatalogueService {
       MedicalProcedureRepository catalogue,
       AdmissionRepository admissions,
       AuditService audit,
-      RoomAssignmentRepository assignments) {
+      RoomAssignmentRepository assignments,
+      BedHoldRepository bedHolds) {
     this.hospital = hospital;
     this.lock = lock;
     this.actor = actor;
@@ -58,6 +64,7 @@ public class CatalogueService {
     this.admissions = admissions;
     this.assignments = assignments;
     this.audit = audit;
+    this.bedHolds = bedHolds;
   }
 
   public List<Doctor> doctors() {
@@ -123,6 +130,8 @@ public class CatalogueService {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
+
+    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
     boolean hasQuery = q != null && !q.isBlank();
     String query = pattern(q);
     boolean hasActive = active != null;
@@ -130,11 +139,12 @@ public class CatalogueService {
     boolean hasRoomId = roomId != null;
     List<String> requiredCapabilities =
         List.copyOf(RoomCapabilityMatcher.normalize(requestedCapabilities));
+
     int size = safeSize(requestedSize);
     long total =
         requiredCapabilities.isEmpty()
             ? rooms.countDirectory(
-                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree)
+                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, now)
             : rooms.countDirectoryWithCapabilities(
                 hasQuery,
                 query,
@@ -143,14 +153,17 @@ public class CatalogueService {
                 hasActive,
                 activeValue,
                 minFree,
+                now,
                 requiredCapabilities,
                 requiredCapabilities.size());
+
     int page = safePage(requestedPage, size, total);
     Pageable pageable = PageRequest.of(page, size, Sort.by("roomNumber", "id"));
+
     var selected =
         requiredCapabilities.isEmpty()
             ? rooms.searchDirectory(
-                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, pageable)
+                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, now, pageable)
             : rooms.searchDirectoryWithCapabilities(
                 hasQuery,
                 query,
@@ -159,24 +172,35 @@ public class CatalogueService {
                 hasActive,
                 activeValue,
                 minFree,
+                now,
                 requiredCapabilities,
                 requiredCapabilities.size(),
                 pageable);
+
+    Map<Long, List<BedHold>> holdsByRoom = Map.of();
     Map<Long, Long> occupiedByRoom = new HashMap<>();
+
     if (!selected.isEmpty()) {
       var ids = selected.stream().map(Room::getId).toList();
+      holdsByRoom =
+          bedHolds
+              .findByRoomIdInAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(ids, now)
+              .stream()
+              .collect(Collectors.groupingBy(BedHold::getRoomId));
+
       for (Object[] row : assignments.countActiveByRoomIds(ids)) {
         occupiedByRoom.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
       }
     }
+
     List<Map<String, Object>> items = new ArrayList<>(selected.size());
     for (Room room : selected) {
       long occupied = occupiedByRoom.getOrDefault(room.getId(), 0L);
-      Map<String, Object> item = new java.util.LinkedHashMap<>(Views.room(room));
-      item.put("occupiedBeds", occupied);
-      item.put("availableBeds", room.isActive() ? room.getBedCount() - occupied : 0);
-      items.add(item);
+      items.add(
+          BedHoldCapacity.roomView(
+              room, occupied, holdsByRoom.getOrDefault(room.getId(), List.of()), now));
     }
+
     return PagedResult.of(items, page, size, total);
   }
 

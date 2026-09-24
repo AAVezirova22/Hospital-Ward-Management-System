@@ -17,8 +17,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/patients/{id}` | Patient plus scoped admission/room/procedure history |
 | POST / PUT | `/patients` / `/patients/{id}` | PatientInput |
 | GET / POST / PUT | `/doctors` / `/doctors/{id}` | DoctorInput; writes admin-only |
-| GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET supports `minFree` and repeated `requiredCapabilities` tags |
-| GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET supports `minFree` |
+| GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET returns a page (`items`, `page`, `size`, `totalElements`) and filters by `q`, `active`, `roomId`, `minFree` and repeated `requiredCapabilities` tags. `availableBeds` subtracts occupants and upcoming maintenance holds, matching placement checks |
 | POST | `/rooms/{id}/holds` | `{bedCount, reason, startsAt, endsAt}`; admin/staff; timed maintenance reservation |
 | DELETE | `/rooms/{roomId}/holds/{holdId}` | Admin/staff; cancels a reservation and returns 204 |
 | GET / POST / PUT | `/procedures` / `/procedures/{id}` | ProcedureInput; catalogue |
@@ -31,7 +30,27 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
 | GET | `/audit` | Admin-only; optional `eventType`, `actorId`, `entityType`, `entityId`, `source`, `from`, `to`, `page` (default 0), and `size` (default 50, max 200) filters |
 | GET | `/audit/export.csv` | Admin-only CSV export; reuses audit filters, accepts `limit` from 1 to 1000 (default 1000), and returns 400 if more rows match |
+| GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only. Optional `reason` (max 300 characters) records context for permission changes. |
+| GET | `/audit` | Latest 100 events; admin-only |
+| GET | `/security/events?status=ACTIVE&includeInfo=false&page=0&size=25` | Department administrators only. Security review queue for the active department, highest severity first, with `counts` (`open`, `investigating`, `critical`, `unacknowledged`). `status` is `ACTIVE` (open and investigating), `ALL`, or one status. `INFO` entries are hidden unless `includeInfo=true`. |
+| POST | `/security/events/{id}/acknowledge` | Marks the entry as seen by the calling administrator; audited as `SECURITY_EVENT_ACKNOWLEDGED` |
+| PUT | `/security/events/{id}` | `{status, note?}` with status `OPEN`, `INVESTIGATING`, `RESOLVED` or `DISMISSED`; acknowledges if not yet acknowledged; audited as `SECURITY_EVENT_UPDATED` |
+
+The queue groups related signals into one entry per department and pattern:
+
+| Category | Source | Grouping | Severity |
+| --- | --- | --- | --- |
+| `FAILED_LOGIN` | Failed or backoff-blocked sign-ins for a known staff account, counted in each of its departments | Account and UTC day | `INFO` for 1–2, `WARNING` from 3, `CRITICAL` from 10 |
+| `ACCESS_DENIED` | Refused operations (`ACCESS_DENIED` audit events) | Account and UTC day | Escalates like `FAILED_LOGIN` |
+| `JOIN_CODE` | Rejected codes (escalates per account and day), plus code rotations and reveals (`INFO`, per workspace and day) | See source | See source |
+| `ROLE_CHANGE` | Role grants, account saves and member removals (`WARNING`), hospital ownership grants (`CRITICAL`) | Acting account and hour | Highest in the group |
+
+While an entry is `OPEN` or `INVESTIGATING`, new matching signals increase `occurrences` and update `lastSeenAt`. After `RESOLVED` or `DISMISSED`, the next signal opens a new entry. Entries record the account and action, never passwords, source addresses or clinical data. Unknown usernames are left to login backoff and do not create entries.
+
+Opening `GET /patients/{id}`, `GET /admissions/{id}` or the assistant's `getPatientSummary` tool records a `PATIENT_VIEWED` or `ADMISSION_VIEWED` audit event with actor, department, record ID, source (`UI` or `AI`) and time. No field values are stored. Lists, searches and failed lookups are not recorded, and a person's own portal view is not recorded. Repeat views of the same record by the same user within `AUDIT_READ_DEDUPE_WINDOW` are recorded once.
 | GET | `/workspaces` | Hospitals and departments the account can open, plus the active department. Live join codes are omitted; owners receive `hasJoinCode`. |
+| GET | `/workspaces/hospitals/{id}/members?page=0&size=20` | Paginated hospital roster; hospital owner only. Shows OWNER/MEMBER, enabled status, joinedAt, and department role/doctor links for each member. |
+| GET | `/workspaces/departments/{id}/members?page=0&size=20` | Paginated department roster; department admin or hospital owner only. Shows role, linked doctor, enabled status, and joinedAt. |
 | POST | `/workspaces/hospitals` | `{name, departmentName}`; owner of the hospital and admin of its first department |
 | POST | `/workspaces/hospitals/{id}/departments` | `{name}`; hospital owner only |
 | POST | `/workspaces/join` | `{code}`; hospital codes add hospital membership, department codes add medical staff access. Expired or consumed single-use codes are rejected. |
@@ -39,10 +58,23 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/workspaces/departments/{id}/code` | Reveal the department join code; department administrator only. Audited as `JOIN_CODE_VIEWED`. |
 | POST | `/workspaces/hospitals/{id}/code` | Replace the hospital join code; owner only. Optional `{expiresInHours, singleUse}` |
 | POST | `/workspaces/departments/{id}/code` | Replace the department join code; department administrator only. Optional `{expiresInHours, singleUse}` |
+| POST | `/workspaces/hospitals/{id}/leave?reason=...` | Leave a hospital; last owner is rejected. Optional reason is limited to 300 characters. |
+| POST | `/workspaces/departments/{id}/leave?reason=...` | Leave a department; optional reason is limited to 300 characters. |
+| DELETE | `/workspaces/hospitals/{id}/members/{userId}?reason=...` | Revoke membership; hospital owner only. Optional reason is limited to 300 characters. |
+| DELETE | `/workspaces/departments/{id}/members/{userId}?reason=...` | Revoke membership; owner or department administrator. Optional reason is limited to 300 characters. |
+| POST | `/workspaces/hospitals/{id}/owners` | `{userId, reason?}`; hospital owner only; reason is limited to 300 characters. |
+| POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?, reason?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted; reason is limited to 300 characters. |
+
+Permission-change audit metadata includes the target user and workspace IDs with before/after role or owner state. Department role changes also include before/after doctor links; account edits distinguish account role and doctor link from department membership role and doctor link. Department-scoped events are stored under the affected department even when a hospital owner acts from another active department. Hospital-level events retain the active department scope and identify the hospital in metadata. A department-code join records whether it also created hospital membership; hospital leave/revocation writes a department-scoped event for each removed department membership. Optional reasons containing obvious credential or token material (including password/token assignments, bearer credentials, or JWT-shaped values) are rejected and never stored; passwords, join codes, and session tokens are not audit fields.
 | POST | `/workspaces/hospitals/{id}/leave` | Leave a hospital; last owner is rejected |
 | POST | `/workspaces/departments/{id}/leave` | Leave a department |
 | POST | `/workspaces/hospitals/{id}/owners` | `{userId}`; hospital owner only |
 | POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted. |
+| PUT | `/workspaces/departments/{id}/members/{userId}/expiry` | `{expiresAt}` (ISO-8601 instant, or `null` to remove the limit); owner or department administrator. The time must be in the future and cannot be set on your own membership (`409 SELF_EXPIRY`). From `expiresAt` the member gets `403 MEMBERSHIP_EXPIRED` for that department, it disappears from their `/workspaces` list, and discharge reminders stop. The membership row stays until it is extended or removed. `MEMBERSHIP_EXPIRY_NOTICE` (default `3d`) before the end, the member gets one personal in-app notice. Changing the time sends a new notice. Audited as `MEMBERSHIP_EXPIRY_SET`. `/workspaces` departments carry `accessExpiresAt`, and `/users` accounts carry `membershipExpiresAt`. |
+| GET | `/workspaces/hospitals/{id}/access-review?inactiveAfterDays=90` | Hospital owner only. Every workforce member of the hospital (patient accounts excluded) with account state, `lastLoginAt`, `inactive` (no sign-in within the period), owner flag, department roles, linked doctor name and `latestReview`, plus counts per outcome. Contains no clinical records, credentials or contact details. |
+| POST | `/workspaces/hospitals/{id}/access-review/{userId}` | `{outcome, note?}` with outcome `KEEP`, `CHANGE` or `REVOKE`; hospital owner only. Stores the decision with reviewer and time, keeps earlier decisions, and audits `ACCESS_REVIEWED`. Recording `CHANGE` or `REVOKE` does not change access; use the role and member endpoints to act on it. |
+
+Roster endpoints return `items`, `page`, `size`, `totalElements`, `totalPages`, `hasNext`, and `nextPage`; page size is clamped to 1 to 100, requested pages are clamped to the available range, and results sort by joinedAt descending (unknown dates last) then user ID descending. Membership `joinedAt` is nullable: existing rows have unknown join dates and remain `null`; new membership rows use their insertion time. This timestamp tracks membership creation, not the user account creation date.
 
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 
@@ -92,6 +124,7 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 401 | `UNAUTHENTICATED` / `INVALID_CREDENTIALS` | Sign-in required or rejected |
 | 403 | `ACCESS_DENIED` | Role, entity ownership or CSRF restriction |
 | 403 | `DEPARTMENT_ACCESS_DENIED` | The account has not joined the requested department |
+| 403 | `MEMBERSHIP_EXPIRED` | The account's time-limited membership of the requested department has ended |
 | 403 | `HOSPITAL_OWNER_REQUIRED` | Only a hospital owner can manage that hospital |
 | 403 | `DEPARTMENT_ADMIN_REQUIRED` | Only a department administrator can replace its code |
 | 400 | `INVALID_CODE` | Join code is missing, malformed, or unknown |

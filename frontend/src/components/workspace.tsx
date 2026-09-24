@@ -10,7 +10,7 @@ export const useData = (key: string, path = key) =>
   useQuery<Row>({
     queryKey: [key, activeDepartment()],
     queryFn: () => api(path),
-    refetchInterval: key === "/rooms" ? 15_000 : undefined,
+    refetchInterval: key.split("?")[0] === "/rooms" ? 15_000 : undefined,
   });
 export const useAllPages = <T,>(key: string, path = key) =>
   useQuery<T[]>({

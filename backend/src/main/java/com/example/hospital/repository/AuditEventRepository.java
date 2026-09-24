@@ -5,4 +5,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 public interface AuditEventRepository
-    extends JpaRepository<AuditEvent, Long>, JpaSpecificationExecutor<AuditEvent> {}
+    extends JpaRepository<AuditEvent, Long>, JpaSpecificationExecutor<AuditEvent> {
+
+  Page<AuditEvent> findByEventTypeIgnoreCase(String eventType, Pageable pageable);
+
+  boolean existsByUserIdAndEventTypeAndEntityIdAndTimestampAfter(
+      Long userId, String eventType, Long entityId, java.time.Instant after);
+}
