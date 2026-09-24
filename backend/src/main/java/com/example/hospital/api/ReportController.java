@@ -14,17 +14,14 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/reports")
 public class ReportController {
   private final ReportService reports;
-private final AuditService audit;
-private final DischargeReminderService reminders;
+  private final AuditService audit;
+  private final DischargeReminderService reminders;
 
-public ReportController(
-    ReportService reports,
-    AuditService audit,
-    DischargeReminderService reminders) {
-  this.reports = reports;
-  this.audit = audit;
-  this.reminders = reminders;
-}
+  public ReportController(
+      ReportService reports, AuditService audit, DischargeReminderService reminders) {
+    this.reports = reports;
+    this.audit = audit;
+    this.reminders = reminders;
   }
 
   @GetMapping("/dashboard")

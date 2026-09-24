@@ -205,18 +205,18 @@ public class HospitalService {
     return assignments.countByRoomIdAndReleasedAtIsNull(id);
   }
 
-public Long roomIdForAdmission(Long admissionId) {
-  return assignments.findByAdmissionIdAndReleasedAtIsNull(admissionId)
-      .map(RoomAssignment::getRoomId)
-      .orElseThrow(ApiException::missing);
-}
+  public Long roomIdForAdmission(Long admissionId) {
+    return assignments
+        .findByAdmissionIdAndReleasedAtIsNull(admissionId)
+        .map(RoomAssignment::getRoomId)
+        .orElseThrow(ApiException::missing);
+  }
 
-public int held(Long id) {
-  var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-  var holds =
-      bedHolds.findByRoomIdAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(id, now);
-  return BedHoldCapacity.reserved(holds, now);
-}
+  public int held(Long id) {
+    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+    var holds =
+        bedHolds.findByRoomIdAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(id, now);
+    return BedHoldCapacity.reserved(holds, now);
   }
 
   public String scopeLabel() {
@@ -238,12 +238,11 @@ public int held(Long id) {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
-var required = RoomCapabilityMatcher.normalize(requiredCapabilities);
-
-var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-var holdsByRoom =
-    bedHolds.findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
-        .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
+    var required = RoomCapabilityMatcher.normalize(requiredCapabilities);
+    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+    var holdsByRoom =
+        bedHolds.findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
+            .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
     return rooms.findAll().stream()
         .filter(r -> RoomCapabilityMatcher.missing(required, r.getCapabilities()).isEmpty())
         .map(
