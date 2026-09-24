@@ -11,3 +11,4 @@ test-results/
 .idea/
 .DS_Store
 *.tsbuildinfo
+.tools/
