@@ -47,6 +47,16 @@ public ReportController(
     return reports.doctorWorkload(from, to);
   }
 
+  @GetMapping("/room-utilization")
+  public Object roomUtilization(
+      @RequestParam LocalDate from,
+      @RequestParam LocalDate to,
+      @RequestParam String bucket,
+      @RequestParam(required = false) Long roomId,
+      @RequestParam(required = false) Long patientId) {
+    return reports.roomUtilization(from, to, bucket, roomId, patientId);
+  }
+
   @GetMapping("/discharge-reminders")
   @PreAuthorize("hasAnyRole('ADMIN', 'MEDICAL_STAFF', 'DOCTOR')")
   public Object dischargeReminders() {
