@@ -3,7 +3,6 @@ import {
   allPages,
   activeDepartment,
   api,
-  allPages,
   bindAccount,
   downloadFile,
   login,
@@ -196,7 +195,6 @@ it("surfaces a server rejection for an unauthorized download scope", async () =>
 
   expect(fetchMock.mock.calls[0][1].headers["X-Department-Id"]).toBe("999");
 });
-  });
   it("does not retry assistant writes in another department after access is denied", async () => {
     setActiveDepartment(12);
     const fetchMock = vi
@@ -314,9 +312,17 @@ describe("paged API responses", () => {
       { id: 1 },
       { id: 2 },
     ]);
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "/api/v1/admissions?status=ACTIVE&size=100&page=0",
-      "/api/v1/admissions?status=ACTIVE&size=100&page=1",
-    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [url] of fetchMock.mock.calls) {
+      const request = new URL(url, "http://localhost");
+      expect(request.pathname).toBe("/api/v1/admissions");
+      expect(request.searchParams.get("status")).toBe("ACTIVE");
+      expect(request.searchParams.get("size")).toBe("100");
+    }
+    expect(
+      fetchMock.mock.calls.map(
+        ([url]) => new URL(url, "http://localhost").searchParams.get("page"),
+      ),
+    ).toEqual(["0", "1"]);
   });
 });

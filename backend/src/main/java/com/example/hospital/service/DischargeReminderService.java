@@ -193,6 +193,7 @@ public class DischargeReminderService {
           from department_memberships m
           join app_users u on u.id = m.user_id
          where m.department_id = ? and u.enabled = true and u.email_verified = true
+           and (m.expires_at is null or m.expires_at > now())
            and u.email is not null and trim(u.email) <> ''
            and (m.role in ('ADMIN', 'MEDICAL_STAFF')
                 or (m.role = 'DOCTOR' and m.doctor_id = ?))

@@ -1,11 +1,26 @@
 package com.example.hospital.service;
 
 import com.example.hospital.domain.BedHold;
+import com.example.hospital.domain.Room;
+import com.example.hospital.api.Views;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.time.Instant;
 import java.util.List;
 
 final class BedHoldCapacity {
   private BedHoldCapacity() {}
+
+  static Map<String, Object> roomView(Room room, long occupied, List<BedHold> holds, Instant now) {
+    int held = reserved(holds, now);
+    Map<String, Object> view = new LinkedHashMap<>(Views.room(room));
+    view.put("occupiedBeds", occupied);
+    view.put("heldBeds", held);
+    view.put("activeHeldBeds", active(holds, now));
+    view.put("holds", holds.stream().map(Views::bedHold).toList());
+    view.put("availableBeds", room.isActive() ? Math.max(0, room.getBedCount() - occupied - held) : 0);
+    return view;
+  }
 
   static int reserved(List<BedHold> holds, Instant from) {
     return peak(holds, from, null);
