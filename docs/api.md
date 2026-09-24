@@ -29,7 +29,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
 | GET | `/audit` | Admin-only; optional `eventType`, `actorId`, `entityType`, `entityId`, `source`, `from`, `to`, `page` (default 0), and `size` (default 50, max 200) filters |
-| GET | `/audit/export.csv` | Admin-only CSV export; reuses audit filters, accepts `limit` from 1 to 1000 (default 1000), and returns 400 if more rows match |
+| GET | `/audit/export.csv` | Admin-only CSV export; reuses audit filters, accepts `limit` from 1 to 1000 (default 1000), and returns 400 if more rows match. `profile=redacted` is for external reviewers: actors become per-export pseudonyms (`A1`, `A2`, …), and the entity ID and metadata columns are removed. The response carries `X-Audit-Export-Profile` and `X-Redacted-Fields`, and the `DATA_EXPORTED` audit event records the profile and removed fields. The default is `profile=full`. |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only. Optional `reason` (max 300 characters) records context for permission changes. |
 | GET | `/audit` | Latest 100 events; admin-only |
 | GET | `/security/events?status=ACTIVE&includeInfo=false&page=0&size=25` | Department administrators only. Security review queue for the active department, highest severity first, with `counts` (`open`, `investigating`, `critical`, `unacknowledged`). `status` is `ACTIVE` (open and investigating), `ALL`, or one status. `INFO` entries are hidden unless `includeInfo=true`. |
@@ -160,6 +160,53 @@ These `POST` endpoints accept an optional `Idempotency-Key` header (1–128 char
 | Malformed key | `400 INVALID_IDEMPOTENCY_KEY` |
 
 Keys belong to the signed-in account; another account using the same key starts its own request. Client errors (`4xx`) are stored and replayed. Server errors (`5xx`) and responses over 64 KB are not stored, so those requests can be retried. Stored responses, which may contain the same patient data as the original response, expire after `IDEMPOTENCY_KEY_TTL` (default `24h`). Generate a fresh random key (for example a UUID) for each intended change. Requests without the header behave as before.
+## Retrying after a provider failure
+
+When the assistant provider times out or returns an unusable answer, `POST /assistant/messages` responds with `responseType: "ERROR"` and `data`:
+
+| Field | Meaning |
+| --- | --- |
+| `retryable` | Whether this request may be retried |
+| `retryToken` | One-time token for the retry (only when `retryable`) |
+| `retryAfterSeconds` | Suggested wait: 2 s, then 4 s |
+| `attemptsLeft` | Retries remaining (at most 2 per original request) |
+
+To retry, send the same `message` again with the returned `sessionId` and `retryToken`. The token works once, only for the same account and identical message text, and only within 10 minutes. Otherwise the answer is `409 RETRY_NOT_ALLOWED`, and the request must be sent as a new message. A failed request never applied a change, and a retry asks the model again from scratch: it cannot replay a completed mutation or revive an expired proposal, and any new proposal still needs its own confirmation. Retries count towards the normal assistant rate limit. Only a SHA-256 hash of the message is stored, to match the retry.
+## Assistant usage and cost
+
+`GET /reports/ai-usage?from=YYYY-MM-DD&to=YYYY-MM-DD` (administrators only; the default is the last 30 days, at most 366 days, using department-local dates) returns assistant request counts and provider-reported tokens for the active department. Figures are given as `totals` and per model (`byModel`), with `estimatedCost` in `currency`.
+
+Tokens come from the `usage` block of OpenAI-compatible responses and are stored per interaction as `prompt_tokens` and `completion_tokens`. Prompts and replies are never stored. `requests_with_usage` shows how many requests reported tokens; the local model and providers without usage data count as requests only. The cost estimate uses `AI_COST_INPUT_PER_MILLION` and `AI_COST_OUTPUT_PER_MILLION` (prices per million tokens, in `AI_COST_CURRENCY`, default `USD`). When no price is set, `estimatedCost` is `null` and `pricingConfigured` is `false`. The estimate ignores provider-side discounts, caching and minimum charges, so compare it with the provider invoice.
+## Pagination
+
+Large collections (`/patients`, `/admissions`, `/doctors`, `/rooms`, `/procedures`, workspace rosters) all return the same page body: `items`, `page` (zero-based), `size`, `totalElements`, `totalPages`, `hasNext`, `nextPage`. `/audit` keeps its established `page`/`size`/`total`/`events` body. Every one of these responses also carries:
+
+| Header | Meaning |
+| --- | --- |
+| `X-Total-Count` | Total matching records across all pages |
+| `Link` | RFC 8288 relative links with `rel="first"`, `"prev"` (when not on the first page), `"next"` (when more pages exist) and `"last"` |
+
+Links keep the request's other filters and set `page` and `size` explicitly. An empty result points `first` and `last` at page 0. Page sizes remain bounded per endpoint (for example at most 100 for catalogues and 200 for audit).
+## Workflow dry run
+
+`POST /assistant/workflows/dry-run` with `{"plan": ...}` takes the workflow proposal JSON, either as a string (the assistant's `prepareWorkflow` format) or as an object. It checks every step without saving anything and without creating a pending proposal. The plan runs through the same operations as a confirmed workflow, inside a transaction that is always rolled back, so field validation, references, capacity, capability, uniqueness and role checks match confirmation. The response contains `valid`, `committed: false`, the count of `operations` by type, and `capacityChanges` for existing rooms (`occupiedBefore`/`occupiedAfter`). An invalid plan returns `valid: false` with the `code` and `message` confirmation would have produced. Nothing is audited or notified because nothing commits. Database ID sequences may still advance. A dry run is not a reservation: state can change before a real proposal is confirmed, and confirmation re-checks everything.
+## Expected-discharge calendar feed
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| POST | `/calendar/feed` | Staff, doctors and admins. Creates a personal feed for the active department and returns its `url` once (built from `PUBLIC_APP_URL` when set). Creating a new feed revokes the previous one. Audited as `CALENDAR_FEED_CREATED`. |
+| DELETE | `/calendar/feed` | Revokes your feed for the active department; audited as `CALENDAR_FEED_REVOKED` |
+| GET | `/calendar/feeds/{token}.ics` | Public iCalendar (RFC 5545) for calendar apps; the random token in the URL is the credential |
+
+The feed has one all-day event per active admission with an expected discharge date, titled `Expected discharge - Room N` and described as `Admission #id`. Patient names and identifiers are never included, because feeds sync to devices outside the application. Doctors receive only their own patients. Every fetch re-checks that the owner is enabled and still a member of the department, and `404` is returned for revoked, replaced or unknown tokens. Only a SHA-256 hash of the token is stored. Treat the URL like a password and revoke it if it is shared by mistake.
+## Assistant provider check
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| GET | `/settings/ai` | Administrators only. `mode`, provider host, model, whether an API key is set (never the key) and the timeout |
+| POST | `/settings/ai/test` | Administrators only; 5 per administrator per 10 minutes. Sends a fixed synthetic prompt with a single `connectionCheck` tool (no hospital or patient data) and reports `outcome`, `providerStatus` and `latencyMs`. Audited as `AI_PROVIDER_TESTED`. |
+
+Outcomes: `COMPATIBLE` (exactly one call to the synthetic tool), `TOOL_CALLS_UNSUPPORTED`, `AUTHENTICATION_FAILED` (401/403), `PROVIDER_ERROR` (other HTTP status), `TIMEOUT`, `UNREACHABLE`, `INVALID_URL`, `INSECURE_PROTOCOL` (plain HTTP is accepted only for loopback addresses) and `NOT_EXTERNAL` (`AI_MODE` is not `external`). Provider response text is never returned.
 
 ## Rate-limit headers
 

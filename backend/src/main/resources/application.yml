@@ -115,6 +115,11 @@ app:
     timeout-seconds: 15
     rate-limit: 20
     action-ttl-seconds: 300
+    cost:
+      # Provider prices per million tokens, for estimates only; 0 leaves cost unset.
+      input-per-million: ${AI_COST_INPUT_PER_MILLION:0}
+      output-per-million: ${AI_COST_OUTPUT_PER_MILLION:0}
+      currency: ${AI_COST_CURRENCY:USD}
     context-max-turns: ${AI_CONTEXT_MAX_TURNS:6}
     context-max-chars: ${AI_CONTEXT_MAX_CHARS:40000}
     context-ttl: ${AI_CONTEXT_TTL:30m}

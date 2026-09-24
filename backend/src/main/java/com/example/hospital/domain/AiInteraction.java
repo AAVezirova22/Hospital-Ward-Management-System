@@ -15,6 +15,11 @@ public class AiInteraction extends DepartmentEntity {
   private Instant startedAt;
   private Instant completedAt;
   private Long latencyMs;
+  private String retryToken;
+  private String retryMessageHash;
+  private int retryAttempt;
+  private Long promptTokens;
+  private Long completionTokens;
 
   public Long getUserId() { return userId; }
   public void setUserId(Long userId) { this.userId = userId; }
@@ -34,4 +39,14 @@ public class AiInteraction extends DepartmentEntity {
   public void setCompletedAt(Instant completedAt) { this.completedAt = completedAt; }
   public Long getLatencyMs() { return latencyMs; }
   public void setLatencyMs(Long latencyMs) { this.latencyMs = latencyMs; }
+  public String getRetryToken() { return retryToken; }
+  public void setRetryToken(String retryToken) { this.retryToken = retryToken; }
+  public String getRetryMessageHash() { return retryMessageHash; }
+  public void setRetryMessageHash(String retryMessageHash) { this.retryMessageHash = retryMessageHash; }
+  public int getRetryAttempt() { return retryAttempt; }
+  public void setRetryAttempt(int retryAttempt) { this.retryAttempt = retryAttempt; }
+  public Long getPromptTokens() { return promptTokens; }
+  public void setPromptTokens(Long promptTokens) { this.promptTokens = promptTokens; }
+  public Long getCompletionTokens() { return completionTokens; }
+  public void setCompletionTokens(Long completionTokens) { this.completionTokens = completionTokens; }
 }

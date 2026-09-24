@@ -44,7 +44,14 @@ public class DemoService {
     // recreated so bootstrap enrollment stays valid. Audit history is append-only, so the reset
     // opts in to deleting it for this transaction only.
     jdbc.queryForObject("select set_config('hospital.audit_maintenance', 'on', true)", String.class);
-    for (String table : new String[]{"email_outbox", "idempotency_keys", "email_verifications", "ai_sessions", "ai_pending_actions", "ai_interactions",
+    for (String table : new String[]{
+        "email_outbox",
+        "idempotency_keys",
+        "calendar_feeds",
+        "email_verifications",
+        "ai_sessions",
+        "ai_pending_actions",
+        "ai_interactions",
         "audit_events", "access_reviews", "performed_procedures", "room_assignments", "admissions",
         "app_users", "patients", "doctors", "rooms", "medical_procedures",
         "department_memberships", "hospital_memberships", "departments", "hospitals"}) {
