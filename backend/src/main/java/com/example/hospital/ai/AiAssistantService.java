@@ -88,6 +88,32 @@ public class AiAssistantService {
     sessions.save(s);
   }
 
+  static final int MAX_RETRIES = 2;
+  static final Duration RETRY_WINDOW = Duration.ofMinutes(10);
+
+  /** Validates and consumes a retry token, returning the attempt number of this retry. */
+  private int consumeRetry(long userId, MessageInput in) {
+    var failed = interactions.findByRetryTokenAndUserId(in.retryToken().strip(), userId)
+        .filter(i -> "PROVIDER_UNAVAILABLE".equals(i.getStatus()))
+        .filter(i -> i.getStartedAt().isAfter(Instant.now().minus(RETRY_WINDOW)))
+        .filter(i -> messageHash(in.message()).equals(i.getRetryMessageHash()))
+        .filter(i -> i.getRetryAttempt() < MAX_RETRIES)
+        .orElseThrow(() -> new ApiException(409, "RETRY_NOT_ALLOWED",
+            "This request can no longer be retried. Send it again as a new message."));
+    failed.setRetryToken(null);
+    interactions.save(failed);
+    return failed.getRetryAttempt() + 1;
+  }
+
+  private static String messageHash(String message) {
+    try {
+      return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+          .digest((message == null ? "" : message).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new IllegalArgumentException(e);
+    }
+  }
+
   public AiToolRegistry.Response message(MessageInput in) {
     var u = actor.user();
     var window = windows.computeIfAbsent(u.getId(), k -> new Window());
@@ -112,6 +138,8 @@ public class AiAssistantService {
     interaction.setStatus("FAILED");
     AiSession s = null;
     try {
+      if (in.retryToken() != null && !in.retryToken().isBlank())
+        interaction.setRetryAttempt(consumeRetry(u.getId(), in));
       if (in.sessionId() == null || in.sessionId().isBlank()) {
         s = new AiSession();
         s.setUserId(u.getId());
@@ -196,10 +224,24 @@ public class AiAssistantService {
       throw new ApiException(
           400, "INVALID_TOOL_CALL", "The assistant request could not be interpreted safely.");
     } catch (IllegalStateException e) {
+      // A provider failure changes nothing: no tool result was applied, so the same message may be
+      // sent again a bounded number of times with a one-time token.
+      interaction.setStatus("PROVIDER_UNAVAILABLE");
+      int attemptsLeft = MAX_RETRIES - interaction.getRetryAttempt();
+      Map<String, Object> retry = new LinkedHashMap<>();
+      retry.put("retryable", attemptsLeft > 0);
+      if (attemptsLeft > 0) {
+        String token = UUID.randomUUID().toString();
+        interaction.setRetryToken(token);
+        interaction.setRetryMessageHash(messageHash(in.message()));
+        retry.put("retryToken", token);
+        retry.put("retryAfterSeconds", 2 * (interaction.getRetryAttempt() + 1));
+        retry.put("attemptsLeft", attemptsLeft);
+      }
       return new AiToolRegistry.Response(
           "ERROR",
           "The assistant is unavailable. All standard hospital screens remain available.",
-          Map.of(),
+          retry,
           s == null ? null : s.getSessionKey(),
           model.identifier());
     } finally {

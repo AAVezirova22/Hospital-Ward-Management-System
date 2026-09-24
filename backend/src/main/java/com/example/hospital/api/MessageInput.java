@@ -10,9 +10,15 @@ public record MessageInput(
     @Size(max = 120) String route,
     Long selectedPatientId,
     @Size(max = 20) List<@NotBlank @Size(max = 64) String> sourceIds,
-    @Size(max = 300) List<@Valid ConnectedFile> connectedFiles) {
+    @Size(max = 300) List<@Valid ConnectedFile> connectedFiles,
+    @Size(max = 64) String retryToken) {
   public MessageInput(String sessionId, String message, String route, Long selectedPatientId) {
-    this(sessionId, message, route, selectedPatientId, List.of(), List.of());
+    this(sessionId, message, route, selectedPatientId, List.of(), List.of(), null);
+  }
+
+  public MessageInput(String sessionId, String message, String route, Long selectedPatientId,
+      List<String> sourceIds, List<ConnectedFile> connectedFiles) {
+    this(sessionId, message, route, selectedPatientId, sourceIds, connectedFiles, null);
   }
 
   public record ConnectedFile(
