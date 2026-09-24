@@ -28,6 +28,7 @@ import type {
   DoctorWorkloadReport,
   Patient,
   PatientDirectoryPage,
+  RoomUtilizationReport,
   WorkspaceList,
 } from "../../api/contracts";
 import { dateInTimeZone } from "../../date-time";
@@ -48,7 +49,8 @@ export function Reports() {
     [patientId, setPatient] = useUrlState("patientId"),
     [doctorId, setDoctor] = useUrlState("doctorId"),
     [roomId, setRoom] = useUrlState("roomId"),
-    [mode, setMode] = useUrlState("mode", "procedures");
+    [mode, setMode] = useUrlState("mode", "procedures"),
+    [bucket, setBucket] = useUrlState("bucket", "day");
   const [patientSearch, setPatientSearch] = useState("");
   const [patientPage, setPatientPage] = useState(0);
 
@@ -81,6 +83,13 @@ export function Reports() {
     ...(patientId ? { patientId } : {}),
     ...(doctorId ? { doctorId } : {}),
   });
+  const roomUtilizationParams = new URLSearchParams({
+    from,
+    to,
+    bucket: bucket === "week" ? "week" : "day",
+    ...(roomId ? { roomId } : {}),
+    ...(patientId ? { patientId } : {}),
+  });
   const path =
     mode === "procedures"
       ? "/reports/procedures?" + params
@@ -88,6 +97,8 @@ export function Reports() {
         ? "/reports/capacity"
         : mode === "doctor-workload"
           ? "/reports/doctor-workload?" + new URLSearchParams({ from, to })
+          : mode === "room-utilization"
+            ? "/reports/room-utilization?" + roomUtilizationParams
           : "/reports/census?" +
             new URLSearchParams({
               ...(doctorId ? { doctorId } : {}),
@@ -130,7 +141,13 @@ export function Reports() {
         description="Authoritative reports calculated from saved department records."
       />
       <div className="tabs" role="group" aria-label="Report type">
-        {["procedures", "census", "capacity", "doctor-workload"].map((m) => (
+        {[
+          "procedures",
+          "census",
+          "capacity",
+          "doctor-workload",
+          "room-utilization",
+        ].map((m) => (
           <button
             className={mode === m ? "selected" : ""}
             aria-pressed={mode === m}
@@ -143,13 +160,17 @@ export function Reports() {
                 ? "Bed capacity"
                 : m === "doctor-workload"
                   ? "Doctor workload"
+                  : m === "room-utilization"
+                    ? "Room utilization"
                   : "Procedure activity"}
           </button>
         ))}
       </div>
       <div className="report-filters">
         <small className="muted">Calendar dates use {timeZone}.</small>
-        {(mode === "procedures" || mode === "doctor-workload") && (
+        {(mode === "procedures" ||
+          mode === "doctor-workload" ||
+          mode === "room-utilization") && (
           <>
             <label>
               From
@@ -167,7 +188,7 @@ export function Reports() {
                 onChange={(e) => setTo(e.target.value)}
               />
             </label>
-            {mode === "procedures" && (
+            {(mode === "procedures" || mode === "room-utilization") && (
               <>
                 <label>
                   Find patient
@@ -204,7 +225,9 @@ export function Reports() {
                     ))}
                   </select>
                 </label>
-                {patients && patients.totalPages > 1 && (
+                {patients &&
+                  patients.totalPages > 1 &&
+                  (mode === "procedures" || mode === "room-utilization") && (
                   <div className="table-pagination">
                     <span>
                       Page {patients.page + 1} of {patients.totalPages}
@@ -262,6 +285,32 @@ export function Reports() {
             </select>
           </label>
         )}
+        {mode === "room-utilization" && (
+          <>
+            <label>
+              Time interval
+              <select
+                value={bucket === "week" ? "week" : "day"}
+                onChange={(e) => setBucket(e.target.value)}
+              >
+                <option value="day">Daily</option>
+                <option value="week">Weekly</option>
+              </select>
+            </label>
+            <label>
+              Room
+              <select value={roomId} onChange={(e) => setRoom(e.target.value)}>
+                <option value="">All rooms</option>
+                {Array.isArray(rooms) &&
+                  rooms.map((r: Row) => (
+                    <option value={r.id} key={r.id}>
+                      {r.roomNumber}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </>
+        )}
         {mode === "procedures" && (
           <button
             type="button"
@@ -278,7 +327,7 @@ export function Reports() {
       <ErrorBox
         error={
           error ||
-          (mode === "procedures"
+          ((mode === "procedures" || mode === "room-utilization")
             ? patientDirectoryQuery.error || selectedPatientQuery.error
             : null)
         }
@@ -305,6 +354,11 @@ export function Reports() {
                     setRoom(id);
                     setMode("census");
                   }}
+                />
+              )}
+              {mode === "room-utilization" && (
+                <RoomUtilizationSummary
+                  report={data as RoomUtilizationReport}
                 />
               )}
             </div>
@@ -426,6 +480,10 @@ export function Reports() {
                     <Empty text="No active doctors are available in this reporting scope." />
                   )}
                 </>
+              ) : mode === "room-utilization" ? (
+                <RoomUtilizationTable
+                  report={data as RoomUtilizationReport}
+                />
               ) : (
                 <table>
                   <thead>
@@ -456,6 +514,108 @@ export function Reports() {
             </section>
           </>
         )
+      )}
+    </>
+  );
+}
+
+function RoomUtilizationSummary({
+  report,
+}: {
+  report: RoomUtilizationReport;
+}) {
+  const occupiedBedHours = report.rows.reduce(
+    (total, row) => total + row.occupiedBedHours,
+    0,
+  );
+  const capacityBedHours = report.rows.reduce(
+    (total, row) => total + row.capacityBedHours,
+    0,
+  );
+  const utilization = capacityBedHours
+    ? (occupiedBedHours / capacityBedHours) * 100
+    : 0;
+
+  return (
+    <section
+      className="panel report-total room-utilization-summary"
+      aria-label="Room utilization summary"
+    >
+      <div>
+        <strong>Historical room utilization</strong>
+        <span>
+          {report.from} through {report.to} ·{" "}
+          {report.bucket === "day" ? "Daily" : "Weekly"} · {report.timeZone}
+        </span>
+        <span>Scope: {report.scope}</span>
+      </div>
+      <div>
+        <strong>{utilization.toFixed(1)}%</strong>
+        <span>
+          {occupiedBedHours.toFixed(1)} occupied bed hours of{" "}
+          {capacityBedHours.toFixed(1)} capacity bed hours
+        </span>
+      </div>
+      <p className="muted">
+        Scoped occupied bed hours are compared with each room's full configured
+        capacity. A patient or doctor scope can show partial utilization when
+        other patients occupy beds in the same rooms. Capacity basis:{" "}
+        {report.capacityBasis}.
+      </p>
+    </section>
+  );
+}
+
+function RoomUtilizationTable({
+  report,
+}: {
+  report: RoomUtilizationReport;
+}) {
+  return (
+    <>
+      <h2>Utilization by room and period</h2>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Period</th>
+            <th scope="col">Room</th>
+            <th scope="col">Beds</th>
+            <th scope="col">Occupied bed hours</th>
+            <th scope="col">Capacity bed hours</th>
+            <th scope="col">Utilization</th>
+          </tr>
+        </thead>
+        <tbody>
+          {report.rows.map((row, index) => {
+            const percent = Number(row.utilizationPercent);
+            const safePercent = Number.isFinite(percent)
+              ? Math.min(100, Math.max(0, percent))
+              : 0;
+            return (
+              <tr key={`${row.roomId}-${row.periodStart}-${index}`}>
+                <td>
+                  {row.periodStart}
+                  {row.periodEnd !== row.periodStart && ` – ${row.periodEnd}`}
+                </td>
+                <th scope="row">{row.roomNumber}</th>
+                <td>{row.bedCount}</td>
+                <td>{Number(row.occupiedBedHours).toFixed(1)}</td>
+                <td>{Number(row.capacityBedHours).toFixed(1)}</td>
+                <td>
+                  <span>{percent.toFixed(1)}%</span>{" "}
+                  <progress
+                    value={safePercent}
+                    max={100}
+                    aria-label={`Room ${row.roomNumber}, ${row.periodStart} utilization`}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {report.rows.length === 0 && (
+        <Empty text="No rooms match this department and filter scope." />
       )}
     </>
   );

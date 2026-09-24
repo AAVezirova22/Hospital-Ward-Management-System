@@ -16,7 +16,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/registration")
 public class RegistrationController {
   private final RegistrationService registration;
-  public RegistrationController(RegistrationService registration) {this.registration=registration;}
+  private final com.example.hospital.security.ClientAddressResolver clientAddresses;
+  public RegistrationController(RegistrationService registration, com.example.hospital.security.ClientAddressResolver clientAddresses) {
+    this.registration=registration;
+    this.clientAddresses=clientAddresses;
+  }
   public record Signup(@NotBlank @Pattern(regexp="[a-zA-Z0-9._-]{3,64}") String username,
       @NotBlank @Email @Size(max=254) String email, @NotBlank @Size(min=12,max=72) String password,
       @NotBlank @Size(max=100) String firstName, @NotBlank @Size(max=100) String lastName,
@@ -42,9 +46,8 @@ public class RegistrationController {
     return Map.of("message","If the registration can be recovered, a fresh confirmation email will be sent.");
   }
 
-  private static String clientKey(HttpServletRequest request, String identifier) {
-    String client = request.getRemoteAddr();
-    if (client == null || client.isBlank()) client = "unknown";
+  private String clientKey(HttpServletRequest request, String identifier) {
+    String client = clientAddresses.sourceAddress(request);
     try {
       return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
           .digest((client + ":" + identifier.trim().toLowerCase()).getBytes(StandardCharsets.UTF_8)));

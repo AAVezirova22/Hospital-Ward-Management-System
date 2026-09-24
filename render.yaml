@@ -39,6 +39,10 @@ services:
       # Public entry is limited to this API's dedicated synthetic demo database.
       - key: DEMO_PUBLIC_LOGIN
         value: "true"
+      # Render forwards through Cloudflare, which sets True-Client-IP; X-Forwarded-For keeps
+      # client-supplied entries, so rate limits read the edge header from trusted peers.
+      - key: CLIENT_IP_HEADER
+        value: True-Client-IP
       - key: COOKIE_SECURE
         value: "true"
       - key: AI_MODE

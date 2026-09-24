@@ -12,6 +12,7 @@ test("reports keep department scope and render doctor workload for the selected 
   let sessionDepartmentId = "1";
   let exportedDepartmentId: string | undefined;
   let workloadRequest: URL | undefined;
+  let utilizationRequest: URL | undefined;
   const user = {
     id: 7,
     username: "admin",
@@ -120,6 +121,52 @@ test("reports keep department scope and render doctor workload for the selected 
       });
       return;
     }
+    if (path === "/api/v1/reports/room-utilization") {
+      utilizationRequest = new URL(request.url());
+      const query = utilizationRequest.searchParams;
+      const weekly = query.get("bucket") === "week";
+      await route.fulfill({
+        json: {
+          rows: [
+            {
+              periodStart: query.get("from"),
+              periodEnd: weekly ? "2026-01-04" : query.get("from"),
+              roomId: 77,
+              roomNumber: "307",
+              bedCount: 2,
+              occupiedBedHours: weekly ? 24 : 12,
+              capacityBedHours: weekly ? 192 : 48,
+              utilizationPercent: weekly ? 12.5 : 25,
+            },
+          ],
+          from: query.get("from"),
+          to: query.get("to"),
+          bucket: query.get("bucket"),
+          timeZone: "UTC",
+          scope: "Department",
+          capacityBasis:
+            "Current configured bed count applied from each room's creation time",
+        },
+      });
+      return;
+    }
+    if (path === "/api/v1/patients/88") {
+      await route.fulfill({
+        json: {
+          patient: {
+            id: 88,
+            version: 0,
+            patientIdentifier: "PT-88",
+            firstName: "Grace",
+            lastName: "Hopper",
+            dateOfBirth: "1906-12-09",
+            address: "",
+            phoneNumber: "",
+          },
+        },
+      });
+      return;
+    }
     if (
       ["/api/v1/patients", "/api/v1/doctors", "/api/v1/rooms"].includes(path)
     ) {
@@ -128,11 +175,14 @@ test("reports keep department scope and render doctor workload for the selected 
       const size = Number(query.get("size") ?? "20");
       await route.fulfill({
         json: {
-          items: [],
+          items:
+            path === "/api/v1/rooms"
+              ? [{ id: 77, roomNumber: "307", bedCount: 2 }]
+              : [],
           page,
           size,
-          totalElements: 0,
-          totalPages: 0,
+          totalElements: path === "/api/v1/rooms" ? 1 : 0,
+          totalPages: path === "/api/v1/rooms" ? 1 : 0,
           hasNext: false,
           nextPage: null,
         },
@@ -216,4 +266,58 @@ test("reports keep department scope and render doctor workload for the selected 
   expect(workloadRequest?.searchParams.get("from")).toBe("2026-01-01");
   expect(workloadRequest?.searchParams.get("to")).toBe("2026-01-31");
   expect(workloadRequest?.searchParams.has("doctorId")).toBe(false);
+
+  await page.goto(
+    "/app/reports?mode=room-utilization&from=2026-01-01&to=2026-01-31&bucket=week&roomId=77&patientId=88",
+  );
+  await expect(
+    page.getByRole("button", { name: "Room utilization" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("heading", { name: "Utilization by room and period" }),
+  ).toBeVisible();
+  await expect(page.getByText("Historical room utilization")).toBeVisible();
+  await expect(page.getByText("Scope: Department")).toBeVisible();
+  await expect(
+    page.getByText(/compared with each room's full configured capacity/i),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Current configured bed count applied from each room's creation time/),
+  ).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Time interval" })).toHaveValue(
+    "week",
+  );
+  await expect(page.getByRole("combobox", { name: "Room" })).toHaveValue("77");
+  const utilizationRow = page.getByRole("row", { name: /307/ });
+  await expect(utilizationRow).toBeVisible();
+  await expect(utilizationRow.getByRole("cell")).toHaveText([
+    "2026-01-01 – 2026-01-04",
+    "2",
+    "24.0",
+    "192.0",
+    "12.5%",
+  ]);
+  expect(utilizationRequest?.searchParams.get("from")).toBe("2026-01-01");
+  expect(utilizationRequest?.searchParams.get("to")).toBe("2026-01-31");
+  expect(utilizationRequest?.searchParams.get("bucket")).toBe("week");
+  expect(utilizationRequest?.searchParams.get("roomId")).toBe("77");
+  expect(utilizationRequest?.searchParams.get("patientId")).toBe("88");
+  const dailyRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return (
+      url.pathname === "/api/v1/reports/room-utilization" &&
+      url.searchParams.get("bucket") === "day"
+    );
+  });
+  await page.getByRole("combobox", { name: "Time interval" }).selectOption("day");
+  expect(new URL((await dailyRequest).url()).searchParams.get("bucket")).toBe(
+    "day",
+  );
+  await expect(utilizationRow.getByRole("cell")).toHaveText([
+    "2026-01-01",
+    "2",
+    "12.0",
+    "48.0",
+    "25.0%",
+  ]);
 });
