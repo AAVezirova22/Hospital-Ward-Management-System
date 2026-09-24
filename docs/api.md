@@ -29,6 +29,8 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
 | GET | `/audit` | Latest 100 events; admin-only |
+
+Opening `GET /patients/{id}`, `GET /admissions/{id}` or the assistant's `getPatientSummary` tool records a `PATIENT_VIEWED` or `ADMISSION_VIEWED` audit event with actor, department, record ID, source (`UI` or `AI`) and time. No field values are stored. Lists, searches and failed lookups are not recorded, and a person's own portal view is not recorded. Repeat views of the same record by the same user within `AUDIT_READ_DEDUPE_WINDOW` are recorded once.
 | GET | `/workspaces` | Hospitals and departments the account can open, plus the active department. Live join codes are omitted; owners receive `hasJoinCode`. |
 | POST | `/workspaces/hospitals` | `{name, departmentName}`; owner of the hospital and admin of its first department |
 | POST | `/workspaces/hospitals/{id}/departments` | `{name}`; hospital owner only |

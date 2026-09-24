@@ -77,6 +77,17 @@ Watch saturation through the administrator-only metrics endpoint (pool tag `hosp
 
 Sustained pending connections mean too many instances for the database or slow statements; check slow queries before enlarging the pool.
 
+## Read auditing
+
+Patient and admission detail views are audited so administrators can reconstruct who opened a record. Volume controls:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `AUDIT_RECORD_READS` | `true` | `false` stops recording read events; changes are always audited |
+| `AUDIT_READ_DEDUPE_WINDOW` | `15m` | Repeat views of one record by one user inside this window are recorded once; `0s` records every view |
+
+Read events publish no notifications or live refreshes. Each stores only actor, department, record ID, source and time, and uses the `audit_read_lookup` index for the repeat-view check. Estimate volume as distinct (user, record) pairs per window; a busy ward with 50 staff opening 40 records each per shift adds about 2,000 rows per shift at the default window.
+
 ## Slow-query diagnostics
 
 Every JDBC statement is timed. Statements taking `SLOW_QUERY_MS` or longer (default `500`; `0` turns the log off) are logged at `WARN` on the `hospital.slow-query` logger:
