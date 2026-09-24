@@ -59,6 +59,7 @@ Opening `GET /patients/{id}`, `GET /admissions/{id}` or the assistant's `getPati
 | POST | `/workspaces/departments/{id}/leave` | Leave a department |
 | POST | `/workspaces/hospitals/{id}/owners` | `{userId}`; hospital owner only |
 | POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted. |
+| PUT | `/workspaces/departments/{id}/members/{userId}/expiry` | `{expiresAt}` (ISO-8601 instant, or `null` to remove the limit); owner or department administrator. The time must be in the future and cannot be set on your own membership (`409 SELF_EXPIRY`). From `expiresAt` the member gets `403 MEMBERSHIP_EXPIRED` for that department, it disappears from their `/workspaces` list, and discharge reminders stop. The membership row stays until it is extended or removed. `MEMBERSHIP_EXPIRY_NOTICE` (default `3d`) before the end, the member gets one personal in-app notice. Changing the time sends a new notice. Audited as `MEMBERSHIP_EXPIRY_SET`. `/workspaces` departments carry `accessExpiresAt`, and `/users` accounts carry `membershipExpiresAt`. |
 | GET | `/workspaces/hospitals/{id}/access-review?inactiveAfterDays=90` | Hospital owner only. Every workforce member of the hospital (patient accounts excluded) with account state, `lastLoginAt`, `inactive` (no sign-in within the period), owner flag, department roles, linked doctor name and `latestReview`, plus counts per outcome. Contains no clinical records, credentials or contact details. |
 | POST | `/workspaces/hospitals/{id}/access-review/{userId}` | `{outcome, note?}` with outcome `KEEP`, `CHANGE` or `REVOKE`; hospital owner only. Stores the decision with reviewer and time, keeps earlier decisions, and audits `ACCESS_REVIEWED`. Recording `CHANGE` or `REVOKE` does not change access; use the role and member endpoints to act on it. |
 
@@ -110,6 +111,7 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 401 | `UNAUTHENTICATED` / `INVALID_CREDENTIALS` | Sign-in required or rejected |
 | 403 | `ACCESS_DENIED` | Role, entity ownership or CSRF restriction |
 | 403 | `DEPARTMENT_ACCESS_DENIED` | The account has not joined the requested department |
+| 403 | `MEMBERSHIP_EXPIRED` | The account's time-limited membership of the requested department has ended |
 | 403 | `HOSPITAL_OWNER_REQUIRED` | Only a hospital owner can manage that hospital |
 | 403 | `DEPARTMENT_ADMIN_REQUIRED` | Only a department administrator can replace its code |
 | 400 | `INVALID_CODE` | Join code is missing, malformed, or unknown |

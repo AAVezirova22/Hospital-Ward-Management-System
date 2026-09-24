@@ -82,6 +82,10 @@ app:
   session:
     # Hard limit from sign-in, independent of the idle timeout; users then sign in again.
     max-lifetime: ${SESSION_MAX_LIFETIME:12h}
+  memberships:
+    # In-app notice this long before a time-limited department membership ends.
+    expiry-notice: ${MEMBERSHIP_EXPIRY_NOTICE:3d}
+    expiry-sweep-enabled: ${MEMBERSHIP_EXPIRY_SWEEP:true}
   audit:
     # Record who opened patient and admission records (not lists or searches). Repeat views of the
     # same record by the same user inside the window are recorded once; 0s records every view.

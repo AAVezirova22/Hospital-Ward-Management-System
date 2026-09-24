@@ -73,10 +73,11 @@ public class DepartmentScopeFilter extends OncePerRequestFilter {
           try {
             scope = workspaces.resolve(u.get(), requested);
           } catch (ApiException e) {
-            if (!sessionSelection || !"DEPARTMENT_ACCESS_DENIED".equals(e.code)) {
+            if (!sessionSelection
+                || !("DEPARTMENT_ACCESS_DENIED".equals(e.code) || "MEMBERSHIP_EXPIRED".equals(e.code))) {
               throw e;
             }
-            // Membership can be revoked from another tab or by an administrator.
+            // Membership can be revoked or expire while a session still points at it.
             // Recover only stale session fallback; explicit scopes remain rejected.
             session.removeAttribute("departmentId");
             scope = workspaces.resolve(u.get(), null);
