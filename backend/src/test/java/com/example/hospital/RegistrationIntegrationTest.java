@@ -197,7 +197,13 @@ class RegistrationIntegrationTest {
  @Test void recoveryRequiresCsrfAndRateLimitsByUsernameAcrossEmailChanges() throws Exception {
    var body=Map.of("username","rate_recovery_user","password","RegistrationPassword123!","email","first@example.test");
    mvc.perform(post("/api/v1/registration/recover").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))).andExpect(status().isForbidden());
-   assertRecoveryMessage("rate_recovery_user","RegistrationPassword123!","first@example.test","10.0.0.16");
-   recover("rate_recovery_user","RegistrationPassword123!","second@example.test","10.0.0.16","203.0.113.45").andExpect(status().isTooManyRequests());
+   assertRecoveryMessage("rate_recovery_user","RegistrationPassword123!","first@example.test","198.51.100.40");
+   // A public peer is not a trusted proxy, so a forged X-Forwarded-For cannot open a new rate-limit bucket.
+   recover("rate_recovery_user","RegistrationPassword123!","second@example.test","198.51.100.40","203.0.113.45").andExpect(status().isTooManyRequests());
+ }
+ @Test void recoveryLimitsFollowTheRealClientBehindATrustedProxy() throws Exception {
+   assertRecoveryMessage("proxied_recovery_user","RegistrationPassword123!","one@example.test","10.0.0.17");
+   recover("proxied_recovery_user","RegistrationPassword123!","one@example.test","10.0.0.17","203.0.113.46").andExpect(status().isOk());
+   recover("proxied_recovery_user","RegistrationPassword123!","one@example.test","10.0.0.18","203.0.113.46").andExpect(status().isTooManyRequests());
  }
 }
