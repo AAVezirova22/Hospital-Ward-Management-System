@@ -41,6 +41,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/workspaces/departments/{id}/leave` | Leave a department |
 | POST | `/workspaces/hospitals/{id}/owners` | `{userId}`; hospital owner only |
 | POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted. |
+| PUT | `/workspaces/departments/{id}/members/{userId}/expiry` | `{expiresAt}` (ISO-8601 instant, or `null` to remove the limit); owner or department administrator. The time must be in the future and cannot be set on your own membership (`409 SELF_EXPIRY`). From `expiresAt` the member gets `403 MEMBERSHIP_EXPIRED` for that department, it disappears from their `/workspaces` list, and discharge reminders stop. The membership row stays until it is extended or removed. `MEMBERSHIP_EXPIRY_NOTICE` (default `3d`) before the end, the member gets one personal in-app notice. Changing the time sends a new notice. Audited as `MEMBERSHIP_EXPIRY_SET`. `/workspaces` departments carry `accessExpiresAt`, and `/users` accounts carry `membershipExpiresAt`. |
 
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 
@@ -88,6 +89,7 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 401 | `UNAUTHENTICATED` / `INVALID_CREDENTIALS` | Sign-in required or rejected |
 | 403 | `ACCESS_DENIED` | Role, entity ownership or CSRF restriction |
 | 403 | `DEPARTMENT_ACCESS_DENIED` | The account has not joined the requested department |
+| 403 | `MEMBERSHIP_EXPIRED` | The account's time-limited membership of the requested department has ended |
 | 403 | `HOSPITAL_OWNER_REQUIRED` | Only a hospital owner can manage that hospital |
 | 403 | `DEPARTMENT_ADMIN_REQUIRED` | Only a department administrator can replace its code |
 | 400 | `INVALID_CODE` | Join code is missing, malformed, or unknown |
