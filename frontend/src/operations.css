@@ -652,6 +652,23 @@
 .report-bars strong {
   float: right;
 }
+.room-utilization-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 24px;
+}
+.room-utilization-summary > div {
+  display: grid;
+  gap: 6px;
+}
+.room-utilization-summary > div:nth-child(2) {
+  justify-items: end;
+}
+.room-utilization-summary > p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
 .proposal-preview {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -688,6 +705,12 @@
   .planner-layout,
   .operations-bottom {
     grid-template-columns: 1fr;
+  }
+  .room-utilization-summary {
+    grid-template-columns: 1fr;
+  }
+  .room-utilization-summary > div:nth-child(2) {
+    justify-items: start;
   }
   .planner-controls {
     position: static;
