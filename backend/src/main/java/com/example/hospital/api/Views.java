@@ -143,6 +143,7 @@ public final class Views {
     row.put("requestedRole", u.getRequestedRole());
     row.put("accountRole", u.getAccountRole());
     row.put("departmentRole", u.getDepartmentRole());
+    row.put("membershipExpiresAt", u.getMembershipExpiresAt());
     return row;
   }
 

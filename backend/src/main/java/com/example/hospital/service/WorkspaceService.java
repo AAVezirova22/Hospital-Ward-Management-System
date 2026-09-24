@@ -27,7 +27,8 @@ public class WorkspaceService {
     this.actor = actor;
     this.audit = audit;
   }
-  public record Department(long id, String name, String role, boolean hasJoinCode, String timeZone) {}
+  public record Department(
+      long id, String name, String role, boolean hasJoinCode, String timeZone, Instant accessExpiresAt) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
 
   public List<Hospital> list() {
@@ -35,9 +36,10 @@ public class WorkspaceService {
     return jdbc.query("select h.id,h.name,m.owner from hospitals h join hospital_memberships m on m.hospital_id=h.id where m.user_id=? order by h.name,h.id",
         (rs, n) -> {
           long id = rs.getLong(1); boolean owner = rs.getBoolean(3);
-          var departments = jdbc.query("select d.id,d.name,m.role,d.time_zone from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? order by d.name,d.id",
+          var departments = jdbc.query("select d.id,d.name,m.role,d.time_zone,m.expires_at from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? and " + com.example.hospital.security.WorkspaceAccess.ACTIVE_MEMBERSHIP + " order by d.name,d.id",
               (d, i) -> new Department(d.getLong(1), d.getString(2), d.getString(3),
-                  "ADMIN".equals(d.getString(3)), d.getString(4)), id, user.getId());
+                  "ADMIN".equals(d.getString(3)), d.getString(4),
+                  d.getTimestamp(5) == null ? null : d.getTimestamp(5).toInstant()), id, user.getId());
           return new Hospital(id, rs.getString(2), owner, owner, departments);
         }, user.getId());
   }
@@ -185,7 +187,7 @@ public class WorkspaceService {
   @Transactional
   public String rotate(boolean hospital, long id, Integer expiresInHours, boolean singleUse) {
     if (hospital) owner(id);
-    else if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'", Boolean.class, id, actor.user().getId())))
+    else if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from department_memberships m where m.department_id=? and m.user_id=? and m.role='ADMIN' and " + com.example.hospital.security.WorkspaceAccess.ACTIVE_MEMBERSHIP, Boolean.class, id, actor.user().getId())))
       throw new ApiException(403, "DEPARTMENT_ADMIN_REQUIRED", "Only a department administrator can replace its code.");
     String table = hospital ? "hospitals" : "departments";
     for (int attempt = 0; attempt < 8; attempt++) {
@@ -232,7 +234,7 @@ public class WorkspaceService {
 
   private void departmentAdmin(long departmentId) {
     if (Boolean.TRUE.equals(jdbc.queryForObject(
-        "select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'",
+        "select count(*) > 0 from department_memberships m where m.department_id=? and m.user_id=? and m.role='ADMIN' and " + com.example.hospital.security.WorkspaceAccess.ACTIVE_MEMBERSHIP,
         Boolean.class, departmentId, actor.user().getId()))) return;
     Long hospitalId = jdbc.queryForObject("select hospital_id from departments where id=?", Long.class, departmentId);
     if (hospitalId == null) throw new ApiException(404, "NOT_FOUND", "Department not found.");
@@ -358,6 +360,31 @@ public class WorkspaceService {
     return jdbc.queryForObject(
         "insert into doctors(doctor_identifier, first_name, last_name, specialty, active, department_id, version, created_at, updated_at) values (?,?,?,?,true,?,0,now(),now()) returning id",
         Long.class, identifier, first, last, specialty, departmentId);
+  }
+
+  /**
+   * Sets or clears when a department membership ends (#347). Access stops at that time; the row
+   * stays until it is removed or extended. Changing the time re-arms the advance notice.
+   */
+  @Transactional
+  public Map<String, Object> setMembershipExpiry(long departmentId, long userId, Instant expiresAt) {
+    departmentAdmin(departmentId);
+    if (expiresAt != null && !expiresAt.isAfter(Instant.now()))
+      throw new ApiException(400, "INVALID_EXPIRY", "Choose a future end time, or clear it.");
+    if (expiresAt != null && userId == actor.user().getId())
+      throw ApiException.conflict("SELF_EXPIRY", "You cannot put an end date on your own access.");
+    int updated = jdbc.update(
+        "update department_memberships set expires_at=?, expiry_notified_at=null where department_id=? and user_id=?",
+        expiresAt == null ? null : java.sql.Timestamp.from(expiresAt), departmentId, userId);
+    if (updated == 0)
+      throw new ApiException(404, "NOT_A_MEMBER", "That account is not a member of this department.");
+    audit.log("MEMBERSHIP_EXPIRY_SET", "Department", departmentId, "UI",
+        Map.of("userId", userId, "expiresAt", expiresAt == null ? "none" : expiresAt.toString()));
+    var result = new LinkedHashMap<String, Object>();
+    result.put("departmentId", departmentId);
+    result.put("userId", userId);
+    result.put("expiresAt", expiresAt);
+    return result;
   }
 
   public void enroll(long userId, String role, Long doctorId) {
