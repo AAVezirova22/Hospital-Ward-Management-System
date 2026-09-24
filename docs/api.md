@@ -29,7 +29,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
 | GET | `/audit` | Admin-only; optional `eventType`, `actorId`, `entityType`, `entityId`, `source`, `from`, `to`, `page` (default 0), and `size` (default 50, max 200) filters |
-| GET | `/audit/export.csv` | Admin-only CSV export; reuses audit filters, accepts `limit` from 1 to 1000 (default 1000), and returns 400 if more rows match |
+| GET | `/audit/export.csv` | Admin-only CSV export; reuses audit filters, accepts `limit` from 1 to 1000 (default 1000), and returns 400 if more rows match. `profile=redacted` is for external reviewers: actors become per-export pseudonyms (`A1`, `A2`, …), and the entity ID and metadata columns are removed. The response carries `X-Audit-Export-Profile` and `X-Redacted-Fields`, and the `DATA_EXPORTED` audit event records the profile and removed fields. The default is `profile=full`. |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only. Optional `reason` (max 300 characters) records context for permission changes. |
 | GET | `/audit` | Latest 100 events; admin-only |
 | GET | `/security/events?status=ACTIVE&includeInfo=false&page=0&size=25` | Department administrators only. Security review queue for the active department, highest severity first, with `counts` (`open`, `investigating`, `critical`, `unacknowledged`). `status` is `ACTIVE` (open and investigating), `ALL`, or one status. `INFO` entries are hidden unless `includeInfo=true`. |
