@@ -82,6 +82,10 @@ app:
   session:
     # Hard limit from sign-in, independent of the idle timeout; users then sign in again.
     max-lifetime: ${SESSION_MAX_LIFETIME:12h}
+  memberships:
+    # In-app notice this long before a time-limited department membership ends.
+    expiry-notice: ${MEMBERSHIP_EXPIRY_NOTICE:3d}
+    expiry-sweep-enabled: ${MEMBERSHIP_EXPIRY_SWEEP:true}
   diagnostics:
     # Log statements at or above this many milliseconds (redacted); 0 disables the log.
     slow-query-ms: ${SLOW_QUERY_MS:500}
