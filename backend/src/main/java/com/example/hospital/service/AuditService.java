@@ -45,70 +45,55 @@ public class AuditService {
   }
 
   public void log(String event, String entity, Long id, String source, java.util.Map<String, ?> extra) {
-logInternal(null, event, entity, id, source, extra);
-}
-
-public void logForDepartment(
-    long departmentId,
-    String event,
-    String entity,
-    Long id,
-    String source,
-    java.util.Map<String, ?> extra) {
-  logInternal(departmentId, event, entity, id, source, extra);
-}
-
-private void logInternal(
-    Long targetDepartmentId,
-    String event,
-    String entity,
-    Long id,
-    String source,
-    java.util.Map<String, ?> extra) {
-  var e = event(actor.user().getId(), event, entity, id, source, Instant.now(), extra);
-  if (targetDepartmentId != null) {
-    e.setDepartmentId(targetDepartmentId);
+    logInternal(null, event, entity, id, source, extra);
   }
-  events.save(e);
-  publisher.publishEvent(
-      new Recorded(
-          e.getDepartmentId() == null ? -1L : e.getDepartmentId(),
-          e.getUserId(),
-          event,
-          entity,
-          id,
-          source));
-  publisher.publishEvent(
-      new OperationsStream.Changed(
-          e.getDepartmentId() == null
-              ? com.example.hospital.security.DepartmentContext.id()
-              : e.getDepartmentId()));
-}
 
-/**
- * Records that the current user opened a patient-identifiable record: who, which record, which
- * department and when, never field values. A read changes nothing, so it publishes no event (no
- * notifications, no live refresh). Repeat views of the same record by the same user inside the
- * dedupe window are recorded once. Call outside read-only transactions.
- */
-public void read(String event, String entity, Long id, String source) {
-  if (!recordReads || id == null) return;
-  Long userId = actor.user().getId();
-  Instant now = Instant.now();
-  if (!readDedupeWindow.isZero()
-      && events.existsByUserIdAndEventTypeAndEntityIdAndTimestampAfter(
-          userId, event, id, now.minus(readDedupeWindow))) return;
-  events.save(event(userId, event, entity, id, source, now, Map.of()));
-}
+  public void logForDepartment(long departmentId, String event, String entity, Long id, String source,
+      java.util.Map<String, ?> extra) {
+    logInternal(departmentId, event, entity, id, source, extra);
+  }
 
-private static AuditEvent event(
-    Long userId,
-    String event,
-    String entity,
-    Long id,
-    String source,
-    Instant at,
-    Map<String, ?> extra) {
+  private void logInternal(Long targetDepartmentId, String event, String entity, Long id, String source,
+      java.util.Map<String, ?> extra) {
+    var e = event(actor.user().getId(), event, entity, id, source, Instant.now(), extra);
+    // DepartmentEntity stamps the department from the current scope on persist, so a targeted
+    // event temporarily switches the scope instead of setting the column.
+    DepartmentContext.Scope previous = DepartmentContext.current();
+    try {
+      if (targetDepartmentId != null)
+        DepartmentContext.set(new DepartmentContext.Scope(targetDepartmentId,
+            previous == null ? "ADMIN" : previous.role(), previous == null ? null : previous.doctorId()));
+      events.save(e);
+    } finally {
+      if (targetDepartmentId != null) {
+        if (previous == null) DepartmentContext.clear(); else DepartmentContext.set(previous);
+      }
+    }
+    publisher.publishEvent(
+        new Recorded(
+            e.getDepartmentId() == null ? -1L : e.getDepartmentId(), e.getUserId(), event, entity, id, source));
+    publisher.publishEvent(new OperationsStream.Changed(
+        targetDepartmentId == null ? DepartmentContext.id() : e.getDepartmentId()));
+  }
+
+  /**
+   * Records that the current user opened a patient-identifiable record: who, which record, which
+   * department and when, never field values. A read changes nothing, so it publishes no event (no
+   * notifications, no live refresh). Repeat views of the same record by the same user inside the
+   * dedupe window are recorded once. Call outside read-only transactions.
+   */
+  public void read(String event, String entity, Long id, String source) {
+    if (!recordReads || id == null) return;
+    Long userId = actor.user().getId();
+    Instant now = Instant.now();
+    if (!readDedupeWindow.isZero()
+        && events.existsByUserIdAndEventTypeAndEntityIdAndTimestampAfter(
+            userId, event, id, now.minus(readDedupeWindow))) return;
+    events.save(event(userId, event, entity, id, source, now, Map.of()));
+  }
+
+  private static AuditEvent event(
+      Long userId, String event, String entity, Long id, String source, Instant at, Map<String, ?> extra) {
     var e = new AuditEvent();
     e.setUserId(userId);
     e.setEventType(event);
@@ -142,37 +127,6 @@ private static AuditEvent event(
       }
     }
     e.setMetadata(json.length() > 500 ? json.substring(0, 500) : json);
-DepartmentContext.Scope previous = DepartmentContext.current();
-try {
-  if (targetDepartmentId != null) {
-    DepartmentContext.set(
-        new DepartmentContext.Scope(
-            targetDepartmentId,
-            previous == null ? "ADMIN" : previous.role(),
-            previous == null ? null : previous.doctorId()));
-  }
-  events.save(e);
-} finally {
-  if (targetDepartmentId != null) {
-    if (previous == null) {
-      DepartmentContext.clear();
-    } else {
-      DepartmentContext.set(previous);
-    }
-  }
-}
-
-publisher.publishEvent(
-    new Recorded(
-        e.getDepartmentId() == null ? -1L : e.getDepartmentId(),
-        e.getUserId(),
-        event,
-        entity,
-        id,
-        source));
-publisher.publishEvent(
-    new OperationsStream.Changed(
-        targetDepartmentId == null ? DepartmentContext.id() : e.getDepartmentId()));
     return e;
   }
 }
