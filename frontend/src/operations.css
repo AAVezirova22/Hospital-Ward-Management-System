@@ -315,7 +315,8 @@
 .projection {
   color: var(--gold);
 }
-.planner-notice {
+.planner-notice,
+.hold-notice {
   display: flex;
   align-items: center;
   gap: 10px;
