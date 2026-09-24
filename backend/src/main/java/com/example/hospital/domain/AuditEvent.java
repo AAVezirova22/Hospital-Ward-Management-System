@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
+@org.hibernate.annotations.Immutable
 @Table(name = "audit_events")
 public class AuditEvent extends DepartmentEntity {
   private Long userId;

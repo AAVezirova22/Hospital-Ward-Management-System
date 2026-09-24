@@ -21,9 +21,8 @@ import com.example.hospital.repository.RoomRepository;
 import com.example.hospital.repository.RoomAssignmentRepository;
 import com.example.hospital.repository.WorkflowLockRepository;
 import com.example.hospital.security.Actor;
+import java.util.Comparator;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.springframework.data.domain.PageRequest;
@@ -131,6 +130,7 @@ public class CatalogueService {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
+
     var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
     boolean hasQuery = q != null && !q.isBlank();
     String query = pattern(q);
@@ -139,6 +139,7 @@ public class CatalogueService {
     boolean hasRoomId = roomId != null;
     List<String> requiredCapabilities =
         List.copyOf(RoomCapabilityMatcher.normalize(requestedCapabilities));
+
     int size = safeSize(requestedSize);
     long total =
         requiredCapabilities.isEmpty()
@@ -155,8 +156,10 @@ public class CatalogueService {
                 now,
                 requiredCapabilities,
                 requiredCapabilities.size());
+
     int page = safePage(requestedPage, size, total);
     Pageable pageable = PageRequest.of(page, size, Sort.by("roomNumber", "id"));
+
     var selected =
         requiredCapabilities.isEmpty()
             ? rooms.searchDirectory(
@@ -173,23 +176,31 @@ public class CatalogueService {
                 requiredCapabilities,
                 requiredCapabilities.size(),
                 pageable);
+
     Map<Long, List<BedHold>> holdsByRoom = Map.of();
     Map<Long, Long> occupiedByRoom = new HashMap<>();
+
     if (!selected.isEmpty()) {
       var ids = selected.stream().map(Room::getId).toList();
-      holdsByRoom = bedHolds
-          .findByRoomIdInAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(ids, now).stream()
-          .collect(Collectors.groupingBy(BedHold::getRoomId));
+      holdsByRoom =
+          bedHolds
+              .findByRoomIdInAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(ids, now)
+              .stream()
+              .collect(Collectors.groupingBy(BedHold::getRoomId));
+
       for (Object[] row : assignments.countActiveByRoomIds(ids)) {
         occupiedByRoom.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
       }
     }
+
     List<Map<String, Object>> items = new ArrayList<>(selected.size());
     for (Room room : selected) {
       long occupied = occupiedByRoom.getOrDefault(room.getId(), 0L);
-      items.add(BedHoldCapacity.roomView(
-          room, occupied, holdsByRoom.getOrDefault(room.getId(), List.of()), now));
+      items.add(
+          BedHoldCapacity.roomView(
+              room, occupied, holdsByRoom.getOrDefault(room.getId(), List.of()), now));
     }
+
     return PagedResult.of(items, page, size, total);
   }
 

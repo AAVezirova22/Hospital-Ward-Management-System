@@ -54,7 +54,7 @@ public class UserService {
   private AppUser scoped(AppUser user) {
     var rows =
         jdbc.queryForList(
-            "select role, doctor_id from department_memberships where department_id=? and user_id=?",
+            "select role, doctor_id, expires_at from department_memberships where department_id=? and user_id=?",
             com.example.hospital.security.DepartmentContext.id(),
             user.getId());
     if (rows.isEmpty()) return user;
@@ -73,6 +73,8 @@ public class UserService {
     view.setRequestedRole(user.getRequestedRole());
     view.setEnabled(user.isEnabled());
     view.setLastLoginAt(user.getLastLoginAt());
+    view.setMembershipExpiresAt(
+        row.get("expires_at") == null ? null : ((java.sql.Timestamp) row.get("expires_at")).toInstant());
     view.setCreatedAt(user.getCreatedAt());
     view.setUpdatedAt(user.getUpdatedAt());
     return view;

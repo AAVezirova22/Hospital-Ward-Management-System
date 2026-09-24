@@ -4,8 +4,6 @@ import com.example.hospital.domain.Room;
 import java.util.List;
 import java.time.Instant;
 import org.springframework.data.jpa.repository.*;
-import org.springframework.data.repository.query.Param;
-import org.springframework.data.domain.Pageable;
 
 public interface RoomRepository extends JpaRepository<Room, Long> {
   // The peak reservation occurs at a hold start. Only unexpired, uncancelled
