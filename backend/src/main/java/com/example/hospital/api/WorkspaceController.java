@@ -26,6 +26,7 @@ public class WorkspaceController {
   public record OwnerInput(@NotNull Long userId) {}
   public record RotateInput(Integer expiresInHours, Boolean singleUse) {}
   public record RoleInput(@NotNull Long userId, @NotBlank @Size(max=30) String role, Long doctorId) {}
+  public record PatientImportPermissionInput(@NotNull Boolean enabled) {}
 
   @GetMapping
   public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "timeZone", departmentTime.timeZone(), "hospitals", workspaces.list()); }
@@ -89,6 +90,11 @@ public class WorkspaceController {
   @PostMapping("/departments/{id}/roles")
   public Object grantRole(@PathVariable long id, @Valid @RequestBody RoleInput input) {
     return workspaces.grantRole(id, input.userId(), input.role(), input.doctorId());
+  }
+  @PutMapping("/departments/{id}/members/{userId}/patient-import")
+  public Object patientImportPermission(@PathVariable long id, @PathVariable long userId,
+      @Valid @RequestBody PatientImportPermissionInput input) {
+    return workspaces.setPatientImportPermission(id, userId, input.enabled());
   }
 
   private static Integer hours(RotateInput input) {

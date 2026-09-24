@@ -82,6 +82,12 @@ public class AiSourceService {
     return result;
   }
 
+  /** Returns source text only to an explicitly invoked feature after enforcing the same owner/scope/expiry rules. */
+  public synchronized Source sourceForExtraction(String id) {
+    purge();
+    return owned(id);
+  }
+
   private Source owned(String id) {
     var s = sources.get(id);
     if (s == null || s.userId() != actor.user().getId() || s.departmentId() != DepartmentContext.id())

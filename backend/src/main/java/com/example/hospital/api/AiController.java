@@ -12,11 +12,22 @@ public class AiController {
   private final AiAssistantService assistant;
   private final AiActionService actions;
   private final AiSourceService sources;
+  private final AiPatientDraftService patientDrafts;
 
-  public AiController(AiAssistantService a, AiActionService b, AiSourceService sources) {
+  public AiController(AiAssistantService a, AiActionService b, AiSourceService sources,
+      AiPatientDraftService patientDrafts) {
     assistant = a;
     actions = b;
     this.sources = sources;
+    this.patientDrafts = patientDrafts;
+  }
+
+  @GetMapping("/assistant/provider-disclosure")
+  public Object providerDisclosure() { return patientDrafts.disclosure(); }
+
+  @PostMapping("/assistant/patient-drafts")
+  public Object patientDraft(@Valid @RequestBody PatientDraftInput input) {
+    return patientDrafts.extract(input.sourceId());
   }
 
   @PostMapping(value = "/assistant/sources", consumes = "multipart/form-data")
