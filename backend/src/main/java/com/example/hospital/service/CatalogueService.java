@@ -7,6 +7,11 @@ import com.example.hospital.api.PagedResult;
 import com.example.hospital.api.RoomInput;
 import com.example.hospital.api.Views;
 import com.example.hospital.domain.Doctor;
+import com.example.hospital.domain.BedHold;
+import com.example.hospital.repository.BedHoldRepository;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.stream.Collectors;
 import com.example.hospital.domain.MedicalProcedure;
 import com.example.hospital.domain.Room;
 import com.example.hospital.repository.AdmissionRepository;
@@ -37,6 +42,7 @@ public class CatalogueService {
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
   private final AuditService audit;
+  private final BedHoldRepository bedHolds;
 
   public CatalogueService(
       HospitalService hospital,
@@ -47,7 +53,8 @@ public class CatalogueService {
       MedicalProcedureRepository catalogue,
       AdmissionRepository admissions,
       AuditService audit,
-      RoomAssignmentRepository assignments) {
+      RoomAssignmentRepository assignments,
+      BedHoldRepository bedHolds) {
     this.hospital = hospital;
     this.lock = lock;
     this.actor = actor;
@@ -57,6 +64,7 @@ public class CatalogueService {
     this.admissions = admissions;
     this.assignments = assignments;
     this.audit = audit;
+    this.bedHolds = bedHolds;
   }
 
   public List<Doctor> doctors() {
@@ -118,30 +126,82 @@ public class CatalogueService {
       Boolean active,
       int minFree,
       Long roomId,
-      List<String> requiredCapabilities) {
-    // HospitalService.rooms applies the same capability, occupancy and maintenance-hold rules as
-    // placement, so the directory never offers capacity an admission would be refused. A department
-    // has few rooms, so the remaining filters and paging run in memory.
-    String query = q == null ? "" : q.strip().toLowerCase(Locale.ROOT);
-    List<Map<String, Object>> matching =
-        hospital.rooms(minFree, requiredCapabilities).stream()
-            .filter(
-                room ->
-                    query.isEmpty()
-                        || String.valueOf(room.get("roomNumber"))
-                            .toLowerCase(Locale.ROOT)
-                            .contains(query))
-            .filter(room -> roomId == null || roomId.equals(room.get("id")))
-            .filter(room -> active == null || active.equals(room.get("active")))
-            .sorted(
-                Comparator.comparing((Map<String, Object> room) -> String.valueOf(room.get("roomNumber")))
-                    .thenComparing(room -> (Long) room.get("id")))
-            .toList();
+      List<String> requestedCapabilities) {
+    if (minFree < 0 || minFree > 100)
+      throw new ApiException(
+          400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
+
+    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+    boolean hasQuery = q != null && !q.isBlank();
+    String query = pattern(q);
+    boolean hasActive = active != null;
+    boolean activeValue = Boolean.TRUE.equals(active);
+    boolean hasRoomId = roomId != null;
+    List<String> requiredCapabilities =
+        List.copyOf(RoomCapabilityMatcher.normalize(requestedCapabilities));
+
     int size = safeSize(requestedSize);
-    int page = safePage(requestedPage, size, matching.size());
-    int from = Math.min(page * size, matching.size());
-    return PagedResult.of(
-        matching.subList(from, Math.min(from + size, matching.size())), page, size, matching.size());
+    long total =
+        requiredCapabilities.isEmpty()
+            ? rooms.countDirectory(
+                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, now)
+            : rooms.countDirectoryWithCapabilities(
+                hasQuery,
+                query,
+                hasRoomId,
+                roomId,
+                hasActive,
+                activeValue,
+                minFree,
+                now,
+                requiredCapabilities,
+                requiredCapabilities.size());
+
+    int page = safePage(requestedPage, size, total);
+    Pageable pageable = PageRequest.of(page, size, Sort.by("roomNumber", "id"));
+
+    var selected =
+        requiredCapabilities.isEmpty()
+            ? rooms.searchDirectory(
+                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, now, pageable)
+            : rooms.searchDirectoryWithCapabilities(
+                hasQuery,
+                query,
+                hasRoomId,
+                roomId,
+                hasActive,
+                activeValue,
+                minFree,
+                now,
+                requiredCapabilities,
+                requiredCapabilities.size(),
+                pageable);
+
+    Map<Long, List<BedHold>> holdsByRoom = Map.of();
+    Map<Long, Long> occupiedByRoom = new HashMap<>();
+
+    if (!selected.isEmpty()) {
+      var ids = selected.stream().map(Room::getId).toList();
+      holdsByRoom =
+          bedHolds
+              .findByRoomIdInAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(ids, now)
+              .stream()
+              .collect(Collectors.groupingBy(BedHold::getRoomId));
+
+      for (Object[] row : assignments.countActiveByRoomIds(ids)) {
+        occupiedByRoom.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+      }
+    }
+
+    List<Map<String, Object>> items = new ArrayList<>(selected.size());
+    for (Room room : selected) {
+      long occupied = occupiedByRoom.getOrDefault(room.getId(), 0L);
+      items.add(
+          BedHoldCapacity.roomView(
+              room, occupied, holdsByRoom.getOrDefault(room.getId(), List.of()), now));
+    }
+
+    return PagedResult.of(items, page, size, total);
   }
 
   private static String pattern(String q) {

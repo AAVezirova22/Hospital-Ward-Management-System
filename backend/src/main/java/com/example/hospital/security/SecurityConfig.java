@@ -61,7 +61,8 @@ public class SecurityConfig {
       WorkspaceAccess workspaces,
       LoginBackoff backoff,
       SessionLifetime lifetime,
-      ClientAddressResolver clientAddresses)
+      ClientAddressResolver clientAddresses,
+      com.example.hospital.service.SecurityEventService securityEvents)
       throws Exception {
     http.authorizeHttpRequests(
             a ->
@@ -101,6 +102,7 @@ public class SecurityConfig {
                         (r, s, e) -> {
                           backoff.failure(
                               r.getParameter("username"), clientAddresses.sourceAddress(r));
+                          reportFailedLogin(securityEvents, r.getParameter("username"));
                           s.setStatus(401);
                           s.setContentType("application/json");
                           json.writeValue(
@@ -163,6 +165,7 @@ public class SecurityConfig {
                     && (r.getContextPath() + "/api/v1/auth/login").equals(r.getRequestURI())
                     && backoff.blocked(
                         r.getParameter("username"), clientAddresses.sourceAddress(r))) {
+                  reportFailedLogin(securityEvents, r.getParameter("username"));
                   s.setStatus(401);
                   s.setContentType("application/json");
                   json.writeValue(
@@ -182,5 +185,16 @@ public class SecurityConfig {
             new DepartmentScopeFilter(users, workspaces, json, lifetime),
             AuthorizationFilter.class);
     return http.build();
+  }
+
+  /** The security review queue must never change the sign-in response. */
+  private static void reportFailedLogin(
+      com.example.hospital.service.SecurityEventService securityEvents, String username) {
+    try {
+      securityEvents.failedLogin(username);
+    } catch (RuntimeException e) {
+      org.slf4j.LoggerFactory.getLogger(SecurityConfig.class)
+          .warn("Failed sign-in was not added to the security review queue: {}", e.getClass().getSimpleName());
+    }
   }
 }

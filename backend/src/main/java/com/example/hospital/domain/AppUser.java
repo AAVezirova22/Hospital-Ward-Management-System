@@ -20,6 +20,7 @@ public class AppUser extends BaseEntity {
   @JsonIgnore private String sessionStamp;
   @Transient private String accountRole;
   @Transient private String departmentRole;
+  @Transient private Instant membershipExpiresAt;
 
   public String getUsername() { return username; }
   public void setUsername(String username) { this.username = username; }
@@ -47,4 +48,6 @@ public class AppUser extends BaseEntity {
   public void setAccountRole(String accountRole) { this.accountRole = accountRole; }
   public String getDepartmentRole() { return departmentRole; }
   public void setDepartmentRole(String departmentRole) { this.departmentRole = departmentRole; }
+  public Instant getMembershipExpiresAt() { return membershipExpiresAt; }
+  public void setMembershipExpiresAt(Instant membershipExpiresAt) { this.membershipExpiresAt = membershipExpiresAt; }
 }
