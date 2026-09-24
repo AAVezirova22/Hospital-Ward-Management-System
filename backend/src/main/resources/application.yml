@@ -99,6 +99,10 @@ app:
     context-ttl: ${AI_CONTEXT_TTL:30m}
     context-cleanup-interval: ${AI_CONTEXT_CLEANUP_INTERVAL:1m}
   security:
+    # Peers allowed to supply X-Forwarded-For: comma-separated IPs or CIDR blocks, or "none".
+    trusted-proxies: ${TRUSTED_PROXIES:127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fc00::/7,fe80::/10}
+    # Optional single-address header set by the edge (for example True-Client-IP), trusted peers only.
+    client-ip-header: ${CLIENT_IP_HEADER:}
     login-backoff:
       max-entries: ${LOGIN_BACKOFF_MAX_ENTRIES:10000}
       max-username-length: ${LOGIN_BACKOFF_MAX_USERNAME_LENGTH:64}
