@@ -36,7 +36,8 @@ class BedHoldIntegrationTest extends HospitalSupport {
             201);
 
     assertThat(hold.get("reason").asText()).isEqualTo("Electrical inspection");
-    var rooms = result(request("admin", "GET", "/api/v1/rooms", null), 200);
+    var rooms = result(request("admin", "GET", "/api/v1/rooms?roomId=" + room.get("id").asLong(), null), 200)
+            .get("items");
     var matching = java.util.stream.StreamSupport.stream(rooms.spliterator(), false)
         .filter(row -> row.get("id").asLong() == room.get("id").asLong())
         .findFirst().orElseThrow();
@@ -45,7 +46,8 @@ class BedHoldIntegrationTest extends HospitalSupport {
     assertThat(matching.get("availableBeds").asInt()).isEqualTo(1);
     var dashboard = result(request("admin", "GET", "/api/v1/reports/dashboard", null), 200);
     assertThat(dashboard.get("heldBeds").asLong()).isGreaterThanOrEqualTo(1);
-    var minFree = result(request("admin", "GET", "/api/v1/rooms?minFree=2", null), 200);
+    var minFree = result(request("admin", "GET", "/api/v1/rooms?minFree=2&roomId=" + room.get("id").asLong(), null), 200)
+            .get("items");
     assertThat(java.util.stream.StreamSupport.stream(minFree.spliterator(), false)
             .anyMatch(row -> row.get("id").asLong() == room.get("id").asLong()))
         .isFalse();
@@ -73,7 +75,8 @@ class BedHoldIntegrationTest extends HospitalSupport {
             "/api/v1/rooms/" + room.get("id").asLong() + "/holds/" + hold.get("id").asLong(),
             null)
         .andExpect(status().isNoContent());
-    var afterRelease = result(request("admin", "GET", "/api/v1/rooms", null), 200);
+    var afterRelease = result(request("admin", "GET", "/api/v1/rooms?roomId=" + room.get("id").asLong(), null), 200)
+            .get("items");
     var available = java.util.stream.StreamSupport.stream(afterRelease.spliterator(), false)
         .filter(row -> row.get("id").asLong() == room.get("id").asLong())
         .findFirst().orElseThrow().get("availableBeds").asInt();
@@ -178,7 +181,8 @@ class BedHoldIntegrationTest extends HospitalSupport {
                 "startsAt", middle.toString(),
                 "endsAt", end.toString()))
         .andExpect(status().isCreated());
-    var rooms = result(request("admin", "GET", "/api/v1/rooms", null), 200);
+    var rooms = result(request("admin", "GET", "/api/v1/rooms?roomId=" + room.get("id").asLong(), null), 200)
+            .get("items");
     var held = java.util.stream.StreamSupport.stream(rooms.spliterator(), false)
         .filter(row -> row.get("id").asLong() == room.get("id").asLong())
         .findFirst().orElseThrow().get("heldBeds").asInt();
@@ -224,7 +228,8 @@ class BedHoldIntegrationTest extends HospitalSupport {
         java.sql.Timestamp.from(now.minusSeconds(30)),
         hold.get("id").asLong());
 
-    var rooms = result(request("admin", "GET", "/api/v1/rooms", null), 200);
+    var rooms = result(request("admin", "GET", "/api/v1/rooms?roomId=" + room.get("id").asLong(), null), 200)
+            .get("items");
     var matching = java.util.stream.StreamSupport.stream(rooms.spliterator(), false)
         .filter(row -> row.get("id").asLong() == room.get("id").asLong())
         .findFirst().orElseThrow();

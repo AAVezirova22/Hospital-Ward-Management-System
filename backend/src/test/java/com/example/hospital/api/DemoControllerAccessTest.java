@@ -30,7 +30,7 @@ class DemoControllerAccessTest {
 
   @Test
   void rejectsProxyAddressWhenPublicLoginIsDisabledEvenWithForwardedLoopbackHeader() {
-    var controller = new DemoController(demo, users, "", false);
+    var controller = new DemoController(demo, users, "", "demo", false);
     var request = proxyRequest();
     request.addHeader("X-Forwarded-For", "127.0.0.1");
 
@@ -47,7 +47,7 @@ class DemoControllerAccessTest {
 
   @Test
   void configuredTokenRemainsRequiredWhenPublicLoginIsEnabled() {
-    var controller = new DemoController(demo, users, "configured-token", true);
+    var controller = new DemoController(demo, users, "configured-token", "demo", true);
     var missingTokenRequest = proxyRequest();
 
     assertThatThrownBy(
@@ -83,7 +83,7 @@ class DemoControllerAccessTest {
             "staff", account("staff", "MEDICAL_STAFF"));
     when(users.findByUsername(anyString()))
         .thenAnswer(invocation -> Optional.ofNullable(accounts.get(invocation.getArgument(0))));
-    var controller = new DemoController(demo, users, "", true);
+    var controller = new DemoController(demo, users, "", "demo", true);
     var request = proxyRequest();
     request.addHeader("X-Forwarded-For", "127.0.0.1");
 
