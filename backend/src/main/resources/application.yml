@@ -54,6 +54,10 @@ server:
   error:
     include-message: never
 app:
+  patient-consent:
+    portal-summary-version: ${PORTAL_SUMMARY_CONSENT_VERSION:1}
+    portal-access-version: ${PORTAL_ACCESS_CONSENT_VERSION:1}
+    communication-version: ${CARE_COMMUNICATION_CONSENT_VERSION:1}
   # development | demo | staging | production. DEMO_MODE requires demo; production forbids demo flags.
   environment: ${APP_ENVIRONMENT:development}
   demo: ${DEMO_MODE:false}

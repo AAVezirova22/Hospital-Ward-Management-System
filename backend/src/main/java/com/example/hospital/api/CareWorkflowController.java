@@ -17,6 +17,9 @@ public class CareWorkflowController {
   @GetMapping("/care-workflows")
   public Object list() { return workflows.list(); }
 
+  @GetMapping("/care-workflows/assignees")
+  public Object assignees() { return workflows.assignees(); }
+
   @PostMapping("/care-workflows")
   @ResponseStatus(HttpStatus.CREATED)
   public Object create(@Valid @RequestBody CareWorkflowInput in) { return workflows.create(in); }
@@ -46,6 +49,9 @@ public class CareWorkflowController {
   @GetMapping("/care-workflow-runs")
   public Object runs(@RequestParam(required = false) Long patientId) { return workflows.runs(patientId); }
 
+  @PostMapping("/care-workflow-runs/{id}/approve")
+  public Object approveTriggeredRun(@PathVariable long id, @Valid @RequestBody CareWorkflowService.ApprovalInput in) { return workflows.approveTriggeredRun(id, in); }
+
   @PostMapping("/care-workflow-runs/{id}/cancel")
   public Object cancel(@PathVariable long id, @Valid @RequestBody CareWorkflowService.CancelInput in) { return workflows.cancel(id, in); }
 
@@ -60,6 +66,9 @@ public class CareWorkflowController {
 
   @GetMapping("/portal/consents")
   public Object consents() { return workflows.consents(); }
+
+  @GetMapping("/portal/consent-options")
+  public Object consentOptions() { return workflows.consentOptions(); }
 
   @PostMapping("/portal/consents")
   @ResponseStatus(HttpStatus.CREATED)

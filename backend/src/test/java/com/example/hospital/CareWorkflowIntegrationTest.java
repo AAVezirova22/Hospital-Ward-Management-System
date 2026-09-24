@@ -50,7 +50,7 @@ class CareWorkflowIntegrationTest {
   void publishesImmutableVersionAndCreatesTasksWithDependencyLifecycle() throws Exception {
     Long patientId = jdbc.queryForObject("select min(id) from patients where department_id=1", Long.class);
     var taskA = Map.of("key", "follow-up", "title", "Clinician-authored follow-up", "ownerRole", "MEDICAL_STAFF",
-        "dueOffsetMinutes", 60, "dependsOn", List.of());
+        "dueOffsetMinutes", 0, "dependsOn", List.of());
     var taskB = Map.of("key", "review", "title", "Review the follow-up", "ownerRole", "DOCTOR",
         "dueOffsetMinutes", 120, "dependsOn", List.of("follow-up"));
     var created = post("/care-workflows", Map.of("name", "Care plan " + UUID.randomUUID(), "description", "",
@@ -59,9 +59,10 @@ class CareWorkflowIntegrationTest {
 
     var published = post("/care-workflows/" + templateId + "/publish", Map.of("version", 0));
     assertThat(published.get("version").asInt()).isEqualTo(1);
-    post("/care-workflows/" + templateId + "/preview", Map.of("patientId", patientId, "trigger", "MANUAL"));
+    var preview = post("/care-workflows/" + templateId + "/preview", Map.of("patientId", patientId, "trigger", "MANUAL"));
+    assertThat(preview.get("tasks").get(0).get("dueAt").asText()).isEqualTo(preview.get("baseTime").asText());
     var launched = post("/care-workflows/" + templateId + "/launch", Map.of(
-        "workflowVersion", published.get("workflowVersionId").asLong(), "patientId", patientId,
+        "workflowVersion", published.get("version").asLong(), "patientId", patientId,
         "idempotencyKey", "care-workflow-test", "patientSummary", "", "approved", true));
     long runId = launched.get("id").asLong();
     assertThat(launched.get("tasks").size()).isEqualTo(2);
@@ -79,5 +80,16 @@ class CareWorkflowIntegrationTest {
         .andExpect(status().isOk()).andReturn();
     JsonNode runJson = json.readTree(run.getResponse().getContentAsString());
     assertThat(runJson.get("tasks").get(1).get("dependencyState").asText()).isEqualTo("READY");
+
+    Long userId = jdbc.queryForObject("select id from app_users where username='admin'", Long.class);
+    Long pendingRunId = jdbc.queryForObject("""
+        insert into care_workflow_runs(department_id,template_id,workflow_version_id,patient_id,
+          trigger_type,trigger_source_id,status,triggered_by)
+        values (1,?,?,?,'ADMISSION','admission:test-trigger','PENDING_REVIEW',?) returning id
+        """, Long.class, templateId, published.get("workflowVersionId").asLong(), patientId, userId);
+    assertThat(jdbc.queryForObject("select count(*) from care_tasks where workflow_run_id=?", Integer.class, pendingRunId)).isZero();
+    var approved = post("/care-workflow-runs/" + pendingRunId + "/approve", Map.of("approved", true));
+    assertThat(approved.get("status").asText()).isEqualTo("ACTIVE");
+    assertThat(approved.get("tasks").size()).isEqualTo(2);
   }
 }

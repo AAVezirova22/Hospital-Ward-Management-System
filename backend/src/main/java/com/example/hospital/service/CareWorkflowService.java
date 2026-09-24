@@ -3,6 +3,7 @@ package com.example.hospital.service;
 import com.example.hospital.api.ApiException;
 import com.example.hospital.api.CareWorkflowInput;
 import com.example.hospital.api.CareWorkflowInput.Task;
+import com.example.hospital.ai.AiSourceService;
 import com.example.hospital.security.Actor;
 import com.example.hospital.security.DepartmentContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -34,18 +35,26 @@ public class CareWorkflowService {
   private final AuditService audit;
   private final ObjectMapper mapper;
   private final ApplicationEventPublisher publisher;
+  private final AiSourceService sources;
+  private final String summaryConsentVersion;
+  private final String portalConsentVersion;
+  private final String communicationConsentVersion;
 
   public record LaunchInput(
       @jakarta.validation.constraints.NotNull Long workflowVersion,
       @jakarta.validation.constraints.NotNull Long patientId,
       Long admissionId,
       String idempotencyKey,
-      String sourceReference,
+      @jakarta.validation.constraints.Size(max = 200) String sourceReference,
       @jakarta.validation.constraints.Size(max = 2000) String patientSummary,
       @jakarta.validation.constraints.AssertTrue boolean approved) {}
 
   public record PreviewInput(Long patientId, Long admissionId, String trigger, Long workflowVersion) {}
   public record CancelInput(@jakarta.validation.constraints.NotNull Long version) {}
+  public record ApprovalInput(
+      @jakarta.validation.constraints.AssertTrue boolean approved,
+      @jakarta.validation.constraints.Size(max = 200) String sourceReference,
+      @jakarta.validation.constraints.Size(max = 2000) String patientSummary) {}
   public record TaskUpdate(
       @jakarta.validation.constraints.NotBlank String status,
       Long assignedUserId,
@@ -56,12 +65,19 @@ public class CareWorkflowService {
       @jakarta.validation.constraints.AssertTrue boolean confirmed) {}
 
   public CareWorkflowService(JdbcTemplate jdbc, Actor actor, AuditService audit,
-      ObjectMapper mapper, ApplicationEventPublisher publisher) {
+      ObjectMapper mapper, ApplicationEventPublisher publisher, AiSourceService sources,
+      @org.springframework.beans.factory.annotation.Value("${app.patient-consent.portal-summary-version:1}") String summaryConsentVersion,
+      @org.springframework.beans.factory.annotation.Value("${app.patient-consent.portal-access-version:1}") String portalConsentVersion,
+      @org.springframework.beans.factory.annotation.Value("${app.patient-consent.communication-version:1}") String communicationConsentVersion) {
     this.jdbc = jdbc;
     this.actor = actor;
     this.audit = audit;
     this.mapper = mapper;
     this.publisher = publisher;
+    this.sources = sources;
+    this.summaryConsentVersion = summaryConsentVersion;
+    this.portalConsentVersion = portalConsentVersion;
+    this.communicationConsentVersion = communicationConsentVersion;
   }
 
   public List<Map<String, Object>> list() {
@@ -92,6 +108,17 @@ public class CareWorkflowService {
           return version;
         }).toList());
     return result;
+  }
+
+  public List<Map<String, Object>> assignees() {
+    clinician();
+    return jdbc.query("""
+        select u.id, coalesce(nullif(trim(concat_ws(' ', d.first_name, d.last_name)), ''), u.username) as "displayName",
+          m.role
+          from department_memberships m join app_users u on u.id=m.user_id and u.enabled=true
+          left join doctors d on d.id=m.doctor_id and d.department_id=m.department_id
+         where m.department_id=? order by m.role, "displayName", u.id
+        """, (rs, n) -> Map.<String,Object>of("id", rs.getLong("id"), "displayName", rs.getString("displayName"), "role", rs.getString("role")), department());
   }
 
   @Transactional
@@ -139,7 +166,7 @@ public class CareWorkflowService {
   public Map<String, Object> publish(long id, Long expectedVersion) {
     clinician();
     long departmentId = department();
-    var template = template(id);
+    var template = templateForUpdate(id);
     long actual = ((Number) template.get("version")).longValue();
     if (expectedVersion == null || expectedVersion != actual)
       throw ApiException.conflict("STALE_STATE", "This draft changed. Refresh before publishing.");
@@ -173,24 +200,64 @@ public class CareWorkflowService {
     if (!in.approved()) throw new ApiException(400, "REVIEW_REQUIRED", "Clinician approval is required before launch.");
     String sourceKey = in.idempotencyKey() == null || in.idempotencyKey().isBlank()
         ? "manual:" + java.util.UUID.randomUUID() : in.idempotencyKey().trim();
-    if (sourceKey.length() > 120) throw invalid("Idempotency key is too long.");
-    var version = versionById(in.workflowVersion(), templateId);
+    if (sourceKey.length() > 120 || !sourceKey.matches("[A-Za-z0-9._:-]{1,120}")) throw invalid("Choose a valid idempotency key.");
+    var version = version(templateId, in.workflowVersion());
     var definition = definition((String) version.get("definition"));
     requireTrigger(definition, "MANUAL");
     Target target = target(in.patientId(), in.admissionId(), true);
     if (in.patientSummary() != null && !in.patientSummary().isBlank()) requirePortalSummaryConsent(target.patientId());
+    String sourceReference = validateSourceReference(in.sourceReference());
     return launchDefinition(templateId, ((Number) version.get("id")).longValue(),
         ((Number) version.get("version_number")).intValue(), definition, target, "MANUAL", sourceKey,
-        in.sourceReference(), in.patientSummary(), actor.user().getId());
+        sourceReference, in.patientSummary(), actor.user().getId());
+  }
+
+  @Transactional
+  public Map<String, Object> approveTriggeredRun(long runId, ApprovalInput in) {
+    clinician();
+    if (!in.approved()) throw new ApiException(400, "REVIEW_REQUIRED", "Clinician approval is required before launching tasks.");
+    var current = run(runId);
+    if (!"PENDING_REVIEW".equals(current.get("status"))) throw ApiException.conflict("RUN_NOT_PENDING", "This workflow no longer needs review.");
+    long templateId = ((Number) current.get("templateId")).longValue();
+    long versionId = ((Number) current.get("workflowVersionId")).longValue();
+    var version = versionById(versionId, templateId);
+    var definition = definition((String) version.get("definition"));
+    Target target = target(((Number) current.get("patientId")).longValue(),
+        current.get("admissionId") == null ? null : ((Number) current.get("admissionId")).longValue(), true);
+    if (in.patientSummary() != null && !in.patientSummary().isBlank()) requirePortalSummaryConsent(target.patientId());
+    String sourceReference = validateSourceReference(in.sourceReference());
+    long departmentId = department();
+    long expected = ((Number) current.get("version")).longValue();
+    int changed = jdbc.update("""
+        update care_workflow_runs set status='ACTIVE', source_reference=?, patient_summary=?,
+          reviewed_by=?, reviewed_at=now(), launched_by=?, launched_at=now(), version=version+1
+         where department_id=? and id=? and status='PENDING_REVIEW' and version=?
+        """, sourceReference, clean(in.patientSummary()), actor.user().getId(), actor.user().getId(), departmentId, runId, expected);
+    if (changed != 1) throw ApiException.conflict("STALE_STATE", "This review changed. Refresh before approving.");
+    createTasks(runId, ((Number) version.get("version_number")).intValue(), definition, "REVIEW_APPROVED");
+    audit.log("CARE_WORKFLOW_TRIGGER_APPROVED", "CareWorkflowRun", runId, "UI",
+        Map.of("templateId", templateId, "workflowVersion", version.get("version_number")));
+    return run(runId);
   }
 
   public List<Map<String, Object>> consents() {
     clinicianOrPatient();
     long patientId = portalPatient();
     return jdbc.queryForList("""
-        select id, consent_type as consentType, consent_version as consentVersion, recorded_at as recordedAt,
-          withdrawn_at as withdrawnAt from patient_consents where department_id=? and patient_id=? order by recorded_at desc, id desc
+        select id, consent_type as "consentType", consent_version as "consentVersion", recorded_at as "recordedAt",
+          withdrawn_at as "withdrawnAt" from patient_consents where department_id=? and patient_id=? order by recorded_at desc, id desc
         """, department(), patientId);
+  }
+
+  public List<Map<String, String>> consentOptions() {
+    clinicianOrPatient();
+    return List.of(
+        Map.of("consentType", "PORTAL_FOLLOW_UP_SUMMARY", "consentVersion", summaryConsentVersion,
+            "description", "Show clinician-approved follow-up summaries in the patient portal."),
+        Map.of("consentType", "PORTAL_ACCESS", "consentVersion", portalConsentVersion,
+            "description", "Allow access to the patient portal."),
+        Map.of("consentType", "CARE_COMMUNICATION", "consentVersion", communicationConsentVersion,
+            "description", "Allow care-related communications."));
   }
 
   @Transactional
@@ -199,6 +266,12 @@ public class CareWorkflowService {
     if (!in.confirmed()) throw new ApiException(400, "CONSENT_CONFIRMATION_REQUIRED", "Record consent only after the patient has explicitly agreed.");
     String type = in.consentType().trim().toUpperCase(java.util.Locale.ROOT);
     if (!Set.of("PORTAL_FOLLOW_UP_SUMMARY", "PORTAL_ACCESS", "CARE_COMMUNICATION").contains(type)) throw invalid("Choose a supported consent type.");
+    String expectedVersion = switch (type) {
+      case "PORTAL_FOLLOW_UP_SUMMARY" -> summaryConsentVersion;
+      case "PORTAL_ACCESS" -> portalConsentVersion;
+      default -> communicationConsentVersion;
+    };
+    if (!expectedVersion.equals(in.consentVersion().trim())) throw ApiException.conflict("CONSENT_VERSION_STALE", "Review the current consent wording before recording a choice.");
     long patientId = portalPatient();
     long departmentId = department();
     Boolean active = jdbc.queryForObject("select count(*)>0 from patient_consents where department_id=? and patient_id=? and consent_type=? and withdrawn_at is null", Boolean.class, departmentId, patientId, type);
@@ -208,7 +281,7 @@ public class CareWorkflowService {
         values (?,?,?,?,?) returning id
         """, Long.class, departmentId, patientId, type, in.consentVersion().trim(), actor.user().getId());
     audit.log("PATIENT_CONSENT_RECORDED", "PatientConsent", id, "UI", Map.of("patientId", patientId, "consentType", type, "consentVersion", in.consentVersion().trim()));
-    return jdbc.queryForMap("select id, consent_type as consentType, consent_version as consentVersion, recorded_at as recordedAt, withdrawn_at as withdrawnAt from patient_consents where department_id=? and patient_id=? and id=?", departmentId, patientId, id);
+    return jdbc.queryForMap("select id, consent_type as \"consentType\", consent_version as \"consentVersion\", recorded_at as \"recordedAt\", withdrawn_at as \"withdrawnAt\" from patient_consents where department_id=? and patient_id=? and id=?", departmentId, patientId, id);
   }
 
   @Transactional
@@ -219,7 +292,7 @@ public class CareWorkflowService {
     int changed = jdbc.update("update patient_consents set withdrawn_at=now(),withdrawn_by=?,updated_at=now() where department_id=? and patient_id=? and id=? and withdrawn_at is null", actor.user().getId(), departmentId, patientId, consentId);
     if (changed != 1) throw ApiException.missing();
     audit.log("PATIENT_CONSENT_WITHDRAWN", "PatientConsent", consentId, "UI", Map.of("patientId", patientId));
-    return jdbc.queryForMap("select id, consent_type as consentType, consent_version as consentVersion, recorded_at as recordedAt, withdrawn_at as withdrawnAt from patient_consents where department_id=? and patient_id=? and id=?", departmentId, patientId, consentId);
+    return jdbc.queryForMap("select id, consent_type as \"consentType\", consent_version as \"consentVersion\", recorded_at as \"recordedAt\", withdrawn_at as \"withdrawnAt\" from patient_consents where department_id=? and patient_id=? and id=?", departmentId, patientId, consentId);
   }
 
   public List<Map<String, Object>> patientSummaries() {
@@ -237,10 +310,14 @@ public class CareWorkflowService {
   @Transactional
   public Map<String, Object> cancel(long runId, CancelInput in) {
     clinician();
+    var current = run(runId);
+    long currentVersion = ((Number) current.get("version")).longValue();
+    if (currentVersion != in.version()) throw ApiException.conflict("STALE_STATE", "This workflow changed. Refresh before cancelling.");
+    if (!Set.of("ACTIVE", "PENDING_REVIEW").contains(current.get("status"))) throw ApiException.conflict("RUN_CLOSED", "This workflow has already ended.");
     long departmentId = department();
     int changed = jdbc.update("""
         update care_workflow_runs set status='CANCELLED', cancelled_by=?, cancelled_at=now(), version=version+1
-         where department_id=? and id=? and status='ACTIVE' and version=?
+         where department_id=? and id=? and status in ('ACTIVE','PENDING_REVIEW') and version=?
         """, actor.user().getId(), departmentId, runId, in.version());
     if (changed != 1) {
       if (jdbc.queryForObject("select count(*) from care_workflow_runs where department_id=? and id=?", Integer.class, departmentId, runId) == 0) throw ApiException.missing();
@@ -258,16 +335,18 @@ public class CareWorkflowService {
     long departmentId = department();
     clinician();
     var rows = jdbc.queryForList("""
-        select r.id, r.template_id as templateId, r.workflow_version_id as workflowVersionId,
-          v.version_number as workflowVersion, r.patient_id as patientId, r.admission_id as admissionId,
-          r.trigger_type as trigger, r.status, r.version, r.source_reference as sourceReference,
-          r.patient_summary as patientSummary, r.reviewed_by as reviewedBy, r.reviewed_at as reviewedAt,
-          r.launched_by as launchedBy, r.launched_at as launchedAt, r.cancelled_at as cancelledAt
+        select r.id, r.template_id as "templateId", r.workflow_version_id as "workflowVersionId",
+          v.version_number as "workflowVersion", r.patient_id as "patientId", r.admission_id as "admissionId",
+          r.trigger_type as "trigger", r.status, r.version, r.source_reference as "sourceReference",
+          r.patient_summary as "patientSummary", r.reviewed_by as "reviewedBy", r.reviewed_at as "reviewedAt",
+          r.launched_by as "launchedBy", r.launched_at as "launchedAt", r.cancelled_at as "cancelledAt"
         from care_workflow_runs r join care_workflow_versions v on v.id=r.workflow_version_id
         where r.department_id=? and r.id=?
         """, departmentId, id);
     if (rows.isEmpty()) throw ApiException.missing();
     var result = new LinkedHashMap<String, Object>(rows.getFirst());
+    target(((Number) result.get("patientId")).longValue(),
+        result.get("admissionId") == null ? null : ((Number) result.get("admissionId")).longValue(), false);
     result.put("tasks", taskRows("where t.department_id=? and t.workflow_run_id=? order by t.id", departmentId, id));
     return result;
   }
@@ -283,9 +362,9 @@ public class CareWorkflowService {
     if ("DOCTOR".equals(scope.role())) { filter += " and exists(select 1 from admissions a where a.department_id=r.department_id and a.patient_id=r.patient_id and a.attending_doctor_id=?)"; params.add(scope.doctorId()); }
     if (patientId != null) { filter += " and r.patient_id=?"; params.add(patientId); }
     return jdbc.query("""
-        select r.id, r.template_id as templateId, v.version_number as workflowVersion,
+        select r.id, r.template_id as templateId, v.version_number as workflowVersion, r.version,
           r.patient_id as patientId, r.admission_id as admissionId, r.trigger_type as trigger,
-          r.status, r.version, r.source_reference as sourceReference, r.reviewed_at as reviewedAt,
+           r.status, r.source_reference as sourceReference, r.reviewed_at as reviewedAt,
           r.launched_at as launchedAt, r.cancelled_at as cancelledAt
         from care_workflow_runs r join care_workflow_versions v on v.id=r.workflow_version_id
         where r.department_id=?
@@ -293,10 +372,12 @@ public class CareWorkflowService {
           var row = new LinkedHashMap<String,Object>();
           row.put("id",rs.getLong("id")); row.put("templateId",rs.getLong("templateId"));
           row.put("workflowVersion",rs.getInt("workflowVersion")); row.put("patientId",rs.getLong("patientId"));
+          row.put("version",rs.getLong("version"));
           long admission=rs.getLong("admissionId"); row.put("admissionId",rs.wasNull()?null:admission);
           row.put("trigger",rs.getString("trigger")); row.put("status",rs.getString("status"));
-          row.put("sourceReference",rs.getString("sourceReference")); row.put("reviewedAt",rs.getTimestamp("reviewedAt").toInstant());
-          row.put("launchedAt",rs.getTimestamp("launchedAt").toInstant());
+          row.put("sourceReference",rs.getString("sourceReference"));
+          Timestamp reviewed=rs.getTimestamp("reviewedAt"); row.put("reviewedAt",reviewed==null?null:reviewed.toInstant());
+          Timestamp launched=rs.getTimestamp("launchedAt"); row.put("launchedAt",launched==null?null:launched.toInstant());
           Timestamp cancelled=rs.getTimestamp("cancelledAt"); row.put("cancelledAt",cancelled==null?null:cancelled.toInstant());
           return row;
         }, params.toArray());
@@ -341,7 +422,10 @@ public class CareWorkflowService {
         """, status, assignee, departmentId, id, in.version());
     if (changed != 1) throw ApiException.conflict("STALE_STATE", "This task changed. Refresh before continuing.");
     if ("COMPLETED".equals(status)) releaseReadyTasks(id, departmentId);
-    audit.log("CARE_TASK_UPDATED", "CareTask", id, "UI", Map.of("status", status));
+    var changes = new LinkedHashMap<String, Object>();
+    changes.put("status", status);
+    changes.put("assignedUserId", assignee);
+    audit.log("CARE_TASK_UPDATED", "CareTask", id, "UI", changes);
     var task = task(id);
     publisher.publishEvent(new CareTaskChanged(departmentId, id, assignee, (Instant) task.get("dueAt"), status));
     return task;
@@ -365,14 +449,30 @@ public class CareWorkflowService {
     for (Object[] row : versions) {
       Map<String, Object> definition = definition((String) row[3]);
       if (!listStrings(definition.get("triggers")).contains(triggerFinal)) continue;
-      try {
-        Target target = target(patientId, admissionId, true);
-        launchDefinition((Long) row[1], (Long) row[0], (Integer) row[2], definition, target,
-            triggerFinal, "admission:" + admissionId, null, "", actor.user().getId());
-      } catch (org.springframework.dao.DuplicateKeyException alreadyLaunched) {
-        // Idempotent delivery of the same admission lifecycle event.
-      }
+      Target target = target(patientId, admissionId, false);
+      createPendingReview((Long) row[1], (Long) row[0], (Integer) row[2], target,
+          triggerFinal, "admission:" + admissionId);
     }
+  }
+
+  private Map<String, Object> createPendingReview(long templateId, long versionId, int versionNumber,
+      Target target, String trigger, String sourceKey) {
+    long departmentId = department();
+    Long id = jdbc.query("""
+        insert into care_workflow_runs(department_id,template_id,workflow_version_id,patient_id,admission_id,
+          trigger_type,trigger_source_id,status,triggered_by)
+        values (?,?,?,?,?, ?,?,'PENDING_REVIEW',?)
+        on conflict(department_id,template_id,workflow_version_id,trigger_type,trigger_source_id)
+        do nothing returning id
+        """, rs -> rs.next() ? rs.getLong(1) : null, departmentId, templateId, versionId,
+        target.patientId(), target.admissionId(), trigger, sourceKey, actor.user().getId());
+    if (id == null) {
+      id = jdbc.queryForObject("select id from care_workflow_runs where department_id=? and template_id=? and workflow_version_id=? and trigger_type=? and trigger_source_id=?", Long.class, departmentId, templateId, versionId, trigger, sourceKey);
+      return run(id);
+    }
+    audit.log("CARE_WORKFLOW_TRIGGER_PENDING_REVIEW", "CareWorkflowRun", id, "UI",
+        Map.of("templateId", templateId, "workflowVersion", versionNumber, "trigger", trigger));
+    return run(id);
   }
 
   private Map<String, Object> launchDefinition(long templateId, long versionId, int versionNumber,
@@ -389,8 +489,21 @@ public class CareWorkflowService {
           sourceKey, clean(sourceReference), clean(summary), reviewerId, actor.user().getId());
     if (runId == null) {
       var existing = jdbc.queryForObject("select id from care_workflow_runs where department_id=? and template_id=? and workflow_version_id=? and trigger_type=? and trigger_source_id=?", Long.class, departmentId, templateId, versionId, trigger, sourceKey);
-      return run(existing);
+      var existingRun = run(existing);
+      if (!java.util.Objects.equals(((Number) existingRun.get("patientId")).longValue(), target.patientId())
+          || !java.util.Objects.equals(existingRun.get("admissionId"), target.admissionId()))
+        throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "This launch key was already used for another patient or admission.");
+      return existingRun;
     }
+    audit.log("CARE_WORKFLOW_LAUNCHED", "CareWorkflowRun", runId, "UI",
+        Map.of("templateId", templateId, "workflowVersion", versionNumber, "trigger", trigger));
+    createTasks(runId, versionNumber, definition, trigger);
+    return run(runId);
+  }
+
+  private void createTasks(long runId, int versionNumber, Map<String, Object> definition, String trigger) {
+    long departmentId = department();
+    Instant now = Instant.now();
     List<Map<String, Object>> tasks = (List<Map<String, Object>>) definition.get("tasks");
     Map<String, Long> taskIds = new HashMap<>();
     Map<String, List<String>> deps = new HashMap<>();
@@ -413,13 +526,12 @@ public class CareWorkflowService {
     for (var entry : deps.entrySet()) for (String dependency : entry.getValue()) jdbc.update(
         "insert into care_task_dependencies(department_id,task_id,depends_on_task_id) values (?,?,?)",
         departmentId, taskIds.get(entry.getKey()), taskIds.get(dependency));
-    audit.log("CARE_WORKFLOW_LAUNCHED", "CareWorkflowRun", runId, "UI",
-        Map.of("templateId", templateId, "workflowVersion", versionNumber, "trigger", trigger, "taskCount", tasks.size()));
+    audit.log("CARE_WORKFLOW_TASKS_CREATED", "CareWorkflowRun", runId, "UI",
+        Map.of("workflowVersion", versionNumber, "trigger", trigger, "taskCount", tasks.size()));
     for (var task : taskRows("where t.department_id=? and t.workflow_run_id=? order by t.id", departmentId, runId)) {
       publisher.publishEvent(new CareTaskChanged(departmentId, ((Number) task.get("id")).longValue(),
           (Long) task.get("assignedUserId"), (Instant) task.get("dueAt"), (String) task.get("status")));
     }
-    return run(runId);
   }
 
   private Map<String, Object> previewView(long templateId, Long version, Target target, String trigger,
@@ -428,7 +540,7 @@ public class CareWorkflowService {
     for (Map<String, Object> task : (List<Map<String, Object>>) definition.get("tasks")) {
       long offset = ((Number) task.get("dueOffsetMinutes")).longValue();
       var row = new LinkedHashMap<String, Object>(task);
-      row.put("dueAt", offset == 0 ? null : base.plusSeconds(offset * 60));
+      row.put("dueAt", base.plusSeconds(offset * 60));
       row.put("dependencyState", listStrings(task.get("dependsOn")).isEmpty() ? "READY" : "BLOCKED");
       items.add(row);
     }
@@ -477,6 +589,13 @@ public class CareWorkflowService {
     if (!Boolean.TRUE.equals(consented)) throw new ApiException(403, "PORTAL_CONSENT_REQUIRED", "Active patient consent is required before publishing a follow-up summary.");
   }
 
+  private String validateSourceReference(String supplied) {
+    String sourceId = clean(supplied);
+    if (sourceId == null) return null;
+    if (sourceId.length() > 200) throw invalid("Choose a valid source reference.");
+    return sources.sourceForExtraction(sourceId).id();
+  }
+
   private long portalPatient() {
     var user = actor.user();
     if ("PATIENT".equals(DepartmentContext.current().role())) {
@@ -507,6 +626,7 @@ public class CareWorkflowService {
         """, departmentId, departmentId, completedTaskId, departmentId);
     for (Long readyId : readyIds) {
       var ready = taskRows("where t.department_id=? and t.id=?", departmentId, readyId).getFirst();
+      audit.log("CARE_TASK_DEPENDENCIES_RELEASED", "CareTask", readyId, "UI");
       publisher.publishEvent(new CareTaskChanged(departmentId, readyId,
           (Long) ready.get("assignedUserId"), (Instant) ready.get("dueAt"), (String) ready.get("status")));
     }
@@ -553,6 +673,10 @@ public class CareWorkflowService {
     var rows = jdbc.queryForList("select id,name,description,draft_definition,version,published_version from care_workflow_templates where department_id=? and id=?", department(), id);
     if (rows.isEmpty()) throw ApiException.missing();
     return rows.getFirst();
+  }
+  private Map<String, Object> templateForUpdate(long id) {
+    var rows = jdbc.queryForList("select id,name,description,draft_definition,version,published_version from care_workflow_templates where department_id=? and id=? for update", department(), id);
+    if (rows.isEmpty()) throw ApiException.missing(); return rows.getFirst();
   }
   private Map<String, Object> version(long templateId, long versionNumber) {
     var rows = jdbc.queryForList("select id,version_number,definition from care_workflow_versions where department_id=? and template_id=? and version_number=?", department(), templateId, versionNumber);
