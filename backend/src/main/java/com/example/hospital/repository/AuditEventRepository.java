@@ -1,10 +1,14 @@
 package com.example.hospital.repository;
 
 import com.example.hospital.domain.AuditEvent;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface AuditEventRepository extends JpaRepository<AuditEvent, Long> {
+public interface AuditEventRepository
+    extends JpaRepository<AuditEvent, Long>, JpaSpecificationExecutor<AuditEvent> {
+
   Page<AuditEvent> findByEventTypeIgnoreCase(String eventType, Pageable pageable);
+
+  boolean existsByUserIdAndEventTypeAndEntityIdAndTimestampAfter(
+      Long userId, String eventType, Long entityId, java.time.Instant after);
 }

@@ -89,6 +89,16 @@ Limits of this protection:
 - Whoever can alter the schema can bypass it. Flyway runs as the application role, which owns the table and could drop the trigger or set the maintenance flag. For stronger separation, run migrations with a dedicated owner role, give the runtime role only `SELECT, INSERT` on `audit_events`, and keep superuser credentials out of the application.
 - Copy audit events to storage the database operators cannot rewrite (log shipping, write-once object storage) if records must stand up to an administrator with database access.
 - Backups contain the same rows. Protect and retain them according to [Database backup security](database-backup-security.md) and your organisation's retention rules.
+## Read auditing
+
+Patient and admission detail views are audited so administrators can reconstruct who opened a record. Volume controls:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `AUDIT_RECORD_READS` | `true` | `false` stops recording read events; changes are always audited |
+| `AUDIT_READ_DEDUPE_WINDOW` | `15m` | Repeat views of one record by one user inside this window are recorded once; `0s` records every view |
+
+Read events publish no notifications or live refreshes. Each stores only actor, department, record ID, source and time, and uses the `audit_read_lookup` index for the repeat-view check. Estimate volume as distinct (user, record) pairs per window; a busy ward with 50 staff opening 40 records each per shift adds about 2,000 rows per shift at the default window.
 
 ## Slow-query diagnostics
 

@@ -30,14 +30,14 @@ public class DemoController {
       DemoService demo,
       AppUserRepository users,
       @Value("${app.demo-token:}") String demoToken,
-      @Value("${app.environment:development}") String environment,
-      @Value("${app.demo-public-login}") boolean publicLogin) {
-    this.demo = demo;
-    this.users = users;
-    this.demoToken = demoToken;
-    this.environment = environment;
-    this.publicLogin = publicLogin;
-  }
+@Value("${app.environment:development}") String environment,
+@Value("${app.demo-public-login}") boolean publicLogin) {
+  this.demo = demo;
+  this.users = users;
+  this.demoToken = demoToken;
+  this.environment = environment;
+  this.publicLogin = publicLogin;
+}
 
   @GetMapping("/status")
   public Object status() { return Map.of("enabled", demo.enabled(), "environment", environment); }

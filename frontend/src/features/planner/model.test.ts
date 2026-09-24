@@ -128,8 +128,9 @@ describe("ward planning", () => {
         [oxygenTransfer, isolationTransfer],
       ),
     ).toEqual([oxygenTransfer, isolationTransfer]);
+  });
   it("keeps held capacity unavailable during projections and transfers", () => {
-    const heldRoom = room(2, 0, 2, true, 1);
+    const heldRoom = room(2, 0, 2, true, [], 1);
     const view = {
       admission: { id: 1, status: "ACTIVE" },
       assignment: { roomId: 1 },
@@ -142,7 +143,7 @@ describe("ward planning", () => {
       executableOrder([room(1, 1), heldRoom], [transfer(1, 1, 2)]),
     ).toEqual([transfer(1, 1, 2)]);
     expect(
-      executableOrder([room(1, 1), room(2, 0, 2, true, 2)], [transfer(1, 1, 2)]),
+      executableOrder([room(1, 1), room(2, 0, 2, true, [], 2)], [transfer(1, 1, 2)]),
     ).toBeNull();
   });
 });

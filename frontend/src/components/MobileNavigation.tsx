@@ -10,16 +10,18 @@ import {
   Plus,
   X,
 } from "../icons";
-import { useUser, Modal, useData, useAllPages, ErrorBox } from "./workspace";
+import { useUser, Modal, useData, ErrorBox } from "./workspace";
 import { fullName } from "../api";
-import type { PatientDirectoryItem, PatientDirectoryPage, AdmissionView } from "../api/contracts";
+import type {
+  PatientDirectoryItem,
+  PatientDirectoryPage,
+  AdmissionView,
+} from "../api/contracts";
 import { Workflow } from "../features/admissions/Workflow";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
 function QuickTask({ kind, close }: { kind: string; close: () => void }) {
-  const patients = useData("/patients");
-  const admissions = useAllPages<AdmissionView>("/admissions?status=ACTIVE");
-  const [chosen, setChosen] = useState<Patient>();
+  const [chosen, setChosen] = useState<PatientDirectoryItem>();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const patients = useData(
