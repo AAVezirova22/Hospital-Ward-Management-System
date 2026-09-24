@@ -29,6 +29,20 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
 | GET | `/audit` | Latest 100 events; admin-only |
+| GET | `/security/events?status=ACTIVE&includeInfo=false&page=0&size=25` | Department administrators only. Security review queue for the active department, highest severity first, with `counts` (`open`, `investigating`, `critical`, `unacknowledged`). `status` is `ACTIVE` (open and investigating), `ALL`, or one status. `INFO` entries are hidden unless `includeInfo=true`. |
+| POST | `/security/events/{id}/acknowledge` | Marks the entry as seen by the calling administrator; audited as `SECURITY_EVENT_ACKNOWLEDGED` |
+| PUT | `/security/events/{id}` | `{status, note?}` with status `OPEN`, `INVESTIGATING`, `RESOLVED` or `DISMISSED`; acknowledges if not yet acknowledged; audited as `SECURITY_EVENT_UPDATED` |
+
+The queue groups related signals into one entry per department and pattern:
+
+| Category | Source | Grouping | Severity |
+| --- | --- | --- | --- |
+| `FAILED_LOGIN` | Failed or backoff-blocked sign-ins for a known staff account, counted in each of its departments | Account and UTC day | `INFO` for 1–2, `WARNING` from 3, `CRITICAL` from 10 |
+| `ACCESS_DENIED` | Refused operations (`ACCESS_DENIED` audit events) | Account and UTC day | Escalates like `FAILED_LOGIN` |
+| `JOIN_CODE` | Rejected codes (escalates per account and day), plus code rotations and reveals (`INFO`, per workspace and day) | See source | See source |
+| `ROLE_CHANGE` | Role grants, account saves and member removals (`WARNING`), hospital ownership grants (`CRITICAL`) | Acting account and hour | Highest in the group |
+
+While an entry is `OPEN` or `INVESTIGATING`, new matching signals increase `occurrences` and update `lastSeenAt`. After `RESOLVED` or `DISMISSED`, the next signal opens a new entry. Entries record the account and action, never passwords, source addresses or clinical data. Unknown usernames are left to login backoff and do not create entries.
 | GET | `/workspaces` | Hospitals and departments the account can open, plus the active department. Live join codes are omitted; owners receive `hasJoinCode`. |
 | POST | `/workspaces/hospitals` | `{name, departmentName}`; owner of the hospital and admin of its first department |
 | POST | `/workspaces/hospitals/{id}/departments` | `{name}`; hospital owner only |
