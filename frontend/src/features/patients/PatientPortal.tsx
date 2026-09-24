@@ -4,6 +4,7 @@ import { api, fullName, date, money, type User } from "../../api";
 import type { Patient, AdmissionView } from "../../api/contracts";
 import { ThemeToggle } from "../../cinematic";
 import { LoadingState } from "../../components/LoadingState";
+import { PortalFollowUp } from "./PortalFollowUp";
 export function PatientPortal({
   user,
   onLogout,
@@ -52,6 +53,7 @@ export function PatientPortal({
         )}
         {query.data && (
           <>
+            <PortalFollowUp />
             <section className="panel">
               <h2>{fullName(query.data.patient)}</h2>
               <p>
