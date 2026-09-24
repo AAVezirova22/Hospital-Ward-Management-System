@@ -59,6 +59,8 @@ Opening `GET /patients/{id}`, `GET /admissions/{id}` or the assistant's `getPati
 | POST | `/workspaces/departments/{id}/leave` | Leave a department |
 | POST | `/workspaces/hospitals/{id}/owners` | `{userId}`; hospital owner only |
 | POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted. |
+| GET | `/workspaces/hospitals/{id}/access-review?inactiveAfterDays=90` | Hospital owner only. Every workforce member of the hospital (patient accounts excluded) with account state, `lastLoginAt`, `inactive` (no sign-in within the period), owner flag, department roles, linked doctor name and `latestReview`, plus counts per outcome. Contains no clinical records, credentials or contact details. |
+| POST | `/workspaces/hospitals/{id}/access-review/{userId}` | `{outcome, note?}` with outcome `KEEP`, `CHANGE` or `REVOKE`; hospital owner only. Stores the decision with reviewer and time, keeps earlier decisions, and audits `ACCESS_REVIEWED`. Recording `CHANGE` or `REVOKE` does not change access; use the role and member endpoints to act on it. |
 
 Roster endpoints return `items`, `page`, `size`, `totalElements`, `totalPages`, `hasNext`, and `nextPage`; page size is clamped to 1 to 100, requested pages are clamped to the available range, and results sort by joinedAt descending (unknown dates last) then user ID descending. Membership `joinedAt` is nullable: existing rows have unknown join dates and remain `null`; new membership rows use their insertion time. This timestamp tracks membership creation, not the user account creation date.
 
