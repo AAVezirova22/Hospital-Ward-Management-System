@@ -142,6 +142,10 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
 
+## Workflow dry run
+
+`POST /assistant/workflows/dry-run` with `{"plan": ...}` takes the workflow proposal JSON, either as a string (the assistant's `prepareWorkflow` format) or as an object. It checks every step without saving anything and without creating a pending proposal. The plan runs through the same operations as a confirmed workflow, inside a transaction that is always rolled back, so field validation, references, capacity, capability, uniqueness and role checks match confirmation. The response contains `valid`, `committed: false`, the count of `operations` by type, and `capacityChanges` for existing rooms (`occupiedBefore`/`occupiedAfter`). An invalid plan returns `valid: false` with the `code` and `message` confirmation would have produced. Nothing is audited or notified because nothing commits. Database ID sequences may still advance. A dry run is not a reservation: state can change before a real proposal is confirmed, and confirmation re-checks everything.
+
 ## Rate-limit headers
 
 Rate-limited endpoints return the remaining budget on every checked response. They are `POST /assistant/messages`, registration confirmation resends, and the API budgets below:
