@@ -27,7 +27,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/discharge` | `{version}` |
 | POST | `/admissions/{id}/doctor` | `{doctorId, version}` |
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
-| GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
+| GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only. Optional `reason` (max 300 characters) records context for permission changes. |
 | GET | `/audit` | Latest 100 events; admin-only |
 | GET | `/security/events?status=ACTIVE&includeInfo=false&page=0&size=25` | Department administrators only. Security review queue for the active department, highest severity first, with `counts` (`open`, `investigating`, `critical`, `unacknowledged`). `status` is `ACTIVE` (open and investigating), `ALL`, or one status. `INFO` entries are hidden unless `includeInfo=true`. |
 | POST | `/security/events/{id}/acknowledge` | Marks the entry as seen by the calling administrator; audited as `SECURITY_EVENT_ACKNOWLEDGED` |
@@ -55,6 +55,14 @@ Opening `GET /patients/{id}`, `GET /admissions/{id}` or the assistant's `getPati
 | GET | `/workspaces/departments/{id}/code` | Reveal the department join code; department administrator only. Audited as `JOIN_CODE_VIEWED`. |
 | POST | `/workspaces/hospitals/{id}/code` | Replace the hospital join code; owner only. Optional `{expiresInHours, singleUse}` |
 | POST | `/workspaces/departments/{id}/code` | Replace the department join code; department administrator only. Optional `{expiresInHours, singleUse}` |
+| POST | `/workspaces/hospitals/{id}/leave?reason=...` | Leave a hospital; last owner is rejected. Optional reason is limited to 300 characters. |
+| POST | `/workspaces/departments/{id}/leave?reason=...` | Leave a department; optional reason is limited to 300 characters. |
+| DELETE | `/workspaces/hospitals/{id}/members/{userId}?reason=...` | Revoke membership; hospital owner only. Optional reason is limited to 300 characters. |
+| DELETE | `/workspaces/departments/{id}/members/{userId}?reason=...` | Revoke membership; owner or department administrator. Optional reason is limited to 300 characters. |
+| POST | `/workspaces/hospitals/{id}/owners` | `{userId, reason?}`; hospital owner only; reason is limited to 300 characters. |
+| POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?, reason?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted; reason is limited to 300 characters. |
+
+Permission-change audit metadata includes the target user and workspace IDs with before/after role or owner state. Department role changes also include before/after doctor links; account edits distinguish account role and doctor link from department membership role and doctor link. Department-scoped events are stored under the affected department even when a hospital owner acts from another active department. Hospital-level events retain the active department scope and identify the hospital in metadata. A department-code join records whether it also created hospital membership; hospital leave/revocation writes a department-scoped event for each removed department membership. Optional reasons containing obvious credential or token material (including password/token assignments, bearer credentials, or JWT-shaped values) are rejected and never stored; passwords, join codes, and session tokens are not audit fields.
 | POST | `/workspaces/hospitals/{id}/leave` | Leave a hospital; last owner is rejected |
 | POST | `/workspaces/departments/{id}/leave` | Leave a department |
 | POST | `/workspaces/hospitals/{id}/owners` | `{userId}`; hospital owner only |

@@ -8,4 +8,5 @@ public record UserInput(
     @Pattern(regexp = "ADMIN|MEDICAL_STAFF|DOCTOR|PATIENT") @NotNull String role,
     boolean enabled,
     Long doctorId,
-    Long version) {}
+    Long version,
+    @Size(max = 300) String reason) {}

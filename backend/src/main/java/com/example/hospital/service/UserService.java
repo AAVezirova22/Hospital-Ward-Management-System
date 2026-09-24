@@ -91,6 +91,13 @@ public class UserService {
     lock.acquire();
     actor.admin();
     var u = id == null ? new AppUser() : users.findById(id).orElseThrow(ApiException::missing);
+    String oldRole = id == null ? null : u.getRole();
+    Long oldDoctorId = id == null ? null : u.getDoctorId();
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    var oldDepartmentMembership = id == null ? null : jdbc.query(
+        "select role,doctor_id from department_memberships where department_id=? and user_id=?",
+        rs -> rs.next() ? new Object[] {rs.getString(1), rs.getObject(2, Long.class)} : null,
+        departmentId, id);
     if (id != null && !visible(u)) throw ApiException.missing();
     if (id != null && Boolean.TRUE.equals(jdbc.queryForObject(
         "select count(*) > 0 from department_memberships where user_id=? and department_id<>?", Boolean.class,
@@ -135,7 +142,24 @@ public class UserService {
     u.setDoctorId(in.role().equals("DOCTOR") ? in.doctorId() : null);
     users.saveAndFlush(u);
     if (!"PATIENT".equals(u.getRole())) workspaces.enroll(u.getId(), u.getRole(), u.getDoctorId());
-    audit.log("USER_SAVED", "User", u.getId(), "UI");
+    var newDepartmentMembership = jdbc.query(
+        "select role,doctor_id from department_memberships where department_id=? and user_id=?",
+        rs -> rs.next() ? new Object[] {rs.getString(1), rs.getObject(2, Long.class)} : null,
+        departmentId, u.getId());
+    var metadata = new LinkedHashMap<String, Object>();
+    metadata.put("targetUserId", u.getId());
+    metadata.put("workspaceType", "DEPARTMENT");
+    metadata.put("workspaceId", departmentId);
+    metadata.put("oldAccountRole", oldRole);
+    metadata.put("newAccountRole", u.getRole());
+    metadata.put("oldAccountDoctorId", oldDoctorId);
+    metadata.put("newAccountDoctorId", u.getDoctorId());
+    metadata.put("oldDepartmentRole", oldDepartmentMembership == null ? null : oldDepartmentMembership[0]);
+    metadata.put("newDepartmentRole", newDepartmentMembership == null ? null : newDepartmentMembership[0]);
+    metadata.put("oldDepartmentDoctorId", oldDepartmentMembership == null ? null : oldDepartmentMembership[1]);
+    metadata.put("newDepartmentDoctorId", newDepartmentMembership == null ? null : newDepartmentMembership[1]);
+    if (in.reason() != null && !in.reason().isBlank()) metadata.put("reason", in.reason().strip());
+    audit.log("USER_SAVED", "User", u.getId(), "UI", metadata);
     return u;
   }
 }
