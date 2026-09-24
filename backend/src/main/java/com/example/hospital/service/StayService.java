@@ -51,6 +51,7 @@ public class StayService {
   private final MedicalProcedureRepository catalogue;
   private final PerformedProcedureRepository performed;
   private final AuditService audit;
+  private final CareWorkflowService careWorkflows;
 
   public StayService(
       HospitalService hospital,
@@ -61,7 +62,8 @@ public class StayService {
       DoctorRepository doctors,
       MedicalProcedureRepository catalogue,
       PerformedProcedureRepository performed,
-      AuditService audit) {
+      AuditService audit,
+      CareWorkflowService careWorkflows) {
     this.hospital = hospital;
     this.lock = lock;
     this.actor = actor;
@@ -71,6 +73,7 @@ public class StayService {
     this.catalogue = catalogue;
     this.performed = performed;
     this.audit = audit;
+    this.careWorkflows = careWorkflows;
   }
 
   public List<Admission> list() {
@@ -222,6 +225,7 @@ if (hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
     admissions.saveAndFlush(a);
     assign(a, in.roomId(), "Admission", source);
     audit.log("ADMISSION_CREATED", "Admission", a.getId(), source);
+    careWorkflows.launchForTrigger(a.getId(), "ADMISSION");
     return a;
   }
 
@@ -261,6 +265,7 @@ if (hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
     assignments.save(ra);
     admissions.saveAndFlush(a);
     audit.log("PATIENT_DISCHARGED", "Admission", a.getId(), source);
+    careWorkflows.launchForTrigger(a.getId(), "DISCHARGE");
     return a;
   }
 
