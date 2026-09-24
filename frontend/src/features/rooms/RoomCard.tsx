@@ -88,7 +88,6 @@ export function RoomCard({
     ))}
   </details>
 )}
-      )}
     </div>
   );
 }

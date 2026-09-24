@@ -25,8 +25,10 @@ import { Download } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { ProcedureCharts, CapacityChart } from "./ReportCharts";
 import type {
+  DoctorWorkloadReport,
   Patient,
   PatientDirectoryPage,
+  RoomUtilizationReport,
   WorkspaceList,
 } from "../../api/contracts";
 import { dateInTimeZone } from "../../date-time";
@@ -47,52 +49,61 @@ export function Reports() {
     [patientId, setPatient] = useUrlState("patientId"),
     [doctorId, setDoctor] = useUrlState("doctorId"),
     [roomId, setRoom] = useUrlState("roomId"),
-    [mode, setMode] = useUrlState("mode", "procedures");
-const [patientSearch, setPatientSearch] = useState("");
-const [patientPage, setPatientPage] = useState(0);
+    [mode, setMode] = useUrlState("mode", "procedures"),
+    [bucket, setBucket] = useUrlState("bucket", "day");
+  const [patientSearch, setPatientSearch] = useState("");
+  const [patientPage, setPatientPage] = useState(0);
 
-const patientDirectoryQuery = useData(
-  `/patients?q=${encodeURIComponent(patientSearch)}&page=${patientPage}&size=20`,
-);
+  const patientDirectoryQuery = useData(
+    `/patients?q=${encodeURIComponent(patientSearch)}&page=${patientPage}&size=20`,
+  );
 
-const patients = patientDirectoryQuery.data as
-  | PatientDirectoryPage
-  | undefined;
+  const patients = patientDirectoryQuery.data as
+    PatientDirectoryPage | undefined;
 
-const selectedPatient = patients?.items.find(
-  (p) => String(p.id) === patientId,
-);
+  const selectedPatient = patients?.items.find(
+    (p) => String(p.id) === patientId,
+  );
 
-const selectedPatientQuery = useQuery({
-  queryKey: ["/patients", patientId, activeDepartment()],
-  queryFn: () =>
-    api<{ patient: Patient }>(
-      `/patients/${encodeURIComponent(patientId)}`,
-    ),
-  enabled: Boolean(patientId) && !selectedPatient,
-});
+  const selectedPatientQuery = useQuery({
+    queryKey: ["/patients", patientId, activeDepartment()],
+    queryFn: () =>
+      api<{ patient: Patient }>(`/patients/${encodeURIComponent(patientId)}`),
+    enabled: Boolean(patientId) && !selectedPatient,
+  });
 
-const selectedPatientRecord =
-  selectedPatient ?? selectedPatientQuery.data?.patient;
+  const selectedPatientRecord =
+    selectedPatient ?? selectedPatientQuery.data?.patient;
 
-const { data: doctors } = useAllPages<Row>("/doctors"),
-  { data: rooms } = useAllPages<Row>("/rooms");
+  const { data: doctors } = useAllPages<Row>("/doctors"),
+    { data: rooms } = useAllPages<Row>("/rooms");
   const params = new URLSearchParams({
     from,
     to,
     ...(patientId ? { patientId } : {}),
     ...(doctorId ? { doctorId } : {}),
   });
+  const roomUtilizationParams = new URLSearchParams({
+    from,
+    to,
+    bucket: bucket === "week" ? "week" : "day",
+    ...(roomId ? { roomId } : {}),
+    ...(patientId ? { patientId } : {}),
+  });
   const path =
     mode === "procedures"
       ? "/reports/procedures?" + params
       : mode === "capacity"
         ? "/reports/capacity"
-        : "/reports/census?" +
-          new URLSearchParams({
-            ...(doctorId ? { doctorId } : {}),
-            ...(roomId ? { roomId } : {}),
-          });
+        : mode === "doctor-workload"
+          ? "/reports/doctor-workload?" + new URLSearchParams({ from, to })
+          : mode === "room-utilization"
+            ? "/reports/room-utilization?" + roomUtilizationParams
+          : "/reports/census?" +
+            new URLSearchParams({
+              ...(doctorId ? { doctorId } : {}),
+              ...(roomId ? { roomId } : {}),
+            });
   const { data, error, isLoading } = useData(path);
   const exportCsv = async () => {
     const department = activeDepartment();
@@ -129,10 +140,17 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
         title="Decisions, grounded in data."
         description="Authoritative reports calculated from saved department records."
       />
-      <div className="tabs">
-        {["procedures", "census", "capacity"].map((m) => (
+      <div className="tabs" role="group" aria-label="Report type">
+        {[
+          "procedures",
+          "census",
+          "capacity",
+          "doctor-workload",
+          "room-utilization",
+        ].map((m) => (
           <button
             className={mode === m ? "selected" : ""}
+            aria-pressed={mode === m}
             onClick={() => setMode(m)}
             key={m}
           >
@@ -140,13 +158,19 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
               ? "Hospitalized patients"
               : m === "capacity"
                 ? "Bed capacity"
-                : "Procedure activity"}
+                : m === "doctor-workload"
+                  ? "Doctor workload"
+                  : m === "room-utilization"
+                    ? "Room utilization"
+                  : "Procedure activity"}
           </button>
         ))}
       </div>
       <div className="report-filters">
         <small className="muted">Calendar dates use {timeZone}.</small>
-        {mode === "procedures" && (
+        {(mode === "procedures" ||
+          mode === "doctor-workload" ||
+          mode === "room-utilization") && (
           <>
             <label>
               From
@@ -164,67 +188,73 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
                 onChange={(e) => setTo(e.target.value)}
               />
             </label>
-            <label>
-              Find patient
-              <input
-                aria-label="Search patients for reports"
-                value={patientSearch}
-                onChange={(e) => {
-                  setPatientSearch(e.target.value);
-                  setPatientPage(0);
-                }}
-                placeholder="Name or patient ID"
-              />
-            </label>
-            <label>
-              Patient
-              <select
-                value={patientId}
-                onChange={(e) => setPatient(e.target.value)}
-              >
-                <option value="">All permitted patients</option>
-                {patientId && !selectedPatient && (
-                  <option value={patientId}>
-                    {selectedPatientRecord
-                      ? fullName(selectedPatientRecord)
-                      : selectedPatientQuery.error
-                        ? "Selected patient unavailable"
-                        : "Loading selected patient…"}
-                  </option>
+            {(mode === "procedures" || mode === "room-utilization") && (
+              <>
+                <label>
+                  Find patient
+                  <input
+                    aria-label="Search patients for reports"
+                    value={patientSearch}
+                    onChange={(e) => {
+                      setPatientSearch(e.target.value);
+                      setPatientPage(0);
+                    }}
+                    placeholder="Name or patient ID"
+                  />
+                </label>
+                <label>
+                  Patient
+                  <select
+                    value={patientId}
+                    onChange={(e) => setPatient(e.target.value)}
+                  >
+                    <option value="">All permitted patients</option>
+                    {patientId && !selectedPatient && (
+                      <option value={patientId}>
+                        {selectedPatientRecord
+                          ? fullName(selectedPatientRecord)
+                          : selectedPatientQuery.error
+                            ? "Selected patient unavailable"
+                            : "Loading selected patient…"}
+                      </option>
+                    )}
+                    {patients?.items.map((p) => (
+                      <option value={p.id} key={p.id}>
+                        {fullName(p)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {patients &&
+                  patients.totalPages > 1 &&
+                  (mode === "procedures" || mode === "room-utilization") && (
+                  <div className="table-pagination">
+                    <span>
+                      Page {patients.page + 1} of {patients.totalPages}
+                    </span>
+                    <button
+                      className="secondary"
+                      disabled={patients.page === 0}
+                      onClick={() => setPatientPage(patients.page - 1)}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      className="secondary"
+                      disabled={!patients.hasNext}
+                      onClick={() =>
+                        setPatientPage(patients.nextPage ?? patients.page + 1)
+                      }
+                    >
+                      Next
+                    </button>
+                  </div>
                 )}
-                {patients?.items.map((p) => (
-                  <option value={p.id} key={p.id}>
-                    {fullName(p)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {patients && patients.totalPages > 1 && (
-              <div className="table-pagination">
-                <span>
-                  Page {patients.page + 1} of {patients.totalPages}
-                </span>
-                <button
-                  className="secondary"
-                  disabled={patients.page === 0}
-                  onClick={() => setPatientPage(patients.page - 1)}
-                >
-                  Previous
-                </button>
-                <button
-                  className="secondary"
-                  disabled={!patients.hasNext}
-                  onClick={() =>
-                    setPatientPage(patients.nextPage ?? patients.page + 1)
-                  }
-                >
-                  Next
-                </button>
-              </div>
+              </>
             )}
           </>
         )}
-        {mode !== "capacity" && (
+        {(mode === "procedures" || mode === "census") && (
           <label>
             Doctor
             <select
@@ -255,6 +285,32 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
             </select>
           </label>
         )}
+        {mode === "room-utilization" && (
+          <>
+            <label>
+              Time interval
+              <select
+                value={bucket === "week" ? "week" : "day"}
+                onChange={(e) => setBucket(e.target.value)}
+              >
+                <option value="day">Daily</option>
+                <option value="week">Weekly</option>
+              </select>
+            </label>
+            <label>
+              Room
+              <select value={roomId} onChange={(e) => setRoom(e.target.value)}>
+                <option value="">All rooms</option>
+                {Array.isArray(rooms) &&
+                  rooms.map((r: Row) => (
+                    <option value={r.id} key={r.id}>
+                      {r.roomNumber}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </>
+        )}
         {mode === "procedures" && (
           <button
             type="button"
@@ -269,12 +325,18 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
         )}
       </div>
       <ErrorBox
-        error={error || patientDirectoryQuery.error || selectedPatientQuery.error}
+        error={
+          error ||
+          ((mode === "procedures" || mode === "room-utilization")
+            ? patientDirectoryQuery.error || selectedPatientQuery.error
+            : null)
+        }
       />
-      <ErrorBox error={error} />
       <ErrorBox error={exportError} />
       {isLoading ? (
-        <div className="skeleton">Calculating report…</div>
+        <div className="skeleton" role="status" aria-live="polite">
+          Calculating report…
+        </div>
       ) : (
         data && (
           <>
@@ -292,6 +354,11 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
                     setRoom(id);
                     setMode("census");
                   }}
+                />
+              )}
+              {mode === "room-utilization" && (
+                <RoomUtilizationSummary
+                  report={data as RoomUtilizationReport}
                 />
               )}
             </div>
@@ -370,6 +437,53 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
                       ))}
                   </tbody>
                 </table>
+              ) : mode === "doctor-workload" ? (
+                <>
+                  <h2>Doctor workload</h2>
+                  <p className="muted">
+                    Scope: {(data as DoctorWorkloadReport).scope}. Recent
+                    procedures include {(data as DoctorWorkloadReport).from}{" "}
+                    through {(data as DoctorWorkloadReport).to} (
+                    {(data as DoctorWorkloadReport).timeZone}).
+                  </p>
+                  <div className="report-total">
+                    <strong>
+                      {(data as DoctorWorkloadReport).rows.length} active doctor
+                      {(data as DoctorWorkloadReport).rows.length === 1
+                        ? ""
+                        : "s"}
+                    </strong>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th scope="col">Doctor</th>
+                        <th scope="col">Specialty</th>
+                        <th scope="col">Active admissions</th>
+                        <th scope="col">Assigned beds</th>
+                        <th scope="col">Recent procedures</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data as DoctorWorkloadReport).rows.map((row) => (
+                        <tr key={row.doctor.id}>
+                          <th scope="row">{fullName(row.doctor)}</th>
+                          <td>{row.doctor.specialty || "Not recorded"}</td>
+                          <td>{row.activeAdmissions}</td>
+                          <td>{row.assignedBeds}</td>
+                          <td>{row.recentProcedures}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(data as DoctorWorkloadReport).rows.length === 0 && (
+                    <Empty text="No active doctors are available in this reporting scope." />
+                  )}
+                </>
+              ) : mode === "room-utilization" ? (
+                <RoomUtilizationTable
+                  report={data as RoomUtilizationReport}
+                />
               ) : (
                 <table>
                   <thead>
@@ -400,6 +514,108 @@ const { data: doctors } = useAllPages<Row>("/doctors"),
             </section>
           </>
         )
+      )}
+    </>
+  );
+}
+
+function RoomUtilizationSummary({
+  report,
+}: {
+  report: RoomUtilizationReport;
+}) {
+  const occupiedBedHours = report.rows.reduce(
+    (total, row) => total + row.occupiedBedHours,
+    0,
+  );
+  const capacityBedHours = report.rows.reduce(
+    (total, row) => total + row.capacityBedHours,
+    0,
+  );
+  const utilization = capacityBedHours
+    ? (occupiedBedHours / capacityBedHours) * 100
+    : 0;
+
+  return (
+    <section
+      className="panel report-total room-utilization-summary"
+      aria-label="Room utilization summary"
+    >
+      <div>
+        <strong>Historical room utilization</strong>
+        <span>
+          {report.from} through {report.to} ·{" "}
+          {report.bucket === "day" ? "Daily" : "Weekly"} · {report.timeZone}
+        </span>
+        <span>Scope: {report.scope}</span>
+      </div>
+      <div>
+        <strong>{utilization.toFixed(1)}%</strong>
+        <span>
+          {occupiedBedHours.toFixed(1)} occupied bed hours of{" "}
+          {capacityBedHours.toFixed(1)} capacity bed hours
+        </span>
+      </div>
+      <p className="muted">
+        Scoped occupied bed hours are compared with each room's full configured
+        capacity. A patient or doctor scope can show partial utilization when
+        other patients occupy beds in the same rooms. Capacity basis:{" "}
+        {report.capacityBasis}.
+      </p>
+    </section>
+  );
+}
+
+function RoomUtilizationTable({
+  report,
+}: {
+  report: RoomUtilizationReport;
+}) {
+  return (
+    <>
+      <h2>Utilization by room and period</h2>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Period</th>
+            <th scope="col">Room</th>
+            <th scope="col">Beds</th>
+            <th scope="col">Occupied bed hours</th>
+            <th scope="col">Capacity bed hours</th>
+            <th scope="col">Utilization</th>
+          </tr>
+        </thead>
+        <tbody>
+          {report.rows.map((row, index) => {
+            const percent = Number(row.utilizationPercent);
+            const safePercent = Number.isFinite(percent)
+              ? Math.min(100, Math.max(0, percent))
+              : 0;
+            return (
+              <tr key={`${row.roomId}-${row.periodStart}-${index}`}>
+                <td>
+                  {row.periodStart}
+                  {row.periodEnd !== row.periodStart && ` – ${row.periodEnd}`}
+                </td>
+                <th scope="row">{row.roomNumber}</th>
+                <td>{row.bedCount}</td>
+                <td>{Number(row.occupiedBedHours).toFixed(1)}</td>
+                <td>{Number(row.capacityBedHours).toFixed(1)}</td>
+                <td>
+                  <span>{percent.toFixed(1)}%</span>{" "}
+                  <progress
+                    value={safePercent}
+                    max={100}
+                    aria-label={`Room ${row.roomNumber}, ${row.periodStart} utilization`}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {report.rows.length === 0 && (
+        <Empty text="No rooms match this department and filter scope." />
       )}
     </>
   );

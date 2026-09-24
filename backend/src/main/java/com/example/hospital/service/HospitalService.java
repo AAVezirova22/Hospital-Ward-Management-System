@@ -212,12 +212,12 @@ public class HospitalService {
         .orElseThrow(ApiException::missing);
   }
 
-  public int held(Long id) {
-    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-    var holds =
-        bedHolds.findByRoomIdAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(id, now);
-    return BedHoldCapacity.reserved(holds, now);
-  }
+public int held(Long id) {
+  var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+  var holds =
+      bedHolds.findByRoomIdAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(id, now);
+  return BedHoldCapacity.reserved(holds, now);
+}
 
   public String scopeLabel() {
     long departmentId = com.example.hospital.security.DepartmentContext.id();
@@ -245,19 +245,8 @@ public class HospitalService {
             .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
     return rooms.findAll().stream()
         .filter(r -> RoomCapabilityMatcher.missing(required, r.getCapabilities()).isEmpty())
-        .map(
-            r -> {
-              Map<String, Object> m = new LinkedHashMap<>(Views.room(r));
-              long used = occupied(r.getId());
-              var holds = holdsByRoom.getOrDefault(r.getId(), List.of());
-              int reserved = BedHoldCapacity.reserved(holds, now);
-              m.put("occupiedBeds", used);
-              m.put("heldBeds", reserved);
-              m.put("activeHeldBeds", BedHoldCapacity.active(holds, now));
-              m.put("holds", holds.stream().map(Views::bedHold).toList());
-              m.put("availableBeds", r.isActive() ? Math.max(0, r.getBedCount() - (int) used - reserved) : 0);
-              return m;
-            })
+        .map(r -> BedHoldCapacity.roomView(
+            r, occupied(r.getId()), holdsByRoom.getOrDefault(r.getId(), List.of()), now))
         .filter(m -> ((Number) m.get("availableBeds")).intValue() >= minFree)
         .toList();
   }

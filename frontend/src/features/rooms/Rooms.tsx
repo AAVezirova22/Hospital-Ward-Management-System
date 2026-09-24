@@ -3,7 +3,7 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { type Row } from "../../api";
 import type { RoomCapacity } from "../../api/contracts";
-import { useUser, useData, ErrorBox, Title } from "../../components/workspace";
+import { useUser, useData, ErrorBox, Empty, Title } from "../../components/workspace";
 import { Plus, BedDouble } from "../../icons";
 import { RoomCard } from "./RoomCard";
 import { BedHoldManager } from "./BedHoldManager";

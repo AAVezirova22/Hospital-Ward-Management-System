@@ -9,5 +9,8 @@ public interface BedHoldRepository extends JpaRepository<BedHold, Long> {
   List<BedHold> findByRoomIdAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(
       Long roomId, Instant after);
 
+  List<BedHold> findByRoomIdInAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(
+      List<Long> roomIds, Instant after);
+
   List<BedHold> findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(Instant after);
 }
