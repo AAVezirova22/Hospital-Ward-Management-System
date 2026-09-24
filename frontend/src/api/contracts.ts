@@ -89,6 +89,7 @@ export interface MedicalProcedure extends Entity {
 }
 export interface ProcedureRecord extends Entity {
   admissionId: number;
+  admissionNumber?: string;
   medicalProcedureId: number;
   performedByDoctorId: number;
   performedAt: string;
@@ -173,7 +174,13 @@ export interface DischargeReminderOutcome {
   id: number;
   expectedDischargeDate: string;
   windowDays: number;
-  status: "PENDING" | "SENDING" | "ACCEPTED" | "FAILED" | "NO_RECIPIENT" | "CANCELLED";
+  status:
+    | "PENDING"
+    | "SENDING"
+    | "ACCEPTED"
+    | "FAILED"
+    | "NO_RECIPIENT"
+    | "CANCELLED";
   recipientCount: number;
   attemptCount: number;
   lastAttemptAt: string | null;
@@ -193,6 +200,47 @@ export interface ProcedureReport {
   from: string;
   to: string;
   timeZone: string;
+}
+export interface DoctorWorkloadDoctor {
+  id: number;
+  version: number;
+  doctorIdentifier: string;
+  firstName: string;
+  lastName: string;
+  specialty: string;
+  active: boolean;
+}
+export interface DoctorWorkloadRow {
+  doctor: DoctorWorkloadDoctor;
+  activeAdmissions: number;
+  assignedBeds: number;
+  recentProcedures: number;
+}
+export interface DoctorWorkloadReport {
+  rows: DoctorWorkloadRow[];
+  from: string;
+  to: string;
+  timeZone: string;
+  scope: "Department" | "Your workload";
+}
+export interface RoomUtilizationRow {
+  periodStart: string;
+  periodEnd: string;
+  roomId: number;
+  roomNumber: string;
+  bedCount: number;
+  occupiedBedHours: number;
+  capacityBedHours: number;
+  utilizationPercent: number;
+}
+export interface RoomUtilizationReport {
+  rows: RoomUtilizationRow[];
+  from: string;
+  to: string;
+  bucket: "day" | "week";
+  timeZone: string;
+  scope: string;
+  capacityBasis: string;
 }
 export interface WorkspaceDepartment {
   id: number;

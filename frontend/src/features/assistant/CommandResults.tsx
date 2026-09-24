@@ -10,8 +10,6 @@ import {
   patientHref,
   type User,
 } from "../../api";
-import type { Patient, RoomCapacity, Doctor } from "../../api/contracts";
-import { api, fullName, activeDepartment, patientHref, type User } from "../../api";
 import type { PatientDirectoryPage, RoomCapacity, Doctor } from "../../api/contracts";
 export function CommandResults({
   query,

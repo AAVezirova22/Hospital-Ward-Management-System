@@ -2,7 +2,6 @@ import type { PageResult } from "./api/contracts";
 
 // These pages still consume several endpoint shapes that are not modeled yet.
 // Keep the shared legacy row type permissive; typed endpoints use api/contracts.
-import type { PageResult } from "./api/contracts";
 
 export type Row = any;
 export type User = {
@@ -269,7 +268,6 @@ export async function downloadFile(
     : plainFilename || "download";
 
   return { blob: await r.blob(), filename };
-}
 }
 export async function login(username: string, password: string): Promise<User> {
   const t = await token();

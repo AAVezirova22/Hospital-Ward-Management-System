@@ -123,8 +123,6 @@ export function PlannerControls({
                       {r.active ? `${r.availableBeds} free now` : "Inactive"}
                     </option>
                   ))}
-                </option>
-              ))}
             </select>
           </label>
           {current && placeableRooms.length === 0 && (
