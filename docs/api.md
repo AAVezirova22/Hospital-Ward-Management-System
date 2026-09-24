@@ -142,6 +142,25 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
 
+## Idempotency keys
+
+These `POST` endpoints accept an optional `Idempotency-Key` header (1–128 characters from letters, digits and `. _ : -`), so a client that timed out can retry without repeating the change:
+
+- `/patients`
+- `/admissions`, `/admissions/{id}/transfer`, `/discharge`, `/doctor`, `/procedures`
+- `/ai-actions/{id}/confirm`
+- `/rooms/{id}/holds`
+
+| Situation | Response |
+| --- | --- |
+| First request with a key | Runs normally; the response is stored |
+| Retry with the same key, path, department and body | The stored status and body, with `Idempotent-Replayed: true`; nothing runs again |
+| Same key with a different path, department or body | `422 IDEMPOTENCY_KEY_REUSED` |
+| Retry while the first request is still running | `409 IDEMPOTENCY_IN_PROGRESS`; retry shortly |
+| Malformed key | `400 INVALID_IDEMPOTENCY_KEY` |
+
+Keys belong to the signed-in account; another account using the same key starts its own request. Client errors (`4xx`) are stored and replayed. Server errors (`5xx`) and responses over 64 KB are not stored, so those requests can be retried. Stored responses, which may contain the same patient data as the original response, expire after `IDEMPOTENCY_KEY_TTL` (default `24h`). Generate a fresh random key (for example a UUID) for each intended change. Requests without the header behave as before.
+
 ## Rate-limit headers
 
 Rate-limited endpoints return the remaining budget on every checked response. They are `POST /assistant/messages`, registration confirmation resends, and the API budgets below:
