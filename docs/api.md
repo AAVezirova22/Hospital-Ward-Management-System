@@ -17,8 +17,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/patients/{id}` | Patient plus scoped admission/room/procedure history |
 | POST / PUT | `/patients` / `/patients/{id}` | PatientInput |
 | GET / POST / PUT | `/doctors` / `/doctors/{id}` | DoctorInput; writes admin-only |
-| GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET supports `minFree` and repeated `requiredCapabilities` tags |
-| GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET supports `minFree` |
+| GET / POST / PUT | `/rooms` / `/rooms/{id}` | RoomInput; GET returns a page (`items`, `page`, `size`, `totalElements`) and filters by `q`, `active`, `roomId`, `minFree` and repeated `requiredCapabilities` tags. `availableBeds` subtracts occupants and upcoming maintenance holds, matching placement checks |
 | POST | `/rooms/{id}/holds` | `{bedCount, reason, startsAt, endsAt}`; admin/staff; timed maintenance reservation |
 | DELETE | `/rooms/{roomId}/holds/{holdId}` | Admin/staff; cancels a reservation and returns 204 |
 | GET / POST / PUT | `/procedures` / `/procedures/{id}` | ProcedureInput; catalogue |
@@ -30,6 +29,8 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
 | GET | `/audit` | Latest 100 events; admin-only |
+
+Opening `GET /patients/{id}`, `GET /admissions/{id}` or the assistant's `getPatientSummary` tool records a `PATIENT_VIEWED` or `ADMISSION_VIEWED` audit event with actor, department, record ID, source (`UI` or `AI`) and time. No field values are stored. Lists, searches and failed lookups are not recorded, and a person's own portal view is not recorded. Repeat views of the same record by the same user within `AUDIT_READ_DEDUPE_WINDOW` are recorded once.
 | GET | `/workspaces` | Hospitals and departments the account can open, plus the active department. Live join codes are omitted; owners receive `hasJoinCode`. |
 | GET | `/workspaces/hospitals/{id}/members?page=0&size=20` | Paginated hospital roster; hospital owner only. Shows OWNER/MEMBER, enabled status, joinedAt, and department role/doctor links for each member. |
 | GET | `/workspaces/departments/{id}/members?page=0&size=20` | Paginated department roster; department admin or hospital owner only. Shows role, linked doctor, enabled status, and joinedAt. |

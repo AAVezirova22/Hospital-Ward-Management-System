@@ -82,6 +82,11 @@ app:
   session:
     # Hard limit from sign-in, independent of the idle timeout; users then sign in again.
     max-lifetime: ${SESSION_MAX_LIFETIME:12h}
+  audit:
+    # Record who opened patient and admission records (not lists or searches). Repeat views of the
+    # same record by the same user inside the window are recorded once; 0s records every view.
+    record-reads: ${AUDIT_RECORD_READS:true}
+    read-dedupe-window: ${AUDIT_READ_DEDUPE_WINDOW:15m}
   diagnostics:
     # Log statements at or above this many milliseconds (redacted); 0 disables the log.
     slow-query-ms: ${SLOW_QUERY_MS:500}
