@@ -60,12 +60,15 @@ public class ConfirmationEmailService {
     }
   }
 
-  private DeliveryResult deliver(Map<String, ?> payload, String idempotencyKey) throws Exception {
-    var request = HttpRequest.newBuilder(URI.create(endpoint)).timeout(Duration.ofSeconds(15))
+  private HttpRequest providerRequest(Map<String, ?> payload, String idempotencyKey) throws Exception {
+    return HttpRequest.newBuilder(URI.create(endpoint)).timeout(Duration.ofSeconds(15))
         .header("Authorization", "Bearer " + key).header("Content-Type", "application/json")
         .header("Idempotency-Key", idempotencyKey)
         .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload))).build();
-    var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  private DeliveryResult deliver(Map<String, ?> payload, String idempotencyKey) throws Exception {
+    var response = client.send(providerRequest(payload, idempotencyKey), HttpResponse.BodyHandlers.ofString());
     if (response.statusCode() < 200 || response.statusCode() >= 300)
       throw new ApiException(503, "EMAIL_DELIVERY_FAILED", "The email provider could not accept this message.");
     String providerMessageId = null;
@@ -75,5 +78,42 @@ public class ConfirmationEmailService {
   }
 
   public record DeliveryResult(String providerMessageId) {}
+
+  /** Outcome of an administrator test send; carries no provider response text or credentials. */
+  public record TestResult(String outcome, Integer providerStatus, String providerMessageId) {}
+
+  private static final java.util.regex.Pattern SENDER = java.util.regex.Pattern.compile(
+      "[^<>@\\s]+@[^<>@\\s]+\\.[^<>@\\s]+|[^<>@]*[^<>@\\s][^<>@]*<[^<>@\\s]+@[^<>@\\s]+\\.[^<>@\\s]+>");
+
+  public boolean keyPresent() { return !key.isBlank(); }
+  public String sender() { return from; }
+  public String publicUrl() { return publicUrl; }
+  public String endpointHost() {
+    try { return URI.create(endpoint).getHost(); } catch (IllegalArgumentException e) { return null; }
+  }
+  public boolean sendTestSenderValid() { return validSender(from); }
+  static boolean validSender(String value) { return value != null && SENDER.matcher(value.strip()).matches(); }
+
+  /** Sends a short, content-free test message and classifies the provider response. */
+  public TestResult sendTest(String recipient) {
+    if (!remindersConfigured()) return new TestResult("NOT_CONFIGURED", null, null);
+    if (!validSender(from)) return new TestResult("INVALID_SENDER", null, null);
+    var payload = Map.of("from", from, "to", List.of(recipient), "subject", "Medcore email settings test",
+        "text", "An administrator sent this message to check Medcore email delivery settings. No action is needed.");
+    try {
+      var response = client.send(providerRequest(payload, "settings-test-" + UUID.randomUUID()), HttpResponse.BodyHandlers.ofString());
+      int code = response.statusCode();
+      if (code >= 200 && code < 300) {
+        String id = response.body() == null || response.body().isBlank() ? null : json.readTree(response.body()).path("id").asText(null);
+        return new TestResult("ACCEPTED_BY_PROVIDER", code, id);
+      }
+      return new TestResult(code >= 500 || code == 429 ? "PROVIDER_UNAVAILABLE" : "PROVIDER_REJECTED", code, null);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return new TestResult("NETWORK_ERROR", null, null);
+    } catch (Exception e) {
+      return new TestResult("NETWORK_ERROR", null, null);
+    }
+  }
   static String escape(String value) { return value.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&#39;"); }
 }

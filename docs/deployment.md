@@ -161,6 +161,13 @@ Signup, resend and recovery write the account changes, hashed verification link 
 
 The outbox holds the one-time confirmation token, recipient and first name while delivery is pending, for at most the configured confirmation lifetime. It clears those values after delivery, replacement, verification or expiry. Terminal delivery records are retained for 30 days. Restrict direct database access and protect database backups while pending messages may contain these secrets.
 
+
+### Checking email settings
+
+Administrators can inspect delivery settings at `GET /api/v1/settings/email`. The response shows whether an API key is present (never the key), the sender and whether it is a valid address, whether it is the Resend testing sender (`@resend.dev`), whether `PUBLIC_APP_URL` is a valid origin, the provider host, readiness for registration and reminder emails, and the last test on this instance.
+
+`POST /api/v1/settings/email/test` with `{"recipient": "..."}` (defaults to your verified account email) sends a short message with no patient content. It reports one of `ACCEPTED_BY_PROVIDER` (with the provider message ID), `PROVIDER_REJECTED` (HTTP 4xx, for example an unverified sender domain), `PROVIDER_UNAVAILABLE` (5xx or 429), `NETWORK_ERROR`, `NOT_CONFIGURED` or `INVALID_SENDER`, plus the provider HTTP status. Provider response text is never shown. Tests are limited to 5 per administrator per 10 minutes and audited as `EMAIL_SETTINGS_TESTED` with the outcome and the recipient's domain only.
+
 ## Upcoming discharge reminders
 
 Reminders are disabled by default. To enable them, set `DISCHARGE_REMINDERS_ENABLED=true` after configuring `RESEND_API_KEY` and a valid `EMAIL_FROM`, and make sure the department's assigned doctors and team staff have enabled accounts with verified email addresses. The reminder sender needs the Resend key and sender address; it does not require `PUBLIC_APP_URL`.
