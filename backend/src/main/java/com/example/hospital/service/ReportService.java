@@ -229,4 +229,105 @@ public class ReportService {
   public List<Map<String, Object>> capacity() {
     return hospital.rooms(0);
   }
+
+  public Map<String, Object> doctorWorkload(LocalDate from, LocalDate to) {
+    if (from.isAfter(to))
+      throw new ApiException(400, "INVALID_PERIOD", "Start date must be before or equal to end date.");
+
+    long departmentId = DepartmentContext.id();
+    var zone = departmentTime.zoneId();
+    var start = Timestamp.from(from.atStartOfDay(zone).toInstant());
+    var end = Timestamp.from(to.plusDays(1).atStartOfDay(zone).toInstant());
+    boolean doctorScope = actor.doctor();
+    Long scopedDoctorId = doctorScope ? actor.user().getDoctorId() : null;
+    if (doctorScope && scopedDoctorId == null) {
+      Map<String, Object> empty = new LinkedHashMap<>();
+      empty.put("rows", List.of());
+      empty.put("from", from);
+      empty.put("to", to);
+      empty.put("timeZone", zone.getId());
+      empty.put("scope", "Your workload");
+      return empty;
+    }
+
+    var sql = new StringBuilder(
+        """
+        with active_admissions as (
+          select department_id, attending_doctor_id doctor_id, count(*) active_admissions
+          from admissions
+          where department_id=? and status='ACTIVE'
+          group by department_id, attending_doctor_id
+        ), assigned_beds as (
+          select a.department_id, a.attending_doctor_id doctor_id, count(ra.id) assigned_beds
+          from room_assignments ra
+          join admissions a on a.id=ra.admission_id and a.department_id=ra.department_id
+          where ra.department_id=? and ra.released_at is null and a.status='ACTIVE'
+          group by a.department_id, a.attending_doctor_id
+        ), recent_procedures as (
+          select pp.department_id, pp.performed_by_doctor_id doctor_id, count(*) recent_procedures
+          from performed_procedures pp
+          join admissions a on a.id=pp.admission_id and a.department_id=pp.department_id
+          where pp.department_id=? and pp.performed_at>=? and pp.performed_at<?
+        """);
+    var args = new ArrayList<Object>();
+    args.add(departmentId);
+    args.add(departmentId);
+    args.add(departmentId);
+    args.add(start);
+    args.add(end);
+    if (doctorScope) {
+      sql.append(" and a.attending_doctor_id=?");
+      args.add(scopedDoctorId);
+    }
+    sql.append(
+        """
+          group by pp.department_id, pp.performed_by_doctor_id
+        )
+        select d.id doctor_id, d.version doctor_version, d.doctor_identifier,
+               d.first_name, d.last_name, d.specialty,
+               coalesce(aa.active_admissions, 0) active_admissions,
+               coalesce(ab.assigned_beds, 0) assigned_beds,
+               coalesce(rp.recent_procedures, 0) recent_procedures
+        from doctors d
+        left join active_admissions aa on aa.department_id=d.department_id and aa.doctor_id=d.id
+        left join assigned_beds ab on ab.department_id=d.department_id and ab.doctor_id=d.id
+        left join recent_procedures rp on rp.department_id=d.department_id and rp.doctor_id=d.id
+        where d.department_id=? and d.active=true
+        """);
+    args.add(departmentId);
+    if (doctorScope) {
+      sql.append(" and d.id=?");
+      args.add(scopedDoctorId);
+    }
+    sql.append(" order by lower(d.last_name), lower(d.first_name), d.id");
+
+    List<Map<String, Object>> rows =
+        jdbc.query(
+            sql.toString(),
+            (rs, n) -> {
+              Map<String, Object> doctor = new LinkedHashMap<>();
+              doctor.put("id", rs.getLong("doctor_id"));
+              doctor.put("version", rs.getLong("doctor_version"));
+              doctor.put("doctorIdentifier", rs.getString("doctor_identifier"));
+              doctor.put("firstName", rs.getString("first_name"));
+              doctor.put("lastName", rs.getString("last_name"));
+              doctor.put("specialty", rs.getString("specialty"));
+              doctor.put("active", true);
+              Map<String, Object> row = new LinkedHashMap<>();
+              row.put("doctor", doctor);
+              row.put("activeAdmissions", rs.getLong("active_admissions"));
+              row.put("assignedBeds", rs.getLong("assigned_beds"));
+              row.put("recentProcedures", rs.getLong("recent_procedures"));
+              return row;
+            },
+            args.toArray());
+
+    Map<String, Object> report = new LinkedHashMap<>();
+    report.put("rows", rows);
+    report.put("from", from);
+    report.put("to", to);
+    report.put("timeZone", zone.getId());
+    report.put("scope", doctorScope ? "Your workload" : "Department");
+    return report;
+  }
 }

@@ -38,7 +38,6 @@ public class CatalogueService {
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
   private final AuditService audit;
-  private final RoomAssignmentRepository assignments;
 
   public CatalogueService(
       HospitalService hospital,
@@ -59,7 +58,6 @@ public class CatalogueService {
     this.admissions = admissions;
     this.assignments = assignments;
     this.audit = audit;
-    this.assignments = assignments;
   }
 
   public List<Doctor> doctors() {
@@ -115,7 +113,13 @@ public class CatalogueService {
   }
 
   public PagedResult<Map<String, Object>> roomPage(
-      String q, int requestedPage, int requestedSize, Boolean active, int minFree, Long roomId) {
+      String q,
+      int requestedPage,
+      int requestedSize,
+      Boolean active,
+      int minFree,
+      Long roomId,
+      List<String> requestedCapabilities) {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
@@ -124,11 +128,40 @@ public class CatalogueService {
     boolean hasActive = active != null;
     boolean activeValue = Boolean.TRUE.equals(active);
     boolean hasRoomId = roomId != null;
+    List<String> requiredCapabilities =
+        List.copyOf(RoomCapabilityMatcher.normalize(requestedCapabilities));
     int size = safeSize(requestedSize);
-    long total = rooms.countDirectory(hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree);
+    long total =
+        requiredCapabilities.isEmpty()
+            ? rooms.countDirectory(
+                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree)
+            : rooms.countDirectoryWithCapabilities(
+                hasQuery,
+                query,
+                hasRoomId,
+                roomId,
+                hasActive,
+                activeValue,
+                minFree,
+                requiredCapabilities,
+                requiredCapabilities.size());
     int page = safePage(requestedPage, size, total);
     Pageable pageable = PageRequest.of(page, size, Sort.by("roomNumber", "id"));
-    var selected = rooms.searchDirectory(hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, pageable);
+    var selected =
+        requiredCapabilities.isEmpty()
+            ? rooms.searchDirectory(
+                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, pageable)
+            : rooms.searchDirectoryWithCapabilities(
+                hasQuery,
+                query,
+                hasRoomId,
+                roomId,
+                hasActive,
+                activeValue,
+                minFree,
+                requiredCapabilities,
+                requiredCapabilities.size(),
+                pageable);
     Map<Long, Long> occupiedByRoom = new HashMap<>();
     if (!selected.isEmpty()) {
       var ids = selected.stream().map(Room::getId).toList();

@@ -173,7 +173,13 @@ export interface DischargeReminderOutcome {
   id: number;
   expectedDischargeDate: string;
   windowDays: number;
-  status: "PENDING" | "SENDING" | "ACCEPTED" | "FAILED" | "NO_RECIPIENT" | "CANCELLED";
+  status:
+    | "PENDING"
+    | "SENDING"
+    | "ACCEPTED"
+    | "FAILED"
+    | "NO_RECIPIENT"
+    | "CANCELLED";
   recipientCount: number;
   attemptCount: number;
   lastAttemptAt: string | null;
@@ -193,6 +199,28 @@ export interface ProcedureReport {
   from: string;
   to: string;
   timeZone: string;
+}
+export interface DoctorWorkloadDoctor {
+  id: number;
+  version: number;
+  doctorIdentifier: string;
+  firstName: string;
+  lastName: string;
+  specialty: string;
+  active: boolean;
+}
+export interface DoctorWorkloadRow {
+  doctor: DoctorWorkloadDoctor;
+  activeAdmissions: number;
+  assignedBeds: number;
+  recentProcedures: number;
+}
+export interface DoctorWorkloadReport {
+  rows: DoctorWorkloadRow[];
+  from: string;
+  to: string;
+  timeZone: string;
+  scope: "Department" | "Your workload";
 }
 export interface WorkspaceDepartment {
   id: number;

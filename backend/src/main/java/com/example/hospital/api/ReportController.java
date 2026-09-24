@@ -25,7 +25,6 @@ public ReportController(
   this.audit = audit;
   this.reminders = reminders;
 }
-  }
 
   @GetMapping("/dashboard")
   public Object dashboard() {
@@ -41,6 +40,11 @@ public ReportController(
   @GetMapping("/capacity")
   public Object capacity() {
     return reports.capacity();
+  }
+
+  @GetMapping("/doctor-workload")
+  public Object doctorWorkload(@RequestParam LocalDate from, @RequestParam LocalDate to) {
+    return reports.doctorWorkload(from, to);
   }
 
   @GetMapping("/discharge-reminders")

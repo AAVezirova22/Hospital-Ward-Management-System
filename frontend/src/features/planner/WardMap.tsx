@@ -122,8 +122,6 @@ export function WardMap({
                           {heldBeds} bed{heldBeds === 1 ? "" : "s"} reserved for maintenance
                         </p>
                       )}
-                  </p>
-                )}
                 {occupants.map((v) => (
                   <button
                     type="button"

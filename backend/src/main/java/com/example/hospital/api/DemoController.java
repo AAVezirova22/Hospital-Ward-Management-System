@@ -38,7 +38,6 @@ public class DemoController {
   this.environment = environment;
   this.publicLogin = publicLogin;
 }
-  }
 
   @GetMapping("/status")
   public Object status() { return Map.of("enabled", demo.enabled(), "environment", environment); }

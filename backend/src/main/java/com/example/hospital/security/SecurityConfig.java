@@ -60,7 +60,7 @@ public class SecurityConfig {
       AppUserRepository users,
       WorkspaceAccess workspaces,
       LoginBackoff backoff,
-      SessionLifetime lifetime)
+      SessionLifetime lifetime,
       ClientAddressResolver clientAddresses)
       throws Exception {
     http.authorizeHttpRequests(
