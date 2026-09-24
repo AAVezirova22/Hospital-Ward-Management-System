@@ -100,6 +100,13 @@ app:
     # same record by the same user inside the window are recorded once; 0s records every view.
     record-reads: ${AUDIT_RECORD_READS:true}
     read-dedupe-window: ${AUDIT_READ_DEDUPE_WINDOW:15m}
+  retention:
+    # Days to keep operational metadata per category; 0 keeps it forever. Applied per department
+    # by an administrator after a dry run. Clinical records are never removed by retention.
+    audit-days: ${RETENTION_AUDIT_DAYS:0}
+    ai-interaction-days: ${RETENTION_AI_INTERACTION_DAYS:90}
+    ai-action-days: ${RETENTION_AI_ACTION_DAYS:90}
+    security-event-days: ${RETENTION_SECURITY_EVENT_DAYS:365}
   idempotency:
     # How long a stored response is replayed for retries that carry the same Idempotency-Key.
     ttl: ${IDEMPOTENCY_KEY_TTL:24h}

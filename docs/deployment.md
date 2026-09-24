@@ -93,7 +93,7 @@ Narrow `TRUSTED_PROXIES` to your load balancer's range when other hosts share th
 
 `audit_events` is append-only for the application. A database trigger rejects every `UPDATE`, `DELETE` and `TRUNCATE` on the table, including SQL sent by the backend's own database role, and the entity is read-only in Hibernate. New events are still inserted normally.
 
-One controlled path may remove history: the synthetic demo reset (`DEMO_MODE=true`, `APP_ENVIRONMENT=demo`). It opts in for its own transaction only, with `select set_config('hospital.audit_maintenance', 'on', true)`. The setting ends with that transaction and cannot leak into pooled connections.
+Two controlled paths may remove history: the synthetic demo reset (`DEMO_MODE=true`, `APP_ENVIRONMENT=demo`) and an administrator applying a configured retention policy (see [Data retention](#data-retention)). Each opts in for its own transaction only, with `select set_config('hospital.audit_maintenance', 'on', true)`. The setting ends with that transaction and cannot leak into pooled connections.
 
 Limits of this protection:
 
@@ -101,6 +101,19 @@ Limits of this protection:
 - Whoever can alter the schema can bypass it. Flyway runs as the application role, which owns the table and could drop the trigger or set the maintenance flag. For stronger separation, run migrations with a dedicated owner role, give the runtime role only `SELECT, INSERT` on `audit_events`, and keep superuser credentials out of the application.
 - Copy audit events to storage the database operators cannot rewrite (log shipping, write-once object storage) if records must stand up to an administrator with database access.
 - Backups contain the same rows. Protect and retain them according to [Database backup security](database-backup-security.md) and your organisation's retention rules.
+## Data retention
+
+Operational metadata can be removed after an organisation-defined period. Each category is set in days; `0` keeps it forever:
+
+| Variable | Default | Removes |
+| --- | --- | --- |
+| `RETENTION_AUDIT_DAYS` | `0` (keep) | Audit events older than the period |
+| `RETENTION_AI_INTERACTION_DAYS` | `90` | Assistant request metadata (no conversation text is stored) |
+| `RETENTION_AI_ACTION_DAYS` | `90` | Assistant proposals that are no longer pending |
+| `RETENTION_SECURITY_EVENT_DAYS` | `365` | Resolved or dismissed security review entries |
+
+Patients, admissions, room assignments and procedures are never removed by retention. Nothing is deleted automatically. A department administrator reviews `GET /api/v1/retention/preview` (a dry run with the cutoff and eligible count per category), then calls `POST /api/v1/retention/apply` with `{"confirmation": "APPLY RETENTION"}`. Only the administrator's active department is affected. The removal is recorded as a `RETENTION_APPLIED` audit event with the count per category. Keep backups according to the same policy, or deleted rows remain in older backups.
+
 ## Read auditing
 
 Patient and admission detail views are audited so administrators can reconstruct who opened a record. Volume controls:
