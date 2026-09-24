@@ -102,12 +102,24 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 409 | `DATA_CONFLICT` | Uniqueness, optimistic lock or lock contention conflict |
 | 401 | `SESSION_EXPIRED` | The session passed its maximum lifetime; sign in again |
 | 429 | `AI_RATE_LIMIT` | Assistant quota or in-flight request limit |
-| 429 | `RATE_LIMITED` | Confirmation-email resend limit |
+| 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
 
 ## Rate-limit headers
 
-Rate-limited endpoints (`POST /assistant/messages`, registration confirmation resends) return the remaining budget on every checked response:
+Rate-limited endpoints return the remaining budget on every checked response. They are `POST /assistant/messages`, registration confirmation resends, and the API budgets below:
+
+| Budget | Requests | Counted per | Default (`count/window`) | Variable |
+| --- | --- | --- | --- | --- |
+| Sign-in | `POST /auth/login` | Client address | `60/1m` | `API_RATE_LIMIT_AUTH` |
+| Registration | `POST /registration/*` | Client address | `30/10m` | `API_RATE_LIMIT_REGISTRATION` |
+| Search | `GET /patients`, `/admissions`, `/doctors`, `/rooms`, `/procedures`, `/audit` | Signed-in account | `300/1m` | `API_RATE_LIMIT_SEARCH` |
+| Reports | `GET /reports/*` except CSV | Signed-in account | `120/1m` | `API_RATE_LIMIT_REPORTS` |
+| Exports | `GET /reports/*.csv` | Signed-in account | `20/10m` | `API_RATE_LIMIT_EXPORTS` |
+
+A budget set to `off` is not enforced, and `API_RATE_LIMITS_ENABLED=false` turns all of them off. Windows can be up to one day. Sign-in and registration budgets are checked before credentials or input, so a spent budget answers `429` even for a correct password. Client addresses are resolved the same way as for login backoff. Budgets are shared by all backend instances through the database, and the counter keys are hashed, so the `rate_windows` table holds no usernames or addresses. Every counted request adds one database write; if that is too costly, raise or turn off the search budget.
+
+Headers on checked responses:
 
 | Header | Meaning |
 | --- | --- |
