@@ -1,6 +1,7 @@
 package com.example.hospital.service;
 
 import com.example.hospital.api.ApiException;
+import com.example.hospital.api.PagedResult;
 import com.example.hospital.security.Actor;
 import com.example.hospital.security.DepartmentContext;
 import java.security.SecureRandom;
@@ -30,6 +31,14 @@ public class WorkspaceService {
   public record Department(
       long id, String name, String role, boolean hasJoinCode, String timeZone, Instant accessExpiresAt) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
+  public record DepartmentRole(long departmentId, String departmentName, String role, Long doctorId,
+      String doctorIdentifier, String doctorName, Instant joinedAt) {}
+  public record HospitalMember(long userId, String username, String role, Instant joinedAt,
+      boolean enabled, List<DepartmentRole> departments) {}
+  public record DepartmentMember(long userId, String username, String role, Long doctorId,
+      String doctorIdentifier, String doctorName, Instant joinedAt, boolean enabled) {}
+  private record HospitalMemberBase(long userId, String username, String role, Instant joinedAt,
+      boolean enabled) {}
 
   public List<Hospital> list() {
     var user = actor.user();
@@ -42,6 +51,67 @@ public class WorkspaceService {
                   d.getTimestamp(5) == null ? null : d.getTimestamp(5).toInstant()), id, user.getId());
           return new Hospital(id, rs.getString(2), owner, owner, departments);
         }, user.getId());
+  }
+
+  public PagedResult<HospitalMember> hospitalMembers(long hospitalId, int requestedPage, int requestedSize) {
+    owner(hospitalId);
+    int size = Math.min(Math.max(requestedSize, 1), 100);
+    long total = jdbc.queryForObject(
+        "select count(*) from hospital_memberships where hospital_id=?", Long.class, hospitalId);
+    int page = safePage(requestedPage, size, total);
+    long offset = (long) page * size;
+    var members = jdbc.query(
+        "select m.user_id,u.username,m.owner,m.joined_at,u.enabled from hospital_memberships m join app_users u on u.id=m.user_id where m.hospital_id=? order by m.joined_at desc nulls last,m.user_id desc limit ? offset ?",
+        (rs, row) -> new HospitalMemberBase(rs.getLong(1), rs.getString(2),
+            rs.getBoolean(3) ? "OWNER" : "MEMBER",
+            rs.getTimestamp(4) == null ? null : rs.getTimestamp(4).toInstant(), rs.getBoolean(5)),
+        hospitalId, size, offset);
+    var departmentRoles = hospitalDepartmentRoles(hospitalId, members);
+    var items = members.stream().map(member -> new HospitalMember(member.userId(), member.username(),
+        member.role(), member.joinedAt(), member.enabled(), departmentRoles.getOrDefault(member.userId(), List.of()))).toList();
+    return PagedResult.of(items, page, size, total);
+  }
+
+  public PagedResult<DepartmentMember> departmentMembers(long departmentId, int requestedPage, int requestedSize) {
+    departmentAdmin(departmentId);
+    int size = Math.min(Math.max(requestedSize, 1), 100);
+    long total = jdbc.queryForObject(
+        "select count(*) from department_memberships where department_id=?", Long.class, departmentId);
+    int page = safePage(requestedPage, size, total);
+    long offset = (long) page * size;
+    var items = jdbc.query(
+        "select dm.user_id,u.username,dm.role,dm.doctor_id,d.doctor_identifier,concat_ws(' ',d.first_name,d.last_name),dm.joined_at,u.enabled from department_memberships dm join app_users u on u.id=dm.user_id left join doctors d on d.id=dm.doctor_id where dm.department_id=? order by dm.joined_at desc nulls last,dm.user_id desc limit ? offset ?",
+        (rs, row) -> new DepartmentMember(rs.getLong(1), rs.getString(2), rs.getString(3),
+            rs.getObject(4, Long.class), rs.getString(5), rs.getString(6),
+            rs.getTimestamp(7) == null ? null : rs.getTimestamp(7).toInstant(), rs.getBoolean(8)),
+        departmentId, size, offset);
+    return PagedResult.of(items, page, size, total);
+  }
+
+  private Map<Long, List<DepartmentRole>> hospitalDepartmentRoles(long hospitalId, List<HospitalMemberBase> members) {
+    if (members.isEmpty()) return Map.of();
+    String placeholders = String.join(",", Collections.nCopies(members.size(), "?"));
+    String sql = "select dm.user_id,dm.department_id,d.name,dm.role,dm.doctor_id,doc.doctor_identifier,concat_ws(' ',doc.first_name,doc.last_name),dm.joined_at "
+        + "from department_memberships dm join departments d on d.id=dm.department_id left join doctors doc on doc.id=dm.doctor_id "
+        + "where d.hospital_id=? and dm.user_id in (" + placeholders + ") order by dm.user_id,d.name,d.id";
+    var params = new ArrayList<Object>();
+    params.add(hospitalId);
+    members.forEach(member -> params.add(member.userId()));
+    var grouped = new LinkedHashMap<Long, List<DepartmentRole>>();
+    jdbc.query(sql, rs -> {
+      long userId = rs.getLong(1);
+      grouped.computeIfAbsent(userId, ignored -> new ArrayList<>()).add(new DepartmentRole(
+          rs.getLong(2), rs.getString(3), rs.getString(4), rs.getObject(5, Long.class),
+          rs.getString(6), rs.getString(7),
+          rs.getTimestamp(8) == null ? null : rs.getTimestamp(8).toInstant()));
+    }, params.toArray());
+    return grouped;
+  }
+
+  private static int safePage(int requestedPage, int size, long total) {
+    if (total == 0) return 0;
+    int lastPage = (int) Math.min((total - 1) / size, Integer.MAX_VALUE);
+    return Math.min(Math.max(requestedPage, 0), lastPage);
   }
 
   public String reveal(boolean hospital, long id) {

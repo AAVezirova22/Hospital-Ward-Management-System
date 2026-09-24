@@ -30,6 +30,18 @@ public class WorkspaceController {
 
   @GetMapping
   public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "timeZone", departmentTime.timeZone(), "hospitals", workspaces.list()); }
+  @GetMapping("/hospitals/{id}/members")
+  public Object hospitalMembers(@PathVariable long id,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size) {
+    return workspaces.hospitalMembers(id, page, size);
+  }
+  @GetMapping("/departments/{id}/members")
+  public Object departmentMembers(@PathVariable long id,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size) {
+    return workspaces.departmentMembers(id, page, size);
+  }
   @PostMapping("/hospitals") @ResponseStatus(HttpStatus.CREATED)
   public Object create(@Valid @RequestBody HospitalInput input) {
     return workspaces.createHospital(input.name(), input.departmentName());
