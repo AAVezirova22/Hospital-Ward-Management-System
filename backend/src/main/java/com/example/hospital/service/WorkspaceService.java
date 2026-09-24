@@ -31,6 +31,7 @@ public class WorkspaceService {
   public record Department(
       long id, String name, String role, boolean hasJoinCode, String timeZone, Instant accessExpiresAt) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
+  private record MembershipRole(long departmentId, String role, Long doctorId) {}
 public record DepartmentRole(
     long departmentId,
     String departmentName,
@@ -422,7 +423,7 @@ private record HospitalMemberBase(
       throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before leaving.");
     var departmentRoles = jdbc.query(
         "select dm.department_id,dm.role,dm.doctor_id from department_memberships dm join departments d on d.id=dm.department_id where d.hospital_id=? and dm.user_id=? order by dm.department_id",
-        (rs, row) -> new DepartmentRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
+        (rs, row) -> new MembershipRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
         hospitalId, userId);
     jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
     jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
@@ -466,7 +467,7 @@ private record HospitalMemberBase(
       throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before removing the last owner.");
     var departmentRoles = jdbc.query(
         "select dm.department_id,dm.role,dm.doctor_id from department_memberships dm join departments d on d.id=dm.department_id where d.hospital_id=? and dm.user_id=? order by dm.department_id",
-        (rs, row) -> new DepartmentRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
+        (rs, row) -> new MembershipRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
         hospitalId, userId);
     jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
     jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
