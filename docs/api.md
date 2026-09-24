@@ -142,6 +142,17 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
 
+## Pagination
+
+Large collections (`/patients`, `/admissions`, `/doctors`, `/rooms`, `/procedures`, workspace rosters) all return the same page body: `items`, `page` (zero-based), `size`, `totalElements`, `totalPages`, `hasNext`, `nextPage`. `/audit` keeps its established `page`/`size`/`total`/`events` body. Every one of these responses also carries:
+
+| Header | Meaning |
+| --- | --- |
+| `X-Total-Count` | Total matching records across all pages |
+| `Link` | RFC 8288 relative links with `rel="first"`, `"prev"` (when not on the first page), `"next"` (when more pages exist) and `"last"` |
+
+Links keep the request's other filters and set `page` and `size` explicitly. An empty result points `first` and `last` at page 0. Page sizes remain bounded per endpoint (for example at most 100 for catalogues and 200 for audit).
+
 ## Rate-limit headers
 
 Rate-limited endpoints return the remaining budget on every checked response. They are `POST /assistant/messages`, registration confirmation resends, and the API budgets below:
