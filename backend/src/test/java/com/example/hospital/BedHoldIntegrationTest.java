@@ -108,7 +108,6 @@ now.plusSeconds(3600).toString(),
 now.plusSeconds(7200).toString())),
 201);
 
-```
 assertThat(hold.get("reason").asText()).isEqualTo("Electrical inspection");
 var matching = roomCapacity(room.get("id").asLong());
 assertThat(matching.get("heldBeds").asInt()).isEqualTo(1);
@@ -149,7 +148,6 @@ assertThat(afterRelease.get("availableBeds").asInt()).isEqualTo(1);
 assertThat(afterRelease.get("heldBeds").asInt()).isZero();
 assertThat(afterRelease.get("holds").isEmpty()).isTrue();
 admit(createPatient(), room);
-```
 
 }
 
@@ -185,7 +183,6 @@ Map.of(
 .andExpect(status().isConflict())
 .andExpect(jsonPath("$.code").value("ROOM_OCCUPIED"));
 
-```
 request(
         "admin",
         "POST",
@@ -223,7 +220,6 @@ request(
         "/api/v1/rooms/" + room.get("id").asLong() + "/holds/" + hold.get("id").asLong(),
         null)
     .andExpect(status().isNoContent());
-```
 
 }
 
@@ -300,7 +296,6 @@ java.sql.Timestamp.from(now.minusSeconds(60)),
 java.sql.Timestamp.from(now.minusSeconds(30)),
 hold.get("id").asLong());
 
-```
 var matching = roomCapacity(room.get("id").asLong());
 assertThat(matching.get("heldBeds").asInt()).isZero();
 assertThat(matching.get("activeHeldBeds").asInt()).isZero();
@@ -309,7 +304,6 @@ assertThat(matching.get("holds").isEmpty()).isTrue();
 var filtered = result(request("admin", "GET",
     "/api/v1/rooms?minFree=1&roomId=" + room.get("id").asLong(), null), 200);
 assertThat(filtered.get("totalElements").asInt()).isEqualTo(1);
-```
 
 }
 

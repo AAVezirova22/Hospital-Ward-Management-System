@@ -142,6 +142,15 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
 
+## Assistant provider check
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| GET | `/settings/ai` | Administrators only. `mode`, provider host, model, whether an API key is set (never the key) and the timeout |
+| POST | `/settings/ai/test` | Administrators only; 5 per administrator per 10 minutes. Sends a fixed synthetic prompt with a single `connectionCheck` tool (no hospital or patient data) and reports `outcome`, `providerStatus` and `latencyMs`. Audited as `AI_PROVIDER_TESTED`. |
+
+Outcomes: `COMPATIBLE` (exactly one call to the synthetic tool), `TOOL_CALLS_UNSUPPORTED`, `AUTHENTICATION_FAILED` (401/403), `PROVIDER_ERROR` (other HTTP status), `TIMEOUT`, `UNREACHABLE`, `INVALID_URL`, `INSECURE_PROTOCOL` (plain HTTP is accepted only for loopback addresses) and `NOT_EXTERNAL` (`AI_MODE` is not `external`). Provider response text is never returned.
+
 ## Rate-limit headers
 
 Rate-limited endpoints return the remaining budget on every checked response. They are `POST /assistant/messages`, registration confirmation resends, and the API budgets below:

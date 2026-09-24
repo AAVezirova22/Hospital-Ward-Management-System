@@ -59,6 +59,9 @@ public record DepartmentMember(
     Instant joinedAt,
     boolean enabled) {}
 
+/** A department role captured before a membership is removed, for the permission audit. */
+private record RemovedRole(long departmentId, String role, Long doctorId) {}
+
 private record HospitalMemberBase(
     long userId,
     String username,
@@ -423,7 +426,7 @@ private record HospitalMemberBase(
       throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before leaving.");
     var departmentRoles = jdbc.query(
         "select dm.department_id,dm.role,dm.doctor_id from department_memberships dm join departments d on d.id=dm.department_id where d.hospital_id=? and dm.user_id=? order by dm.department_id",
-        (rs, row) -> new MembershipRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
+        (rs, row) -> new RemovedRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
         hospitalId, userId);
     jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
     jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
@@ -467,7 +470,7 @@ private record HospitalMemberBase(
       throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before removing the last owner.");
     var departmentRoles = jdbc.query(
         "select dm.department_id,dm.role,dm.doctor_id from department_memberships dm join departments d on d.id=dm.department_id where d.hospital_id=? and dm.user_id=? order by dm.department_id",
-        (rs, row) -> new MembershipRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
+        (rs, row) -> new RemovedRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
         hospitalId, userId);
     jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
     jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
