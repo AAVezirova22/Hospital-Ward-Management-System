@@ -468,7 +468,8 @@ class WorkspaceIsolationTest {
     long hospitalId = created.get("hospitalId").asLong();
     String code = created.get("hospitalCode").asText();
     body(call(name, "POST", "/api/v1/workspaces/join", Map.of("code", code), 1L), 200);
-    body(call("admin", "POST", "/api/v1/workspaces/hospitals/" + hospitalId + "/owners", Map.of("userId", userId), 1L), 200);
+    var invitation = body(call("admin", "POST", "/api/v1/workspaces/hospitals/" + hospitalId + "/owners", Map.of("userId", userId), 1L), 202);
+    body(call(name, "POST", "/api/v1/workspaces/ownership-transfers/" + invitation.get("id").asLong() + "/accept", null, 1L), 200);
     var after = body(call(name, "GET", "/api/v1/workspaces", null, 1L), 200);
     boolean owner = false;
     for (JsonNode hospital : after.get("hospitals")) {

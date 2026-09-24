@@ -63,6 +63,8 @@ public class SecurityConfig {
       SessionLifetime lifetime,
       ClientAddressResolver clientAddresses,
       ApiRateLimits rateLimits,
+      org.springframework.jdbc.core.JdbcTemplate jdbc,
+      @org.springframework.beans.factory.annotation.Value("${app.idempotency.ttl:24h}") java.time.Duration idempotencyTtl,
       com.example.hospital.service.SecurityEventService securityEvents)
       throws Exception {
     http.authorizeHttpRequests(
@@ -71,7 +73,7 @@ public class SecurityConfig {
                     "/api/v1/demo/status", "/api/v1/demo/login", "/api/v1/registration/status",
                     "/api/v1/registration/hospitals",
                     "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend",
-                    "/api/v1/registration/recover")
+                    "/api/v1/registration/recover", "/api/v1/calendar/feeds/*")
                     .permitAll()
                     .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout")
                     .authenticated()
@@ -203,7 +205,10 @@ public class SecurityConfig {
             UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(
             new DepartmentScopeFilter(users, workspaces, json, lifetime),
-            AuthorizationFilter.class);
+            AuthorizationFilter.class)
+        .addFilterAfter(
+            new IdempotencyFilter(jdbc, users, json, idempotencyTtl),
+            DepartmentScopeFilter.class);
     return http.build();
   }
 

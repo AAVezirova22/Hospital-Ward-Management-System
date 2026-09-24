@@ -31,6 +31,7 @@ public class WorkspaceService {
   public record Department(
       long id, String name, String role, boolean hasJoinCode, String timeZone, Instant accessExpiresAt) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
+  private record MembershipRole(long departmentId, String role, Long doctorId) {}
 public record DepartmentRole(
     long departmentId,
     String departmentName,
@@ -480,20 +481,146 @@ private record HospitalMemberBase(
   }
 
   @Transactional
-  public void grantOwner(long hospitalId, long userId) {
-    grantOwner(hospitalId, userId, null);
+  public Map<String, Object> grantOwner(long hospitalId, long userId) {
+    return grantOwner(hospitalId, userId, null);
   }
 
+  /** Invites a member to become a co-owner; ownership changes only when they accept (#362). */
   @Transactional
-  public void grantOwner(long hospitalId, long userId, String reason) {
+  public Map<String, Object> grantOwner(long hospitalId, long userId, String reason) {
+    return requestOwnershipTransfer(hospitalId, userId, false, null, reason);
+  }
+
+  private static final java.time.Duration OWNERSHIP_TRANSFER_TTL = java.time.Duration.ofDays(7);
+  private static final String TRANSFER_QUERY =
+      "select t.id, t.hospital_id, h.name, t.from_user_id, fu.username, t.to_user_id, tu.username, t.step_down,"
+          + " t.status, t.requested_at, t.expires_at, t.resolved_at from ownership_transfers t"
+          + " join hospitals h on h.id=t.hospital_id join app_users fu on fu.id=t.from_user_id"
+          + " join app_users tu on tu.id=t.to_user_id";
+
+  /**
+   * Starts an ownership handover. The requesting owner confirms by making the request; stepping
+   * down as part of it also requires typing the hospital name. Nothing changes until the target
+   * member accepts before the request expires.
+   */
+  @Transactional
+  public Map<String, Object> requestOwnershipTransfer(
+      long hospitalId, long userId, boolean stepDown, String confirmation, String reason) {
     owner(hospitalId);
+    long requester = actor.user().getId();
+    if (userId == requester)
+      throw new ApiException(400, "INVALID_TRANSFER", "Choose another member of the hospital.");
     if (!Boolean.TRUE.equals(jdbc.queryForObject(
         "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, hospitalId, userId)))
       throw new ApiException(400, "NOT_A_MEMBER", "That account must join the hospital before becoming an owner.");
-    boolean oldOwner = hospitalOwner(hospitalId, userId);
-    jdbc.update("update hospital_memberships set owner=true where hospital_id=? and user_id=?", hospitalId, userId);
-    permissionAudit("HOSPITAL_OWNER_GRANTED", "HOSPITAL", hospitalId, userId,
-        oldOwner ? "OWNER" : "MEMBER", "OWNER", oldOwner, true, null, null, reason);
+    if (hospitalOwner(hospitalId, userId))
+      throw ApiException.conflict("ALREADY_OWNER", "That member already owns this hospital.");
+    String name = jdbc.queryForObject("select name from hospitals where id=?", String.class, hospitalId);
+    if (stepDown && (confirmation == null || !confirmation.strip().equals(name)))
+      throw new ApiException(400, "CONFIRMATION_REQUIRED", "Type the hospital name to hand over your ownership.");
+    String note = reason == null || reason.isBlank() ? null : reason.strip();
+    var details = new LinkedHashMap<String, Object>();
+    details.put("targetUserId", userId);
+    details.put("stepDown", stepDown);
+    if (note != null) details.put("reason", note);
+    // Audited first so the reason is validated like every permission change before anything is stored.
+    audit.log("OWNERSHIP_TRANSFER_REQUESTED", "Hospital", hospitalId, "UI", details);
+    Long id;
+    try {
+      id = jdbc.queryForObject(
+          "insert into ownership_transfers(hospital_id, from_user_id, to_user_id, step_down, reason, expires_at)"
+              + " values (?,?,?,?,?,?) returning id",
+          Long.class, hospitalId, requester, userId, stepDown, note,
+          java.sql.Timestamp.from(Instant.now().plus(OWNERSHIP_TRANSFER_TTL)));
+    } catch (org.springframework.dao.DuplicateKeyException e) {
+      throw ApiException.conflict("TRANSFER_PENDING", "An ownership request for this member is already waiting.");
+    }
+    return transfer(id);
+  }
+
+  public Map<String, Object> ownershipTransfers() {
+    long me = actor.user().getId();
+    var result = new LinkedHashMap<String, Object>();
+    result.put("incoming", jdbc.query(
+        TRANSFER_QUERY + " where t.status='PENDING' and t.expires_at > now() and t.to_user_id=? order by t.requested_at",
+        (rs, n) -> transferRow(rs), me));
+    result.put("outgoing", jdbc.query(
+        TRANSFER_QUERY + " where t.status='PENDING' and t.expires_at > now() and exists (select 1 from hospital_memberships m"
+            + " where m.hospital_id=t.hospital_id and m.user_id=? and m.owner=true) order by t.requested_at",
+        (rs, n) -> transferRow(rs), me));
+    return result;
+  }
+
+  @Transactional
+  public Map<String, Object> acceptOwnershipTransfer(long transferId) {
+    var pending = pendingTransfer(transferId);
+    long me = actor.user().getId();
+    if (((Number) pending.get("to_user_id")).longValue() != me) throw ApiException.missing();
+    long hospitalId = ((Number) pending.get("hospital_id")).longValue();
+    long from = ((Number) pending.get("from_user_id")).longValue();
+    if (!hospitalOwner(hospitalId, from))
+      throw ApiException.conflict("TRANSFER_INVALID", "The requesting owner no longer owns this hospital.");
+    int updated = jdbc.update("update hospital_memberships set owner=true where hospital_id=? and user_id=?", hospitalId, me);
+    if (updated == 0) throw new ApiException(400, "NOT_A_MEMBER", "You are no longer a member of this hospital.");
+    jdbc.update("update ownership_transfers set status='ACCEPTED', resolved_at=now() where id=?", transferId);
+    String reason = (String) pending.get("reason");
+    permissionAudit("HOSPITAL_OWNER_GRANTED", "HOSPITAL", hospitalId, me, "MEMBER", "OWNER", false, true,
+        null, null, reason, Map.of("transferId", transferId, "requestedBy", from));
+    if (Boolean.TRUE.equals(pending.get("step_down"))) {
+      jdbc.update("update hospital_memberships set owner=false where hospital_id=? and user_id=?", hospitalId, from);
+      permissionAudit("HOSPITAL_OWNER_STEPPED_DOWN", "HOSPITAL", hospitalId, from, "OWNER", "MEMBER", true, false,
+          null, null, reason, Map.of("transferId", transferId, "acceptedBy", me));
+    }
+    return transfer(transferId);
+  }
+
+  @Transactional
+  public Map<String, Object> declineOwnershipTransfer(long transferId) {
+    var pending = pendingTransfer(transferId);
+    if (((Number) pending.get("to_user_id")).longValue() != actor.user().getId()) throw ApiException.missing();
+    return resolveTransfer(transferId, "DECLINED", ((Number) pending.get("hospital_id")).longValue());
+  }
+
+  @Transactional
+  public Map<String, Object> cancelOwnershipTransfer(long transferId) {
+    var pending = pendingTransfer(transferId);
+    long hospitalId = ((Number) pending.get("hospital_id")).longValue();
+    if (!hospitalOwner(hospitalId, actor.user().getId())) throw ApiException.missing();
+    return resolveTransfer(transferId, "CANCELLED", hospitalId);
+  }
+
+  private Map<String, Object> resolveTransfer(long transferId, String status, long hospitalId) {
+    jdbc.update("update ownership_transfers set status=?, resolved_at=now() where id=?", status, transferId);
+    audit.log("OWNERSHIP_TRANSFER_" + status, "Hospital", hospitalId, "UI", Map.of("transferId", transferId));
+    return transfer(transferId);
+  }
+
+  private Map<String, Object> pendingTransfer(long transferId) {
+    var rows = jdbc.queryForList(
+        "select * from ownership_transfers where id=? and status='PENDING' and expires_at > now() for update", transferId);
+    if (rows.isEmpty()) throw new ApiException(404, "TRANSFER_NOT_FOUND", "This ownership request is no longer open.");
+    return rows.getFirst();
+  }
+
+  private Map<String, Object> transfer(long id) {
+    return jdbc.queryForObject(TRANSFER_QUERY + " where t.id=?", (rs, n) -> transferRow(rs), id);
+  }
+
+  private static Map<String, Object> transferRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+    var row = new LinkedHashMap<String, Object>();
+    row.put("id", rs.getLong(1));
+    row.put("hospitalId", rs.getLong(2));
+    row.put("hospital", rs.getString(3));
+    row.put("fromUserId", rs.getLong(4));
+    row.put("fromUsername", rs.getString(5));
+    row.put("toUserId", rs.getLong(6));
+    row.put("toUsername", rs.getString(7));
+    row.put("stepDown", rs.getBoolean(8));
+    row.put("status", rs.getString(9));
+    row.put("requestedAt", rs.getTimestamp(10).toInstant());
+    row.put("expiresAt", rs.getTimestamp(11).toInstant());
+    row.put("resolvedAt", rs.getTimestamp(12) == null ? null : rs.getTimestamp(12).toInstant());
+    return row;
   }
 
   @Transactional

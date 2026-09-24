@@ -32,6 +32,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/retention/preview` | Department administrators only. Dry run of the configured retention policy for the active department, with cutoff and eligible count per category |
 | POST | `/retention/apply` | `{confirmation: "APPLY RETENTION"}`; administrators only. Deletes the rows the preview lists and audits `RETENTION_APPLIED` with counts |
 | GET | `/audit/export.csv` | Admin-only CSV export; reuses audit filters, accepts `limit` from 1 to 1000 (default 1000), and returns 400 if more rows match |
+| GET | `/audit/export.csv` | Admin-only CSV export; reuses audit filters, accepts `limit` from 1 to 1000 (default 1000), and returns 400 if more rows match. `profile=redacted` is for external reviewers: actors become per-export pseudonyms (`A1`, `A2`, …), and the entity ID and metadata columns are removed. The response carries `X-Audit-Export-Profile` and `X-Redacted-Fields`, and the `DATA_EXPORTED` audit event records the profile and removed fields. The default is `profile=full`. |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only. Optional `reason` (max 300 characters) records context for permission changes. |
 | GET | `/audit` | Latest 100 events; admin-only |
 | GET | `/security/events?status=ACTIVE&includeInfo=false&page=0&size=25` | Department administrators only. Security review queue for the active department, highest severity first, with `counts` (`open`, `investigating`, `critical`, `unacknowledged`). `status` is `ACTIVE` (open and investigating), `ALL`, or one status. `INFO` entries are hidden unless `includeInfo=true`. |
@@ -64,13 +65,16 @@ Opening `GET /patients/{id}`, `GET /admissions/{id}` or the assistant's `getPati
 | POST | `/workspaces/departments/{id}/leave?reason=...` | Leave a department; optional reason is limited to 300 characters. |
 | DELETE | `/workspaces/hospitals/{id}/members/{userId}?reason=...` | Revoke membership; hospital owner only. Optional reason is limited to 300 characters. |
 | DELETE | `/workspaces/departments/{id}/members/{userId}?reason=...` | Revoke membership; owner or department administrator. Optional reason is limited to 300 characters. |
-| POST | `/workspaces/hospitals/{id}/owners` | `{userId, reason?}`; hospital owner only; reason is limited to 300 characters. |
+| POST | `/workspaces/hospitals/{id}/owners` | `{userId, reason?}`; hospital owner only. Returns `202` with a pending co-owner invitation: ownership changes only when the member accepts within 7 days. Reason is limited to 300 characters. |
+| POST | `/workspaces/hospitals/{id}/ownership-transfers` | `{userId, stepDown, confirmation?, reason?}`; hospital owner only. `stepDown=true` hands over your ownership on acceptance and requires `confirmation` to equal the hospital name. Returns `202` with the pending transfer. One open request per member (`409 TRANSFER_PENDING`). Audited as `OWNERSHIP_TRANSFER_REQUESTED`. |
+| GET | `/workspaces/ownership-transfers` | Open requests: `incoming` (addressed to you) and `outgoing` (for hospitals you own) |
+| POST | `/workspaces/ownership-transfers/{id}/accept` | Addressed member only. Grants ownership (`HOSPITAL_OWNER_GRANTED` with `transferId` and `requestedBy`) and, for a handover, removes the requester's ownership (`HOSPITAL_OWNER_STEPPED_DOWN`). Fails with `409 TRANSFER_INVALID` if the requester no longer owns the hospital |
+| POST | `/workspaces/ownership-transfers/{id}/decline` / `cancel` | Decline (addressed member) or cancel (any owner); audited. Closed, expired or foreign requests return `404 TRANSFER_NOT_FOUND` |
 | POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?, reason?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted; reason is limited to 300 characters. |
 
 Permission-change audit metadata includes the target user and workspace IDs with before/after role or owner state. Department role changes also include before/after doctor links; account edits distinguish account role and doctor link from department membership role and doctor link. Department-scoped events are stored under the affected department even when a hospital owner acts from another active department. Hospital-level events retain the active department scope and identify the hospital in metadata. A department-code join records whether it also created hospital membership; hospital leave/revocation writes a department-scoped event for each removed department membership. Optional reasons containing obvious credential or token material (including password/token assignments, bearer credentials, or JWT-shaped values) are rejected and never stored; passwords, join codes, and session tokens are not audit fields.
 | POST | `/workspaces/hospitals/{id}/leave` | Leave a hospital; last owner is rejected |
 | POST | `/workspaces/departments/{id}/leave` | Leave a department |
-| POST | `/workspaces/hospitals/{id}/owners` | `{userId}`; hospital owner only |
 | POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted. |
 | PUT | `/workspaces/departments/{id}/members/{userId}/expiry` | `{expiresAt}` (ISO-8601 instant, or `null` to remove the limit); owner or department administrator. The time must be in the future and cannot be set on your own membership (`409 SELF_EXPIRY`). From `expiresAt` the member gets `403 MEMBERSHIP_EXPIRED` for that department, it disappears from their `/workspaces` list, and discharge reminders stop. The membership row stays until it is extended or removed. `MEMBERSHIP_EXPIRY_NOTICE` (default `3d`) before the end, the member gets one personal in-app notice. Changing the time sends a new notice. Audited as `MEMBERSHIP_EXPIRY_SET`. `/workspaces` departments carry `accessExpiresAt`, and `/users` accounts carry `membershipExpiresAt`. |
 | GET | `/workspaces/hospitals/{id}/access-review?inactiveAfterDays=90` | Hospital owner only. Every workforce member of the hospital (patient accounts excluded) with account state, `lastLoginAt`, `inactive` (no sign-in within the period), owner flag, department roles, linked doctor name and `latestReview`, plus counts per outcome. Contains no clinical records, credentials or contact details. |
@@ -143,6 +147,72 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 429 | `AI_RATE_LIMIT` | Assistant quota or in-flight request limit |
 | 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
+
+## Idempotency keys
+
+These `POST` endpoints accept an optional `Idempotency-Key` header (1–128 characters from letters, digits and `. _ : -`), so a client that timed out can retry without repeating the change:
+
+- `/patients`
+- `/admissions`, `/admissions/{id}/transfer`, `/discharge`, `/doctor`, `/procedures`
+- `/ai-actions/{id}/confirm`
+- `/rooms/{id}/holds`
+
+| Situation | Response |
+| --- | --- |
+| First request with a key | Runs normally; the response is stored |
+| Retry with the same key, path, department and body | The stored status and body, with `Idempotent-Replayed: true`; nothing runs again |
+| Same key with a different path, department or body | `422 IDEMPOTENCY_KEY_REUSED` |
+| Retry while the first request is still running | `409 IDEMPOTENCY_IN_PROGRESS`; retry shortly |
+| Malformed key | `400 INVALID_IDEMPOTENCY_KEY` |
+
+Keys belong to the signed-in account; another account using the same key starts its own request. Client errors (`4xx`) are stored and replayed. Server errors (`5xx`) and responses over 64 KB are not stored, so those requests can be retried. Stored responses, which may contain the same patient data as the original response, expire after `IDEMPOTENCY_KEY_TTL` (default `24h`). Generate a fresh random key (for example a UUID) for each intended change. Requests without the header behave as before.
+## Retrying after a provider failure
+
+When the assistant provider times out or returns an unusable answer, `POST /assistant/messages` responds with `responseType: "ERROR"` and `data`:
+
+| Field | Meaning |
+| --- | --- |
+| `retryable` | Whether this request may be retried |
+| `retryToken` | One-time token for the retry (only when `retryable`) |
+| `retryAfterSeconds` | Suggested wait: 2 s, then 4 s |
+| `attemptsLeft` | Retries remaining (at most 2 per original request) |
+
+To retry, send the same `message` again with the returned `sessionId` and `retryToken`. The token works once, only for the same account and identical message text, and only within 10 minutes. Otherwise the answer is `409 RETRY_NOT_ALLOWED`, and the request must be sent as a new message. A failed request never applied a change, and a retry asks the model again from scratch: it cannot replay a completed mutation or revive an expired proposal, and any new proposal still needs its own confirmation. Retries count towards the normal assistant rate limit. Only a SHA-256 hash of the message is stored, to match the retry.
+## Assistant usage and cost
+
+`GET /reports/ai-usage?from=YYYY-MM-DD&to=YYYY-MM-DD` (administrators only; the default is the last 30 days, at most 366 days, using department-local dates) returns assistant request counts and provider-reported tokens for the active department. Figures are given as `totals` and per model (`byModel`), with `estimatedCost` in `currency`.
+
+Tokens come from the `usage` block of OpenAI-compatible responses and are stored per interaction as `prompt_tokens` and `completion_tokens`. Prompts and replies are never stored. `requests_with_usage` shows how many requests reported tokens; the local model and providers without usage data count as requests only. The cost estimate uses `AI_COST_INPUT_PER_MILLION` and `AI_COST_OUTPUT_PER_MILLION` (prices per million tokens, in `AI_COST_CURRENCY`, default `USD`). When no price is set, `estimatedCost` is `null` and `pricingConfigured` is `false`. The estimate ignores provider-side discounts, caching and minimum charges, so compare it with the provider invoice.
+## Pagination
+
+Large collections (`/patients`, `/admissions`, `/doctors`, `/rooms`, `/procedures`, workspace rosters) all return the same page body: `items`, `page` (zero-based), `size`, `totalElements`, `totalPages`, `hasNext`, `nextPage`. `/audit` keeps its established `page`/`size`/`total`/`events` body. Every one of these responses also carries:
+
+| Header | Meaning |
+| --- | --- |
+| `X-Total-Count` | Total matching records across all pages |
+| `Link` | RFC 8288 relative links with `rel="first"`, `"prev"` (when not on the first page), `"next"` (when more pages exist) and `"last"` |
+
+Links keep the request's other filters and set `page` and `size` explicitly. An empty result points `first` and `last` at page 0. Page sizes remain bounded per endpoint (for example at most 100 for catalogues and 200 for audit).
+## Workflow dry run
+
+`POST /assistant/workflows/dry-run` with `{"plan": ...}` takes the workflow proposal JSON, either as a string (the assistant's `prepareWorkflow` format) or as an object. It checks every step without saving anything and without creating a pending proposal. The plan runs through the same operations as a confirmed workflow, inside a transaction that is always rolled back, so field validation, references, capacity, capability, uniqueness and role checks match confirmation. The response contains `valid`, `committed: false`, the count of `operations` by type, and `capacityChanges` for existing rooms (`occupiedBefore`/`occupiedAfter`). An invalid plan returns `valid: false` with the `code` and `message` confirmation would have produced. Nothing is audited or notified because nothing commits. Database ID sequences may still advance. A dry run is not a reservation: state can change before a real proposal is confirmed, and confirmation re-checks everything.
+## Expected-discharge calendar feed
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| POST | `/calendar/feed` | Staff, doctors and admins. Creates a personal feed for the active department and returns its `url` once (built from `PUBLIC_APP_URL` when set). Creating a new feed revokes the previous one. Audited as `CALENDAR_FEED_CREATED`. |
+| DELETE | `/calendar/feed` | Revokes your feed for the active department; audited as `CALENDAR_FEED_REVOKED` |
+| GET | `/calendar/feeds/{token}.ics` | Public iCalendar (RFC 5545) for calendar apps; the random token in the URL is the credential |
+
+The feed has one all-day event per active admission with an expected discharge date, titled `Expected discharge - Room N` and described as `Admission #id`. Patient names and identifiers are never included, because feeds sync to devices outside the application. Doctors receive only their own patients. Every fetch re-checks that the owner is enabled and still a member of the department, and `404` is returned for revoked, replaced or unknown tokens. Only a SHA-256 hash of the token is stored. Treat the URL like a password and revoke it if it is shared by mistake.
+## Assistant provider check
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| GET | `/settings/ai` | Administrators only. `mode`, provider host, model, whether an API key is set (never the key) and the timeout |
+| POST | `/settings/ai/test` | Administrators only; 5 per administrator per 10 minutes. Sends a fixed synthetic prompt with a single `connectionCheck` tool (no hospital or patient data) and reports `outcome`, `providerStatus` and `latencyMs`. Audited as `AI_PROVIDER_TESTED`. |
+
+Outcomes: `COMPATIBLE` (exactly one call to the synthetic tool), `TOOL_CALLS_UNSUPPORTED`, `AUTHENTICATION_FAILED` (401/403), `PROVIDER_ERROR` (other HTTP status), `TIMEOUT`, `UNREACHABLE`, `INVALID_URL`, `INSECURE_PROTOCOL` (plain HTTP is accepted only for loopback addresses) and `NOT_EXTERNAL` (`AI_MODE` is not `external`). Provider response text is never returned.
 
 ## Rate-limit headers
 

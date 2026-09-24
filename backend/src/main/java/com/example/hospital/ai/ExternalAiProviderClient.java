@@ -76,6 +76,9 @@ public class ExternalAiProviderClient implements AiModelClient {
       if (response.statusCode() != 200 || response.body().length() > 64000)
         throw new IllegalStateException("Provider failed");
       var root = json.readTree(response.body());
+      var usage = root.path("usage");
+      if (usage.path("prompt_tokens").canConvertToLong() && usage.path("completion_tokens").canConvertToLong())
+        AiUsage.record(usage.path("prompt_tokens").asLong(), usage.path("completion_tokens").asLong());
       var calls = root.path("choices").path(0).path("message").path("tool_calls");
       if (!calls.isArray() || calls.size() != 1)
         throw new IllegalStateException("One tool required");

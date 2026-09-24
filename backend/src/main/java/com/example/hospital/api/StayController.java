@@ -11,15 +11,6 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1")
 public class StayController {
-  public record AdmissionPage(
-      List<Map<String, Object>> items,
-      int page,
-      int size,
-      long totalElements,
-      int totalPages,
-      boolean hasNext,
-      Integer nextPage) {}
-
   private final StayService stays;
 
   public StayController(StayService stays) {
@@ -27,7 +18,7 @@ public class StayController {
   }
 
   @GetMapping("/admissions")
-  public AdmissionPage admissions(
+  public PagedResult<Map<String, Object>> admissions(
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size,
       @RequestParam(required = false) String status,
@@ -35,15 +26,7 @@ public class StayController {
       @RequestParam(required = false) LocalDate to,
       @RequestParam(required = false) Long doctorId) {
     var result = stays.list(page, size, status, from, to, doctorId);
-    boolean hasNext = result.hasNext();
-    return new AdmissionPage(
-        result.getContent().stream().map(stays::view).toList(),
-        result.getNumber(),
-        result.getSize(),
-        result.getTotalElements(),
-        result.getTotalPages(),
-        hasNext,
-        hasNext ? result.getNumber() + 1 : null);
+    return PagedResult.of(result.map(stays::view));
   }
 
   @GetMapping("/admissions/{id}")

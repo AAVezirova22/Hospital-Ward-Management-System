@@ -54,8 +54,12 @@ class PermissionChangeAuditTest extends HospitalSupport {
         "select count(*) from audit_events where event_type='HOSPITAL_OWNER_GRANTED' and entity_id=?",
         Long.class, hospitalId)).isZero();
 
-    request("admin", "POST", "/api/v1/workspaces/hospitals/" + hospitalId + "/owners",
-        Map.of("userId", userId, "reason", "on-call owner")).andExpect(status().isOk());
+    var invitation = result(request("admin", "POST", "/api/v1/workspaces/hospitals/" + hospitalId + "/owners",
+        Map.of("userId", userId, "reason", "on-call owner")), 202);
+    assertThat(jdbc.queryForObject(
+        "select count(*) from audit_events where event_type='HOSPITAL_OWNER_GRANTED' and entity_id=?",
+        Long.class, hospitalId)).as("ownership changes only on acceptance").isZero();
+    result(request(username, "POST", "/api/v1/workspaces/ownership-transfers/" + invitation.path("id").asLong() + "/accept", null), 200);
 
     String metadata = jdbc.queryForObject(
         "select metadata from audit_events where event_type='HOSPITAL_OWNER_GRANTED' and entity_id=? order by id desc limit 1",
