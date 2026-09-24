@@ -34,6 +34,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
       "app.seed=true",
       "app.bootstrap-password=IntegrationPassword123!",
       "app.ai.rate-limit=10000",
+      "app.rate-limits.enabled=false",
       "server.servlet.session.cookie.secure=false"
     })
 @AutoConfigureMockMvc

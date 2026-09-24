@@ -82,6 +82,15 @@ app:
   session:
     # Hard limit from sign-in, independent of the idle timeout; users then sign in again.
     max-lifetime: ${SESSION_MAX_LIFETIME:12h}
+  rate-limits:
+    # Request budgets as count/window (up to 1d) or "off". Sign-in and registration are counted per
+    # client address, searches, reports and exports per signed-in account.
+    enabled: ${API_RATE_LIMITS_ENABLED:true}
+    auth: ${API_RATE_LIMIT_AUTH:60/1m}
+    registration: ${API_RATE_LIMIT_REGISTRATION:30/10m}
+    search: ${API_RATE_LIMIT_SEARCH:300/1m}
+    reports: ${API_RATE_LIMIT_REPORTS:120/1m}
+    exports: ${API_RATE_LIMIT_EXPORTS:20/10m}
   memberships:
     # In-app notice this long before a time-limited department membership ends.
     expiry-notice: ${MEMBERSHIP_EXPIRY_NOTICE:3d}

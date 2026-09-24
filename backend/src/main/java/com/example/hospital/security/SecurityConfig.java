@@ -62,6 +62,7 @@ public class SecurityConfig {
       LoginBackoff backoff,
       SessionLifetime lifetime,
       ClientAddressResolver clientAddresses,
+      ApiRateLimits rateLimits,
       com.example.hospital.service.SecurityEventService securityEvents)
       throws Exception {
     http.authorizeHttpRequests(
@@ -156,6 +157,25 @@ public class SecurityConfig {
                         t -> t.includeSubDomains(true).preload(true).maxAgeInSeconds(63072000))
                     .permissionsPolicyHeader(
                         p -> p.policy("camera=(), microphone=(), geolocation=(), payment=()")))
+        .addFilterBefore(
+            new OncePerRequestFilter() {
+              protected void doFilterInternal(
+                  HttpServletRequest r, HttpServletResponse s, FilterChain c)
+                  throws ServletException, IOException {
+                try {
+                  rateLimits.check(r);
+                } catch (com.example.hospital.api.ApiException e) {
+                  e.headers().forEach(s::setHeader);
+                  s.setStatus(e.getStatus());
+                  s.setContentType("application/json");
+                  json.writeValue(
+                      s.getWriter(), Errors.body(e.getStatus(), e.code, e.getMessage(), r.getRequestURI()));
+                  return;
+                }
+                c.doFilter(r, s);
+              }
+            },
+            UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(
             new OncePerRequestFilter() {
               protected void doFilterInternal(

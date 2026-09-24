@@ -28,6 +28,9 @@ public class RateLimitService {
 
   private record Window(int count, Instant start) {}
 
+  /** Longest supported window; stale rows older than this are removed on every hit. */
+  public static final Duration MAX_WINDOW = Duration.ofDays(1);
+
   private final JdbcTemplate jdbc;
 
   public RateLimitService(JdbcTemplate jdbc) {
@@ -36,10 +39,14 @@ public class RateLimitService {
 
   @Transactional
   public Budget hit(String key, int max, Duration window, String code, String message) {
+    if (window.isNegative() || window.isZero() || window.compareTo(MAX_WINDOW) > 0)
+      throw new IllegalArgumentException("Rate-limit windows must be between 1 ms and 1 day.");
     Instant now = Instant.now();
     Timestamp timestamp = Timestamp.from(now);
     Timestamp cutoff = Timestamp.from(now.minus(window));
-    jdbc.update("delete from rate_windows where window_start < ?", cutoff);
+    // Housekeeping only. Each key resets its own expired window in the upsert below, so removing
+    // rows by this call's window would cut short other keys that use longer windows.
+    jdbc.update("delete from rate_windows where window_start < ?", Timestamp.from(now.minus(MAX_WINDOW)));
     // One atomic upsert: starts a new window, counts the hit, or matches nothing when the budget
     // of the current window is spent. Concurrent requests cannot both take the last slot.
     List<Window> accepted =
