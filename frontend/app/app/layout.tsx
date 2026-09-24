@@ -5,6 +5,7 @@ import "../../src/design.css";
 import "../../src/cinematic.css";
 import "../../src/operations.css";
 import "../../src/command-center.css";
+import "../../src/care-pathways.css";
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   return (

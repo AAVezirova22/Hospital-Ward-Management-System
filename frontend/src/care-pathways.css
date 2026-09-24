@@ -1,0 +1,413 @@
+.pathway-import {
+  margin: 24px 0;
+  padding: 28px;
+}
+.pathway-import .section-heading {
+  align-items: flex-start;
+}
+.pathway-import-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 24px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.pathway-import-steps span {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.pathway-import-upload {
+  display: grid;
+  gap: 14px;
+  max-width: 68ch;
+}
+.pathway-import-upload label,
+.pathway-field label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+.pathway-import-upload input[type="file"] {
+  width: 100%;
+}
+.pathway-disclosure {
+  background: var(--accent-soft);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.pathway-identity {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.pathway-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+.pathway-choice input {
+  width: auto;
+}
+.pathway-fields {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.pathway-field {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1.2fr);
+  gap: 24px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pathway-field input {
+  width: 100%;
+  margin-top: 10px;
+}
+.pathway-evidence {
+  color: var(--muted);
+  font-size: 13px;
+}
+.pathway-evidence strong {
+  color: var(--text);
+}
+.pathway-evidence blockquote {
+  margin: 10px 0;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-radius: 12px;
+}
+.pathway-evidence blockquote p {
+  margin: 4px 0 0;
+  color: var(--text);
+}
+.pathway-evidence button {
+  margin-top: 8px;
+}
+.pathway-review-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 24px;
+}
+.pathway-review-actions p {
+  max-width: 55ch;
+}
+.pathway-action-evidence {
+  margin-top: 24px;
+}
+.pathway-action-evidence article {
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.pathway-action-evidence article p {
+  margin: 6px 0;
+}
+.pathway-action-evidence blockquote {
+  margin: 8px 0;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-radius: 12px;
+}
+@media (max-width: 700px) {
+  .pathway-import {
+    padding: 18px;
+  }
+  .pathway-field {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .pathway-review-actions button {
+    width: 100%;
+  }
+}
+.care-studio-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 270px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.care-studio-list,
+.care-editor,
+.care-launch {
+  padding: 24px;
+}
+.care-studio-list {
+  position: sticky;
+  top: 24px;
+}
+.care-studio-list .section-heading {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.care-template-option {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 14px 10px;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  color: var(--text);
+}
+.care-template-option:hover,
+.care-template-option.active {
+  background: var(--surface);
+  border-color: var(--line);
+}
+.care-template-option small {
+  color: var(--muted);
+}
+.care-studio-main {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+.care-editor-fields {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 20px 0;
+}
+.care-editor-fields label,
+.care-task-editor label,
+.care-launch > label {
+  display: grid;
+  gap: 8px;
+}
+.care-editor input,
+.care-editor select,
+.care-editor textarea,
+.care-launch input,
+.care-launch textarea {
+  width: 100%;
+}
+.care-editor textarea,
+.care-launch textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.care-trigger-field {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 14px;
+  margin-bottom: 24px;
+}
+.care-trigger-field label,
+.care-approval {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.care-trigger-field input,
+.care-approval input {
+  width: auto;
+}
+.care-task-editor {
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+.care-task-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.care-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+.care-launch {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+}
+.care-launch > label {
+  width: min(100%, 340px);
+}
+.care-patient-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.care-preview-list {
+  width: 100%;
+  padding-left: 24px;
+}
+.care-preview-list li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.care-preview-list li p {
+  margin: 4px 0;
+}
+.care-notice {
+  padding: 14px 16px;
+  background: var(--accent-soft);
+  border-radius: 12px;
+}
+@media (max-width: 900px) {
+  .care-studio-layout {
+    grid-template-columns: 1fr;
+  }
+  .care-studio-list {
+    position: static;
+  }
+}
+@media (max-width: 600px) {
+  .care-studio-list,
+  .care-editor,
+  .care-launch {
+    padding: 18px;
+  }
+  .care-editor-actions button,
+  .care-launch > button {
+    width: 100%;
+  }
+}
+.care-task-list {
+  display: grid;
+  gap: 12px;
+}
+.care-task-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px;
+}
+.care-task-row.focused {
+  outline: 2px solid var(--mint);
+}
+.care-task-row h2 {
+  margin: 10px 0 4px;
+}
+.care-task-row p {
+  margin: 0 0 8px;
+}
+.care-task-head,
+.care-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.care-task-actions {
+  align-self: center;
+  justify-content: flex-end;
+}
+.care-overdue {
+  color: #f2bba9;
+  font-weight: 700;
+}
+.care-empty {
+  padding: 24px;
+}
+@media (max-width: 680px) {
+  .care-task-row {
+    display: grid;
+    padding: 18px;
+  }
+  .care-task-actions {
+    justify-content: stretch;
+  }
+  .care-task-actions button {
+    flex: 1;
+  }
+}
+.care-reminder-settings {
+  padding: 18px 22px;
+  margin-bottom: 20px;
+}
+.care-reminder-settings summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.care-reminder-settings > p {
+  max-width: 65ch;
+}
+.care-reminder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+.care-reminder-grid label {
+  display: grid;
+  gap: 8px;
+}
+.care-reminder-grid input,
+.care-reminder-grid select {
+  width: 100%;
+}
+.patient-pathways {
+  margin: 38px 0;
+}
+.patient-pathway-run {
+  padding: 22px;
+  margin-top: 12px;
+}
+.patient-pathway-run h3 {
+  margin: 10px 0 4px;
+}
+.patient-pathway-run p {
+  margin: 0;
+}
+.care-cancel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+}
+.care-cancel label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.care-cancel input {
+  width: auto;
+}
+.portal-follow-up {
+  padding: 22px;
+  margin: 24px 0;
+}
+.portal-follow-up > p {
+  max-width: 65ch;
+}
+.portal-consent {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.portal-consent p {
+  margin: 0;
+}
+.portal-consent label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.portal-consent input {
+  width: auto;
+}
+.portal-summary {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  white-space: pre-wrap;
+}
+.portal-summary p {
+  margin-bottom: 0;
+}

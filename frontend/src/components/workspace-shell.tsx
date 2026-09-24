@@ -67,6 +67,8 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
 const nav = [
   ["dashboard", "Overview", LayoutDashboard],
   ["patients", "Patients", Users],
+  ["care-pathways", "Care pathways", ClipboardList],
+  ["tasks", "Care tasks", CheckCircle2],
   ["admissions", "Admissions", ClipboardList],
   ["rooms", "Room capacity", BedDouble],
   ["planner", "Ward planner", MoveRight],
