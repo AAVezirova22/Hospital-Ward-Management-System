@@ -29,6 +29,7 @@ public class WorkspaceService {
   }
   public record Department(long id, String name, String role, boolean hasJoinCode, String timeZone) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
+  private record DepartmentRole(long departmentId, String role, Long doctorId) {}
 
   public List<Hospital> list() {
     var user = actor.user();
@@ -111,11 +112,19 @@ public class WorkspaceService {
       assertJoinFresh(row.get("join_code_expires_at"));
       long id = ((Number) row.get("id")).longValue();
       long hospitalId = ((Number) row.get("hospital_id")).longValue();
+      String oldDepartmentRole = jdbc.query("select role from department_memberships where department_id=? and user_id=?",
+          rs -> rs.next() ? rs.getString(1) : null, id, user.getId());
+      boolean hadHospitalMembership = Boolean.TRUE.equals(jdbc.queryForObject(
+          "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?",
+          Boolean.class, hospitalId, user.getId()));
       if (Boolean.TRUE.equals(row.get("join_code_single_use"))) consumeJoinCode(false, id, code);
       clearJoinAttempts(user.getId(), remoteAddr);
       jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", hospitalId, user.getId());
       jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'MEDICAL_STAFF') on conflict do nothing", id, user.getId());
-      audit.log("WORKSPACE_JOINED", "Department", id, "UI");
+      permissionAudit("WORKSPACE_JOINED", "DEPARTMENT", id, user.getId(),
+          oldDepartmentRole == null ? "NONE" : oldDepartmentRole,
+          oldDepartmentRole == null ? "MEDICAL_STAFF" : oldDepartmentRole, false, false,
+          null, null, null, Map.of("hospitalMembershipCreated", !hadHospitalMembership));
       return Map.of("hospitalId", hospitalId, "departmentId", id);
     }
     var hospitals = jdbc.queryForList("select id,join_code_expires_at,join_code_single_use from hospitals where join_code=?", code);
@@ -127,10 +136,13 @@ public class WorkspaceService {
     var hospital = hospitals.getFirst();
     assertJoinFresh(hospital.get("join_code_expires_at"));
     long id = ((Number) hospital.get("id")).longValue();
+    boolean wasMember = Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, id, user.getId()));
     if (Boolean.TRUE.equals(hospital.get("join_code_single_use"))) consumeJoinCode(true, id, code);
     clearJoinAttempts(user.getId(), remoteAddr);
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", id, user.getId());
-    audit.log("WORKSPACE_JOINED", "Hospital", id, "UI");
+    permissionAudit("WORKSPACE_JOINED", "HOSPITAL", id, user.getId(),
+        wasMember ? "MEMBER" : "NONE", "MEMBER", false, false, null, null, null);
     String hospitalName = jdbc.queryForObject("select name from hospitals where id=?", String.class, id);
     return Map.of("hospitalId", id, "hospitalName", hospitalName == null ? "" : hospitalName);
   }
@@ -230,6 +242,37 @@ public class WorkspaceService {
     return count == null ? 0 : count;
   }
 
+  private void permissionAudit(String event, String workspaceType, long workspaceId,
+      Long targetUserId, String oldRole, String newRole, Boolean oldOwner, Boolean newOwner,
+      Long oldDoctorId, Long newDoctorId, String reason) {
+    permissionAudit(event, workspaceType, workspaceId, targetUserId, oldRole, newRole,
+        oldOwner, newOwner, oldDoctorId, newDoctorId, reason, Map.of());
+  }
+
+  private void permissionAudit(String event, String workspaceType, long workspaceId,
+      Long targetUserId, String oldRole, String newRole, Boolean oldOwner, Boolean newOwner,
+      Long oldDoctorId, Long newDoctorId, String reason, Map<String, ?> additional) {
+    var details = new LinkedHashMap<String, Object>();
+    details.put("targetUserId", targetUserId);
+    details.put("workspaceType", workspaceType);
+    details.put("workspaceId", workspaceId);
+    if (workspaceType.equals("DEPARTMENT"))
+      details.put("hospitalId", jdbc.queryForObject("select hospital_id from departments where id=?", Long.class, workspaceId));
+    details.put("oldRole", oldRole);
+    details.put("newRole", newRole);
+    if (workspaceType.equals("HOSPITAL")) {
+      details.put("oldOwner", oldOwner);
+      details.put("newOwner", newOwner);
+    }
+    details.put("oldDoctorId", oldDoctorId);
+    details.put("newDoctorId", newDoctorId);
+    details.putAll(additional);
+    if (reason != null && !reason.isBlank()) details.put("reason", reason.strip());
+    if (workspaceType.equals("DEPARTMENT"))
+      audit.logForDepartment(workspaceId, event, "Department", workspaceId, "UI", details);
+    else audit.log(event, "Hospital", workspaceId, "UI", details);
+  }
+
   private void departmentAdmin(long departmentId) {
     if (Boolean.TRUE.equals(jdbc.queryForObject(
         "select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'",
@@ -253,60 +296,114 @@ public class WorkspaceService {
 
   @Transactional
   public void leaveDepartment(long departmentId) {
+    leaveDepartment(departmentId, null);
+  }
+
+  @Transactional
+  public void leaveDepartment(long departmentId, String reason) {
     long userId = actor.user().getId();
-    if (!Boolean.TRUE.equals(jdbc.queryForObject(
-        "select count(*) > 0 from department_memberships where department_id=? and user_id=?", Boolean.class, departmentId, userId)))
+    String oldRole = jdbc.query("select role from department_memberships where department_id=? and user_id=?",
+        rs -> rs.next() ? rs.getString(1) : null, departmentId, userId);
+    if (oldRole == null)
       throw new ApiException(404, "NOT_FOUND", "You are not a member of this department.");
     jdbc.update("delete from department_memberships where department_id=? and user_id=?", departmentId, userId);
-    audit.log("DEPARTMENT_LEFT", "Department", departmentId, "UI");
+    permissionAudit("DEPARTMENT_LEFT", "DEPARTMENT", departmentId, userId, oldRole, "NONE", false, false, null, null, reason);
   }
 
   @Transactional
   public void leaveHospital(long hospitalId) {
+    leaveHospital(hospitalId, null);
+  }
+
+  @Transactional
+  public void leaveHospital(long hospitalId, String reason) {
     long userId = actor.user().getId();
-    if (!Boolean.TRUE.equals(jdbc.queryForObject(
-        "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, hospitalId, userId)))
+    Boolean oldOwner = jdbc.query("select owner from hospital_memberships where hospital_id=? and user_id=?",
+        rs -> rs.next() ? rs.getBoolean(1) : null, hospitalId, userId);
+    if (oldOwner == null)
       throw new ApiException(404, "NOT_FOUND", "You are not a member of this hospital.");
-    if (hospitalOwner(hospitalId, userId) && ownerCount(hospitalId) <= 1)
+    if (oldOwner && ownerCount(hospitalId) <= 1)
       throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before leaving.");
+    var departmentRoles = jdbc.query(
+        "select dm.department_id,dm.role,dm.doctor_id from department_memberships dm join departments d on d.id=dm.department_id where d.hospital_id=? and dm.user_id=? order by dm.department_id",
+        (rs, row) -> new DepartmentRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
+        hospitalId, userId);
     jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
     jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
-    audit.log("HOSPITAL_LEFT", "Hospital", hospitalId, "UI");
+    for (var membership : departmentRoles)
+      permissionAudit("DEPARTMENT_LEFT", "DEPARTMENT", membership.departmentId(), userId,
+          membership.role(), "NONE", false, false, membership.doctorId(), null, reason);
+    permissionAudit("HOSPITAL_LEFT", "HOSPITAL", hospitalId, userId, oldOwner ? "OWNER" : "MEMBER", "NONE", oldOwner, false, null, null, reason);
   }
 
   @Transactional
   public void revokeDepartment(long departmentId, long userId) {
+    revokeDepartment(departmentId, userId, null);
+  }
+
+  @Transactional
+  public void revokeDepartment(long departmentId, long userId, String reason) {
     departmentAdmin(departmentId);
     if (userId == actor.user().getId()) {
-      leaveDepartment(departmentId);
+      leaveDepartment(departmentId, reason);
       return;
     }
+    String oldRole = jdbc.query("select role from department_memberships where department_id=? and user_id=?",
+        rs -> rs.next() ? rs.getString(1) : null, departmentId, userId);
+    if (oldRole == null) throw new ApiException(404, "NOT_FOUND", "Department member not found.");
     jdbc.update("delete from department_memberships where department_id=? and user_id=?", departmentId, userId);
-    audit.log("DEPARTMENT_MEMBER_REVOKED", "Department", departmentId, "UI");
+    permissionAudit("DEPARTMENT_MEMBER_REVOKED", "DEPARTMENT", departmentId, userId, oldRole, "NONE", false, false, null, null, reason);
   }
 
   @Transactional
   public void revokeHospital(long hospitalId, long userId) {
+    revokeHospital(hospitalId, userId, null);
+  }
+
+  @Transactional
+  public void revokeHospital(long hospitalId, long userId, String reason) {
     owner(hospitalId);
-    if (hospitalOwner(hospitalId, userId) && ownerCount(hospitalId) <= 1)
+    Boolean oldOwner = jdbc.query("select owner from hospital_memberships where hospital_id=? and user_id=?",
+        rs -> rs.next() ? rs.getBoolean(1) : null, hospitalId, userId);
+    if (oldOwner == null) throw new ApiException(404, "NOT_FOUND", "Hospital member not found.");
+    if (oldOwner && ownerCount(hospitalId) <= 1)
       throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before removing the last owner.");
+    var departmentRoles = jdbc.query(
+        "select dm.department_id,dm.role,dm.doctor_id from department_memberships dm join departments d on d.id=dm.department_id where d.hospital_id=? and dm.user_id=? order by dm.department_id",
+        (rs, row) -> new DepartmentRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
+        hospitalId, userId);
     jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
     jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
-    audit.log("HOSPITAL_MEMBER_REVOKED", "Hospital", hospitalId, "UI");
+    for (var membership : departmentRoles)
+      permissionAudit("DEPARTMENT_MEMBER_REVOKED", "DEPARTMENT", membership.departmentId(), userId,
+          membership.role(), "NONE", false, false, membership.doctorId(), null, reason);
+    permissionAudit("HOSPITAL_MEMBER_REVOKED", "HOSPITAL", hospitalId, userId, oldOwner ? "OWNER" : "MEMBER", "NONE", oldOwner, false, null, null, reason);
   }
 
   @Transactional
   public void grantOwner(long hospitalId, long userId) {
+    grantOwner(hospitalId, userId, null);
+  }
+
+  @Transactional
+  public void grantOwner(long hospitalId, long userId, String reason) {
     owner(hospitalId);
     if (!Boolean.TRUE.equals(jdbc.queryForObject(
         "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, hospitalId, userId)))
       throw new ApiException(400, "NOT_A_MEMBER", "That account must join the hospital before becoming an owner.");
+    boolean oldOwner = hospitalOwner(hospitalId, userId);
     jdbc.update("update hospital_memberships set owner=true where hospital_id=? and user_id=?", hospitalId, userId);
-    audit.log("HOSPITAL_OWNER_GRANTED", "Hospital", hospitalId, "UI");
+    permissionAudit("HOSPITAL_OWNER_GRANTED", "HOSPITAL", hospitalId, userId,
+        oldOwner ? "OWNER" : "MEMBER", "OWNER", oldOwner, true, null, null, reason);
   }
 
   @Transactional
   public Map<String, Object> grantRole(long departmentId, long userId, String role, Long doctorId) {
+    return grantRole(departmentId, userId, role, doctorId, null);
+  }
+
+  @Transactional
+  public Map<String, Object> grantRole(long departmentId, long userId, String role, Long doctorId, String reason) {
     departmentAdmin(departmentId);
     String assigned = role == null ? "" : role.strip().toUpperCase(Locale.ROOT);
     if (!Set.of("ADMIN", "MEDICAL_STAFF", "DOCTOR").contains(assigned))
@@ -317,11 +414,16 @@ public class WorkspaceService {
         "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?",
         Boolean.class, hospitalId, userId)))
       throw new ApiException(400, "NOT_A_MEMBER", "That account must join the hospital first.");
+    var oldMembership = jdbc.query("select role,doctor_id from department_memberships where department_id=? and user_id=?",
+        rs -> rs.next() ? new Object[] {rs.getString(1), rs.getObject(2, Long.class)} : null, departmentId, userId);
+    String oldRole = oldMembership == null ? null : (String) oldMembership[0];
+    Long oldDoctorId = oldMembership == null ? null : (Long) oldMembership[1];
     Long linked = "DOCTOR".equals(assigned) ? doctorInDepartment(departmentId, userId, doctorId) : null;
     jdbc.update(
         "insert into department_memberships(department_id,user_id,role,doctor_id) values (?,?,?,?) on conflict (department_id,user_id) do update set role=excluded.role, doctor_id=excluded.doctor_id",
         departmentId, userId, assigned, linked);
-    audit.log("DEPARTMENT_ROLE_GRANTED", "Department", departmentId, "UI");
+    permissionAudit("DEPARTMENT_ROLE_GRANTED", "DEPARTMENT", departmentId, userId,
+        oldRole == null ? "NONE" : oldRole, assigned, false, false, oldDoctorId, linked, reason);
     var result = new LinkedHashMap<String, Object>();
     result.put("departmentId", departmentId);
     result.put("userId", userId);

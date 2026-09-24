@@ -28,7 +28,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/discharge` | `{version}` |
 | POST | `/admissions/{id}/doctor` | `{doctorId, version}` |
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
-| GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
+| GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only. Optional `reason` (max 300 characters) records context for permission changes. |
 | GET | `/audit` | Latest 100 events; admin-only |
 | GET | `/workspaces` | Hospitals and departments the account can open, plus the active department. Live join codes are omitted; owners receive `hasJoinCode`. |
 | POST | `/workspaces/hospitals` | `{name, departmentName}`; owner of the hospital and admin of its first department |
@@ -38,10 +38,14 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/workspaces/departments/{id}/code` | Reveal the department join code; department administrator only. Audited as `JOIN_CODE_VIEWED`. |
 | POST | `/workspaces/hospitals/{id}/code` | Replace the hospital join code; owner only. Optional `{expiresInHours, singleUse}` |
 | POST | `/workspaces/departments/{id}/code` | Replace the department join code; department administrator only. Optional `{expiresInHours, singleUse}` |
-| POST | `/workspaces/hospitals/{id}/leave` | Leave a hospital; last owner is rejected |
-| POST | `/workspaces/departments/{id}/leave` | Leave a department |
-| POST | `/workspaces/hospitals/{id}/owners` | `{userId}`; hospital owner only |
-| POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted. |
+| POST | `/workspaces/hospitals/{id}/leave?reason=...` | Leave a hospital; last owner is rejected. Optional reason is limited to 300 characters. |
+| POST | `/workspaces/departments/{id}/leave?reason=...` | Leave a department; optional reason is limited to 300 characters. |
+| DELETE | `/workspaces/hospitals/{id}/members/{userId}?reason=...` | Revoke membership; hospital owner only. Optional reason is limited to 300 characters. |
+| DELETE | `/workspaces/departments/{id}/members/{userId}?reason=...` | Revoke membership; owner or department administrator. Optional reason is limited to 300 characters. |
+| POST | `/workspaces/hospitals/{id}/owners` | `{userId, reason?}`; hospital owner only; reason is limited to 300 characters. |
+| POST | `/workspaces/departments/{id}/roles` | `{userId, role, doctorId?, reason?}`; owner or department administrator. `DOCTOR` creates a doctor row in that department when `doctorId` is omitted; reason is limited to 300 characters. |
+
+Permission-change audit metadata includes the target user and workspace IDs with before/after role or owner state. Department role changes also include before/after doctor links; account edits distinguish account role and doctor link from department membership role and doctor link. Department-scoped events are stored under the affected department even when a hospital owner acts from another active department. Hospital-level events retain the active department scope and identify the hospital in metadata. A department-code join records whether it also created hospital membership; hospital leave/revocation writes a department-scoped event for each removed department membership. Optional reasons containing obvious credential or token material (including password/token assignments, bearer credentials, or JWT-shaped values) are rejected and never stored; passwords, join codes, and session tokens are not audit fields.
 
 DTO definitions and exact field constraints are in `api/Inputs.java`. All edits carry the returned `version`; newly created records start at version zero. Deactivation uses `active:false` or `enabled:false` on the existing record, with version validation. Usernames cannot change. Doctor-role users must link an active doctor. Patients retain their permanent historical identity.
 

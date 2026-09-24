@@ -23,9 +23,9 @@ public class WorkspaceController {
   public record DepartmentInput(@NotBlank @Size(max=120) String name) {}
   public record TimeZoneInput(@NotBlank @Size(max=64) String timeZone) {}
   public record JoinInput(@NotBlank @Size(max=40) String code) {}
-  public record OwnerInput(@NotNull Long userId) {}
+  public record OwnerInput(@NotNull Long userId, @Size(max=300) String reason) {}
   public record RotateInput(Integer expiresInHours, Boolean singleUse) {}
-  public record RoleInput(@NotNull Long userId, @NotBlank @Size(max=30) String role, Long doctorId) {}
+  public record RoleInput(@NotNull Long userId, @NotBlank @Size(max=30) String role, Long doctorId, @Size(max=300) String reason) {}
 
   @GetMapping
   public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "timeZone", departmentTime.timeZone(), "hospitals", workspaces.list()); }
@@ -63,20 +63,20 @@ public class WorkspaceController {
     return Map.of("code", workspaces.rotate(false, id, hours(input), singleUse(input)));
   }
   @PostMapping("/hospitals/{id}/leave")
-  public void leaveHospital(@PathVariable long id) { workspaces.leaveHospital(id); }
+  public void leaveHospital(@PathVariable long id, @RequestParam(required = false) @Size(max=300) String reason) { workspaces.leaveHospital(id, reason); }
   @PostMapping("/departments/{id}/leave")
-  public void leaveDepartment(@PathVariable long id) { workspaces.leaveDepartment(id); }
+  public void leaveDepartment(@PathVariable long id, @RequestParam(required = false) @Size(max=300) String reason) { workspaces.leaveDepartment(id, reason); }
   @DeleteMapping("/hospitals/{id}/members/{userId}")
-  public void revokeHospital(@PathVariable long id, @PathVariable long userId) { workspaces.revokeHospital(id, userId); }
+  public void revokeHospital(@PathVariable long id, @PathVariable long userId, @RequestParam(required = false) @Size(max=300) String reason) { workspaces.revokeHospital(id, userId, reason); }
   @DeleteMapping("/departments/{id}/members/{userId}")
-  public void revokeDepartment(@PathVariable long id, @PathVariable long userId) { workspaces.revokeDepartment(id, userId); }
+  public void revokeDepartment(@PathVariable long id, @PathVariable long userId, @RequestParam(required = false) @Size(max=300) String reason) { workspaces.revokeDepartment(id, userId, reason); }
   @PostMapping("/hospitals/{id}/owners")
   public void grantOwner(@PathVariable long id, @Valid @RequestBody OwnerInput input) {
-    workspaces.grantOwner(id, input.userId());
+    workspaces.grantOwner(id, input.userId(), input.reason());
   }
   @PostMapping("/departments/{id}/roles")
   public Object grantRole(@PathVariable long id, @Valid @RequestBody RoleInput input) {
-    return workspaces.grantRole(id, input.userId(), input.role(), input.doctorId());
+    return workspaces.grantRole(id, input.userId(), input.role(), input.doctorId(), input.reason());
   }
 
   private static Integer hours(RotateInput input) {
