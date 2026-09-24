@@ -142,6 +142,19 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
 
+## Retrying after a provider failure
+
+When the assistant provider times out or returns an unusable answer, `POST /assistant/messages` responds with `responseType: "ERROR"` and `data`:
+
+| Field | Meaning |
+| --- | --- |
+| `retryable` | Whether this request may be retried |
+| `retryToken` | One-time token for the retry (only when `retryable`) |
+| `retryAfterSeconds` | Suggested wait: 2 s, then 4 s |
+| `attemptsLeft` | Retries remaining (at most 2 per original request) |
+
+To retry, send the same `message` again with the returned `sessionId` and `retryToken`. The token works once, only for the same account and identical message text, and only within 10 minutes. Otherwise the answer is `409 RETRY_NOT_ALLOWED`, and the request must be sent as a new message. A failed request never applied a change, and a retry asks the model again from scratch: it cannot replay a completed mutation or revive an expired proposal, and any new proposal still needs its own confirmation. Retries count towards the normal assistant rate limit. Only a SHA-256 hash of the message is stored, to match the retry.
+
 ## Rate-limit headers
 
 Rate-limited endpoints return the remaining budget on every checked response. They are `POST /assistant/messages`, registration confirmation resends, and the API budgets below:
