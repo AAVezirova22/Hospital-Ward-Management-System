@@ -77,6 +77,19 @@ Watch saturation through the administrator-only metrics endpoint (pool tag `hosp
 
 Sustained pending connections mean too many instances for the database or slow statements; check slow queries before enlarging the pool.
 
+## Client addresses behind proxies
+
+Login backoff, join-code attempts and registration resend/recovery limits are keyed by the client address. The backend only reads forwarding headers when the direct peer is a trusted proxy:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `TRUSTED_PROXIES` | Loopback, private IPv4 (`10/8`, `172.16/12`, `192.168/16`), link-local, IPv6 unique-local | Comma-separated IPs or CIDR blocks allowed to supply `X-Forwarded-For`; `none` ignores forwarding headers entirely. Invalid entries stop startup. |
+| `CLIENT_IP_HEADER` | empty | Optional header holding one client address, set by your edge (for example Cloudflare's `True-Client-IP`). Read only from trusted peers; ignored if it is not a single valid address. |
+
+Requests from untrusted peers are keyed by the peer address and their `X-Forwarded-For` is ignored. From a trusted peer, `X-Forwarded-For` is read right to left: trusted hops are skipped and the first untrusted address is the client. Entries further left may have been written by the client, so a forged header cannot open new rate-limit buckets. A malformed entry stops the walk at the last valid hop.
+
+Narrow `TRUSTED_PROXIES` to your load balancer's range when other hosts share the private network. Otherwise a host on that network can claim any address. Render routes through Cloudflare, whose public addresses appear in `X-Forwarded-For`, so `render.yaml` sets `CLIENT_IP_HEADER=True-Client-IP`. The demo-login loopback check always uses the direct peer and never trusts forwarded headers.
+
 ## Slow-query diagnostics
 
 Every JDBC statement is timed. Statements taking `SLOW_QUERY_MS` or longer (default `500`; `0` turns the log off) are logged at `WARN` on the `hospital.slow-query` logger:
