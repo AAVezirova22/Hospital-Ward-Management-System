@@ -15,6 +15,8 @@ public class AiInteraction extends DepartmentEntity {
   private Instant startedAt;
   private Instant completedAt;
   private Long latencyMs;
+  private Long promptTokens;
+  private Long completionTokens;
 
   public Long getUserId() { return userId; }
   public void setUserId(Long userId) { this.userId = userId; }
@@ -34,4 +36,8 @@ public class AiInteraction extends DepartmentEntity {
   public void setCompletedAt(Instant completedAt) { this.completedAt = completedAt; }
   public Long getLatencyMs() { return latencyMs; }
   public void setLatencyMs(Long latencyMs) { this.latencyMs = latencyMs; }
+  public Long getPromptTokens() { return promptTokens; }
+  public void setPromptTokens(Long promptTokens) { this.promptTokens = promptTokens; }
+  public Long getCompletionTokens() { return completionTokens; }
+  public void setCompletionTokens(Long completionTokens) { this.completionTokens = completionTokens; }
 }

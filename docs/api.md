@@ -142,6 +142,11 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
 
+## Assistant usage and cost
+
+`GET /reports/ai-usage?from=YYYY-MM-DD&to=YYYY-MM-DD` (administrators only; the default is the last 30 days, at most 366 days, using department-local dates) returns assistant request counts and provider-reported tokens for the active department. Figures are given as `totals` and per model (`byModel`), with `estimatedCost` in `currency`.
+
+Tokens come from the `usage` block of OpenAI-compatible responses and are stored per interaction as `prompt_tokens` and `completion_tokens`. Prompts and replies are never stored. `requests_with_usage` shows how many requests reported tokens; the local model and providers without usage data count as requests only. The cost estimate uses `AI_COST_INPUT_PER_MILLION` and `AI_COST_OUTPUT_PER_MILLION` (prices per million tokens, in `AI_COST_CURRENCY`, default `USD`). When no price is set, `estimatedCost` is `null` and `pricingConfigured` is `false`. The estimate ignores provider-side discounts, caching and minimum charges, so compare it with the provider invoice.
 ## Pagination
 
 Large collections (`/patients`, `/admissions`, `/doctors`, `/rooms`, `/procedures`, workspace rosters) all return the same page body: `items`, `page` (zero-based), `size`, `totalElements`, `totalPages`, `hasNext`, `nextPage`. `/audit` keeps its established `page`/`size`/`total`/`events` body. Every one of these responses also carries:
