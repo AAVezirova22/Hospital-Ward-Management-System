@@ -100,6 +100,9 @@ app:
     # same record by the same user inside the window are recorded once; 0s records every view.
     record-reads: ${AUDIT_RECORD_READS:true}
     read-dedupe-window: ${AUDIT_READ_DEDUPE_WINDOW:15m}
+  idempotency:
+    # How long a stored response is replayed for retries that carry the same Idempotency-Key.
+    ttl: ${IDEMPOTENCY_KEY_TTL:24h}
   diagnostics:
     # Log statements at or above this many milliseconds (redacted); 0 disables the log.
     slow-query-ms: ${SLOW_QUERY_MS:500}
