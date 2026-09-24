@@ -93,10 +93,24 @@ public record ExpiryInput(java.time.Instant expiresAt) {}
   public void revokeHospital(@PathVariable long id, @PathVariable long userId, @RequestParam(required = false) @Size(max=300) String reason) { workspaces.revokeHospital(id, userId, reason); }
   @DeleteMapping("/departments/{id}/members/{userId}")
   public void revokeDepartment(@PathVariable long id, @PathVariable long userId, @RequestParam(required = false) @Size(max=300) String reason) { workspaces.revokeDepartment(id, userId, reason); }
-  @PostMapping("/hospitals/{id}/owners")
-  public void grantOwner(@PathVariable long id, @Valid @RequestBody OwnerInput input) {
-    workspaces.grantOwner(id, input.userId(), input.reason());
+  @PostMapping("/hospitals/{id}/owners") @ResponseStatus(HttpStatus.ACCEPTED)
+  public Object grantOwner(@PathVariable long id, @Valid @RequestBody OwnerInput input) {
+    return workspaces.grantOwner(id, input.userId(), input.reason());
   }
+  public record TransferInput(
+      @NotNull Long userId, boolean stepDown, @Size(max=120) String confirmation, @Size(max=300) String reason) {}
+  @PostMapping("/hospitals/{id}/ownership-transfers") @ResponseStatus(HttpStatus.ACCEPTED)
+  public Object requestTransfer(@PathVariable long id, @Valid @RequestBody TransferInput input) {
+    return workspaces.requestOwnershipTransfer(id, input.userId(), input.stepDown(), input.confirmation(), input.reason());
+  }
+  @GetMapping("/ownership-transfers")
+  public Object ownershipTransfers() { return workspaces.ownershipTransfers(); }
+  @PostMapping("/ownership-transfers/{transferId}/accept")
+  public Object acceptTransfer(@PathVariable long transferId) { return workspaces.acceptOwnershipTransfer(transferId); }
+  @PostMapping("/ownership-transfers/{transferId}/decline")
+  public Object declineTransfer(@PathVariable long transferId) { return workspaces.declineOwnershipTransfer(transferId); }
+  @PostMapping("/ownership-transfers/{transferId}/cancel")
+  public Object cancelTransfer(@PathVariable long transferId) { return workspaces.cancelOwnershipTransfer(transferId); }
   @PutMapping("/departments/{id}/members/{userId}/expiry")
   public Object membershipExpiry(@PathVariable long id, @PathVariable long userId, @RequestBody ExpiryInput input) {
     return workspaces.setMembershipExpiry(id, userId, input.expiresAt());
