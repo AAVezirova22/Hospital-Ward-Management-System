@@ -43,7 +43,7 @@ public class DemoService {
     // sessions cannot address newly seeded patients. Hospital and department 1 are
     // recreated so bootstrap enrollment stays valid.
     for (String table : new String[]{"email_outbox", "email_verifications", "ai_sessions", "ai_pending_actions", "ai_interactions",
-        "audit_events", "performed_procedures", "room_assignments", "admissions",
+        "audit_events", "access_reviews", "performed_procedures", "room_assignments", "admissions",
         "app_users", "patients", "doctors", "rooms", "medical_procedures",
         "department_memberships", "hospital_memberships", "departments", "hospitals"}) {
       jdbc.update("delete from " + table);
