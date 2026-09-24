@@ -19,6 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/audit")
 public class AuditExportController {
+  /** Fields a redacted export leaves out or replaces; recorded with every redacted export. */
+  static final List<String> REDACTED_FIELDS = List.of("actorId", "entityId", "metadata");
+
   private final AuditEventQueryService events;
   private final AuditService audit;
 
@@ -37,23 +40,44 @@ public class AuditExportController {
       @RequestParam(required = false) String source,
       @RequestParam(required = false) LocalDate from,
       @RequestParam(required = false) LocalDate to,
-      @RequestParam(defaultValue = "1000") int limit) {
+      @RequestParam(defaultValue = "1000") int limit,
+      @RequestParam(defaultValue = "full") String profile) {
+    boolean redacted = switch (profile.strip().toLowerCase(java.util.Locale.ROOT)) {
+      case "full" -> false;
+      case "redacted" -> true;
+      default -> throw new ApiException(400, "INVALID_PROFILE", "Profile must be full or redacted.");
+    };
     var filters = new AuditEventQueryService.Filters(
         eventType, actorId, entityType, entityId, source, from, to);
     List<AuditEvent> rows = events.export(filters, limit);
     long departmentId = DepartmentContext.id();
     var csv = new StringBuilder(
-        "Department ID,Audit ID,Actor ID,Event type,Entity type,Entity ID,Source,Timestamp,Metadata\r\n");
+        redacted
+            ? "Department ID,Audit ID,Actor,Event type,Entity type,Source,Timestamp\r\n"
+            : "Department ID,Audit ID,Actor ID,Event type,Entity type,Entity ID,Source,Timestamp,Metadata\r\n");
+    // Redacted actors become A1, A2, ... in order of appearance: consistent within one export, but
+    // not linkable to accounts or across exports.
+    Map<Long, String> pseudonyms = new LinkedHashMap<>();
     for (AuditEvent event : rows) {
-      csv.append(departmentId).append(',')
-          .append(event.getId()).append(',')
-          .append(event.getUserId() == null ? "" : event.getUserId()).append(',')
-          .append(csvText(event.getEventType())).append(',')
-          .append(csvText(event.getEntityType())).append(',')
-          .append(event.getEntityId() == null ? "" : event.getEntityId()).append(',')
-          .append(csvText(event.getSource())).append(',')
-          .append(event.getTimestamp()).append(',')
-          .append(csvText(event.getMetadata())).append("\r\n");
+      csv.append(departmentId).append(',').append(event.getId()).append(',');
+      if (redacted) {
+        String actor = event.getUserId() == null
+            ? ""
+            : pseudonyms.computeIfAbsent(event.getUserId(), id -> "A" + (pseudonyms.size() + 1));
+        csv.append(actor).append(',')
+            .append(csvText(event.getEventType())).append(',')
+            .append(csvText(event.getEntityType())).append(',')
+            .append(csvText(event.getSource())).append(',')
+            .append(event.getTimestamp()).append("\r\n");
+      } else {
+        csv.append(event.getUserId() == null ? "" : event.getUserId()).append(',')
+            .append(csvText(event.getEventType())).append(',')
+            .append(csvText(event.getEntityType())).append(',')
+            .append(event.getEntityId() == null ? "" : event.getEntityId()).append(',')
+            .append(csvText(event.getSource())).append(',')
+            .append(event.getTimestamp()).append(',')
+            .append(csvText(event.getMetadata())).append("\r\n");
+      }
     }
 
     Map<String, Object> auditFilters = new LinkedHashMap<>();
@@ -67,12 +91,17 @@ public class AuditExportController {
     auditFilters.put("to", to);
     auditFilters.put("limit", limit);
     auditFilters.put("rows", rows.size());
+    auditFilters.put("profile", redacted ? "redacted" : "full");
+    if (redacted) auditFilters.put("removedFields", String.join("+", REDACTED_FIELDS));
     audit.log("DATA_EXPORTED", "Audit", null, "UI", auditFilters);
 
-    return ResponseEntity.ok()
+    var response = ResponseEntity.ok()
         .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
-        .header("Content-Disposition", "attachment; filename=audit-department-" + departmentId + ".csv")
-        .body(csv.toString());
+        .header("X-Audit-Export-Profile", redacted ? "redacted" : "full")
+        .header("Content-Disposition", "attachment; filename=audit-department-" + departmentId
+            + (redacted ? "-redacted" : "") + ".csv");
+    if (redacted) response.header("X-Redacted-Fields", String.join(",", REDACTED_FIELDS));
+    return response.body(csv.toString());
   }
 
   private static String csvText(String value) {

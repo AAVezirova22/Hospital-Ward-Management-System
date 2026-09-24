@@ -29,7 +29,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | POST | `/admissions/{id}/procedures` | `{medicalProcedureId, doctorId, performedAt, note}` |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only |
 | GET | `/audit` | Admin-only; optional `eventType`, `actorId`, `entityType`, `entityId`, `source`, `from`, `to`, `page` (default 0), and `size` (default 50, max 200) filters |
-| GET | `/audit/export.csv` | Admin-only CSV export; reuses audit filters, accepts `limit` from 1 to 1000 (default 1000), and returns 400 if more rows match |
+| GET | `/audit/export.csv` | Admin-only CSV export; reuses audit filters, accepts `limit` from 1 to 1000 (default 1000), and returns 400 if more rows match. `profile=redacted` is for external reviewers: actors become per-export pseudonyms (`A1`, `A2`, …), and the entity ID and metadata columns are removed. The response carries `X-Audit-Export-Profile` and `X-Redacted-Fields`, and the `DATA_EXPORTED` audit event records the profile and removed fields. The default is `profile=full`. |
 | GET / POST / PUT | `/users` / `/users/{id}` | UserInput; admin-only. Optional `reason` (max 300 characters) records context for permission changes. |
 | GET | `/audit` | Latest 100 events; admin-only |
 | GET | `/security/events?status=ACTIVE&includeInfo=false&page=0&size=25` | Department administrators only. Security review queue for the active department, highest severity first, with `counts` (`open`, `investigating`, `critical`, `unacknowledged`). `status` is `ACTIVE` (open and investigating), `ALL`, or one status. `INFO` entries are hidden unless `includeInfo=true`. |
@@ -145,6 +145,23 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 ## Workflow dry run
 
 `POST /assistant/workflows/dry-run` with `{"plan": ...}` takes the workflow proposal JSON, either as a string (the assistant's `prepareWorkflow` format) or as an object. It checks every step without saving anything and without creating a pending proposal. The plan runs through the same operations as a confirmed workflow, inside a transaction that is always rolled back, so field validation, references, capacity, capability, uniqueness and role checks match confirmation. The response contains `valid`, `committed: false`, the count of `operations` by type, and `capacityChanges` for existing rooms (`occupiedBefore`/`occupiedAfter`). An invalid plan returns `valid: false` with the `code` and `message` confirmation would have produced. Nothing is audited or notified because nothing commits. Database ID sequences may still advance. A dry run is not a reservation: state can change before a real proposal is confirmed, and confirmation re-checks everything.
+## Expected-discharge calendar feed
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| POST | `/calendar/feed` | Staff, doctors and admins. Creates a personal feed for the active department and returns its `url` once (built from `PUBLIC_APP_URL` when set). Creating a new feed revokes the previous one. Audited as `CALENDAR_FEED_CREATED`. |
+| DELETE | `/calendar/feed` | Revokes your feed for the active department; audited as `CALENDAR_FEED_REVOKED` |
+| GET | `/calendar/feeds/{token}.ics` | Public iCalendar (RFC 5545) for calendar apps; the random token in the URL is the credential |
+
+The feed has one all-day event per active admission with an expected discharge date, titled `Expected discharge - Room N` and described as `Admission #id`. Patient names and identifiers are never included, because feeds sync to devices outside the application. Doctors receive only their own patients. Every fetch re-checks that the owner is enabled and still a member of the department, and `404` is returned for revoked, replaced or unknown tokens. Only a SHA-256 hash of the token is stored. Treat the URL like a password and revoke it if it is shared by mistake.
+## Assistant provider check
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| GET | `/settings/ai` | Administrators only. `mode`, provider host, model, whether an API key is set (never the key) and the timeout |
+| POST | `/settings/ai/test` | Administrators only; 5 per administrator per 10 minutes. Sends a fixed synthetic prompt with a single `connectionCheck` tool (no hospital or patient data) and reports `outcome`, `providerStatus` and `latencyMs`. Audited as `AI_PROVIDER_TESTED`. |
+
+Outcomes: `COMPATIBLE` (exactly one call to the synthetic tool), `TOOL_CALLS_UNSUPPORTED`, `AUTHENTICATION_FAILED` (401/403), `PROVIDER_ERROR` (other HTTP status), `TIMEOUT`, `UNREACHABLE`, `INVALID_URL`, `INSECURE_PROTOCOL` (plain HTTP is accepted only for loopback addresses) and `NOT_EXTERNAL` (`AI_MODE` is not `external`). Provider response text is never returned.
 
 ## Rate-limit headers
 
