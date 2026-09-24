@@ -100,7 +100,6 @@ public class RateLimitService {
         response.setHeader(RESET, String.valueOf(budget.resetSeconds()));
       }
     }
+    return budget;
   }
-  return budget;
-}
 }
