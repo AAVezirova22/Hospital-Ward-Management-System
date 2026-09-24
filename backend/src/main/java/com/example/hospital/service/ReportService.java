@@ -131,7 +131,7 @@ public class ReportService {
     var end = Timestamp.from(to.plusDays(1).atStartOfDay(zone).toInstant());
     var sql = new StringBuilder(
         """
-        select pp.id rec_id, pp.admission_id, pp.medical_procedure_id, pp.performed_by_doctor_id,
+        select pp.id rec_id, pp.admission_id, a.admission_number, pp.medical_procedure_id, pp.performed_by_doctor_id,
                pp.performed_at, pp.price_at_execution, pp.note,
                p.id patient_id, p.version patient_version, p.patient_identifier, p.first_name, p.last_name,
                p.date_of_birth, p.address, p.phone_number,
@@ -169,6 +169,7 @@ public class ReportService {
               Map<String, Object> record = new LinkedHashMap<>();
               record.put("id", rs.getLong("rec_id"));
               record.put("admissionId", rs.getLong("admission_id"));
+              record.put("admissionNumber", rs.getString("admission_number"));
               record.put("medicalProcedureId", rs.getLong("medical_procedure_id"));
               record.put("performedByDoctorId", rs.getLong("performed_by_doctor_id"));
               record.put("performedAt", rs.getTimestamp("performed_at").toInstant());

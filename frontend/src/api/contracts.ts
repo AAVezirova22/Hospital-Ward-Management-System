@@ -89,6 +89,7 @@ export interface MedicalProcedure extends Entity {
 }
 export interface ProcedureRecord extends Entity {
   admissionId: number;
+  admissionNumber?: string;
   medicalProcedureId: number;
   performedByDoctorId: number;
   performedAt: string;
