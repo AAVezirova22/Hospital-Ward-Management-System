@@ -142,7 +142,8 @@ abstract class HospitalSupport {
   }
 
   JsonNode roomCapacity(long roomId) throws Exception {
-    var rooms = result(request("admin", "GET", "/api/v1/rooms", null), 200);
+    var page = result(request("admin", "GET", "/api/v1/rooms?roomId=" + roomId + "&size=1", null), 200);
+    var rooms = page.isArray() ? page : page.path("items");
     for (var room : rooms) if (room.path("id").asLong() == roomId) return room;
     throw new AssertionError("Room capacity is not visible in the current department.");
   }
