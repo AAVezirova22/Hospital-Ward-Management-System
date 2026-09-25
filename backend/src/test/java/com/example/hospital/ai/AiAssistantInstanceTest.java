@@ -14,9 +14,11 @@ import com.example.hospital.domain.AppUser;
 import com.example.hospital.repository.AiInteractionRepository;
 import com.example.hospital.repository.AiSessionRepository;
 import com.example.hospital.security.Actor;
+import com.example.hospital.security.DepartmentContext;
 import com.example.hospital.service.AuditService;
 import com.example.hospital.service.HospitalService;
 import com.example.hospital.service.RateLimitService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,8 +27,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class AiAssistantInstanceTest {
   private static final String SESSION_KEY = "shared-session";
@@ -48,6 +52,8 @@ class AiAssistantInstanceTest {
     session.setId(11L);
     session.setUserId(user.getId());
     session.setSessionKey(SESSION_KEY);
+    session.setDepartmentId(1L);
+    DepartmentContext.set(new DepartmentContext.Scope(1L, "ADMIN", null));
 
     when(actor.user()).thenReturn(user);
     when(sessions.findBySessionKey(SESSION_KEY)).thenReturn(Optional.of(session));
@@ -56,8 +62,13 @@ class AiAssistantInstanceTest {
         .thenReturn(new AiToolRegistry.Response("TEXT", "Acknowledged", Map.of(), null, null));
   }
 
+  @AfterEach
+  void clearDepartmentScope() {
+    DepartmentContext.clear();
+  }
+
   @Test
-  void conversationContextStaysOnTheInstanceThatReceivesStickyRoutedRequests() {
+  void conversationContextIsSharedAcrossInstancesForTheSameSession() {
     List<AiModelClient.Context> contexts = new CopyOnWriteArrayList<>();
     when(model.complete(anyString(), any(AiModelClient.Context.class)))
         .thenAnswer(
@@ -75,10 +86,17 @@ class AiAssistantInstanceTest {
     assertThat(otherNodeResponse.sessionId()).isEqualTo(SESSION_KEY);
     assertThat(contexts).hasSize(3);
     assertThat(contexts.get(0).observations()).isEmpty();
-    assertThat(contexts.get(1).observations()).isEmpty();
-    assertThat(contexts.get(2).observations())
+    assertThat(contexts.get(1).observations())
         .containsExactly(
             Map.of("previousUserRequest", "first request", "assistantResponse", "Acknowledged"));
+    assertThat(contexts.get(2).observations())
+        .containsExactly(
+            Map.of("previousUserRequest", "first request", "assistantResponse", "Acknowledged"),
+            Map.of(
+                "previousUserRequest",
+                "request routed elsewhere",
+                "assistantResponse",
+                "Acknowledged"));
   }
 
   @Test
@@ -129,8 +147,10 @@ class AiAssistantInstanceTest {
   }
 
   private AiAssistantService newInstance() {
-    return new AiAssistantService(
+    var service = new AiAssistantService(
         model, tools, sessions, interactions, actor, hospital, audit, rates, 10_000);
+    ReflectionTestUtils.setField(service, "json", new ObjectMapper());
+    return service;
   }
 
   private MessageInput message(String text) {
