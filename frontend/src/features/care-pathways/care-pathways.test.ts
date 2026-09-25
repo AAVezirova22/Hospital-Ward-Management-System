@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { previewDayGroups } from "./CarePreviewTimeline";
-import { isOverdue } from "./due";
+import { dueSort, isOverdue } from "./due";
 import { buildTaskOverrides } from "./task-overrides";
 import type { CarePreview, CareTaskDefinition } from "./types";
 
@@ -53,5 +53,13 @@ describe("patient pathway review", () => {
     const due = { dueAt: null, dueOn: "2026-09-25" };
     expect(isOverdue(due, "America/New_York")).toBe(false);
     expect(isOverdue(due, "Asia/Tokyo")).toBe(true);
+  });
+
+  it("orders date-only and timed tasks by the department calendar", () => {
+    const dateOnly = { dueAt: null, dueOn: "2026-09-25" };
+    const afterMidnight = { dueAt: "2026-09-25T23:30:00Z" };
+    expect(dueSort(dateOnly, "Europe/Kyiv")).toBeLessThan(
+      dueSort(afterMidnight, "Europe/Kyiv"),
+    );
   });
 });

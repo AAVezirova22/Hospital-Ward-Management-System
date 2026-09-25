@@ -88,7 +88,7 @@ export function CareTasks() {
     }
   }
   const sorted = [...(tasks.data ?? [])].sort(
-    (a, b) => dueSort(a) - dueSort(b),
+    (a, b) => dueSort(a, timeZone) - dueSort(b, timeZone),
   );
   return (
     <div className="care-tasks-page">
