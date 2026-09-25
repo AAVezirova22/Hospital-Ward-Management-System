@@ -79,7 +79,10 @@ public class Errors {
     String code = "DATA_CONFLICT";
     String message =
         "The record conflicts with existing or recently changed data. Refresh and try again.";
-    if (detail.contains("patient_identifier") || detail.contains("patients_department_id_patient_identifier")) {
+    if (detail.contains("department_archived_read_only")) {
+      code = "DEPARTMENT_ARCHIVED_READ_ONLY";
+      message = "This department is archived and read only. Restore it before making changes.";
+    } else if (detail.contains("patient_identifier") || detail.contains("patients_department_id_patient_identifier")) {
       code = "PATIENT_IDENTIFIER_TAKEN";
       message = "A patient with this identifier already exists in the department.";
     } else if (detail.contains("username") || detail.contains("app_users_username")) {

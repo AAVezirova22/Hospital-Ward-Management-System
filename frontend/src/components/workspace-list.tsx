@@ -22,6 +22,8 @@ type Props = {
   onLeaveHospital: (id: number) => void;
   onNewDepartment: (hospital: WorkspaceHospital) => void;
   onTimeZone: (department: WorkspaceDepartment) => void;
+  onArchiveDepartment: (department: WorkspaceDepartment) => void;
+  onRestoreDepartment: (department: WorkspaceDepartment) => void;
   onJoin: () => void;
   onCreateHospital: () => void;
 };
@@ -37,6 +39,8 @@ export function WorkspaceList({
   onLeaveHospital,
   onNewDepartment,
   onTimeZone,
+  onArchiveDepartment,
+  onRestoreDepartment,
   onJoin,
   onCreateHospital,
 }: Props) {
@@ -64,14 +68,15 @@ export function WorkspaceList({
                       ? "selected"
                       : "secondary"
                   }
+                  disabled={department.role === "OWNER"}
                   onClick={() => onOpenDepartment(department.id)}
                 >
-                  {department.name}
+                  {department.name}{department.archivedAt ? " · Archived, read only" : ""}
                   <small>
                     {department.role.replaceAll("_", " ").toLowerCase()} · {department.timeZone}
                   </small>
                 </button>
-                {(department.role === "ADMIN" || hospital.owner) && (
+                {!department.archivedAt && (department.role === "ADMIN" || hospital.owner) && (
                   <button
                     type="button"
                     className="text-button"
@@ -81,7 +86,26 @@ export function WorkspaceList({
                     Set time zone
                   </button>
                 )}
-                {department.hasJoinCode && (
+                {hospital.owner && (department.archivedAt ? (
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => onRestoreDepartment(department)}
+                  >
+                    Restore department
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => onArchiveDepartment(department)}
+                  >
+                    Archive department
+                  </button>
+                ))}
+                {!department.archivedAt && department.hasJoinCode && (
                   <p className="workspace-code">
                     Department join code
                     <button
@@ -115,14 +139,16 @@ export function WorkspaceList({
                     </button>
                   </p>
                 )}
-                <button
-                  type="button"
-                  className="text-button"
-                  disabled={busy}
-                  onClick={() => onLeaveDepartment(department.id)}
-                >
-                  Leave department
-                </button>
+                {!department.archivedAt && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => onLeaveDepartment(department.id)}
+                  >
+                    Leave department
+                  </button>
+                )}
               </li>
             ))}
           </ul>

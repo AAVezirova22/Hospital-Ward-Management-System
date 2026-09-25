@@ -231,6 +231,36 @@ export function WorkspaceSwitcher() {
                 setFormError(null);
                 setPanel("timezone");
               }}
+              onArchiveDepartment={(department) => {
+                if (!window.confirm(`Archive ${department.name}? Members will lose access until it is restored.`)) return;
+                void (async () => {
+                  setBusy(true);
+                  setFormError(null);
+                  try {
+                    await api(`/workspaces/departments/${department.id}/archive`, "POST", {});
+                    if (Number(activeDepartment()) === department.id) setActiveDepartment(null);
+                    await client.invalidateQueries();
+                  } catch (e) {
+                    setFormError(e as Error);
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+              onRestoreDepartment={(department) => {
+                void (async () => {
+                  setBusy(true);
+                  setFormError(null);
+                  try {
+                    await api(`/workspaces/departments/${department.id}/restore`, "POST", {});
+                    await client.invalidateQueries();
+                  } catch (e) {
+                    setFormError(e as Error);
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
               onJoin={() => {
                 setJoinCode("");
                 setPanel("join");

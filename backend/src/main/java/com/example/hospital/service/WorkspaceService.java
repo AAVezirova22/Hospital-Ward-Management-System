@@ -29,7 +29,8 @@ public class WorkspaceService {
     this.audit = audit;
   }
   public record Department(
-      long id, String name, String role, boolean hasJoinCode, String timeZone, Instant accessExpiresAt) {}
+      long id, String name, String role, boolean hasJoinCode, String timeZone, Instant accessExpiresAt,
+      Instant archivedAt) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
   private record MembershipRole(long departmentId, String role, Long doctorId) {}
 public record DepartmentRole(
@@ -74,10 +75,11 @@ private record HospitalMemberBase(
     return jdbc.query("select h.id,h.name,m.owner from hospitals h join hospital_memberships m on m.hospital_id=h.id where m.user_id=? order by h.name,h.id",
         (rs, n) -> {
           long id = rs.getLong(1); boolean owner = rs.getBoolean(3);
-          var departments = jdbc.query("select d.id,d.name,m.role,d.time_zone,m.expires_at from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? and " + com.example.hospital.security.WorkspaceAccess.ACTIVE_MEMBERSHIP + " order by d.name,d.id",
-              (d, i) -> new Department(d.getLong(1), d.getString(2), d.getString(3),
-                  "ADMIN".equals(d.getString(3)), d.getString(4),
-                  d.getTimestamp(5) == null ? null : d.getTimestamp(5).toInstant()), id, user.getId());
+          var departments = jdbc.query("select d.id,d.name,m.role,d.time_zone,m.expires_at,d.archived_at from departments d left join department_memberships m on m.department_id=d.id and m.user_id=? and " + com.example.hospital.security.WorkspaceAccess.ACTIVE_MEMBERSHIP + " where d.hospital_id=? and (m.user_id is not null or ?) order by d.name,d.id",
+              (d, i) -> new Department(d.getLong(1), d.getString(2), d.getString(3) == null && owner ? "OWNER" : d.getString(3),
+                  owner || "ADMIN".equals(d.getString(3)), d.getString(4),
+                  d.getTimestamp(5) == null ? null : d.getTimestamp(5).toInstant(),
+                  d.getTimestamp(6) == null ? null : d.getTimestamp(6).toInstant()), user.getId(), id, owner);
           return new Hospital(id, rs.getString(2), owner, owner, departments);
         }, user.getId());
   }
@@ -165,6 +167,33 @@ private record HospitalMemberBase(
   private void owner(long hospitalId) {
     if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=? and owner=true", Boolean.class, hospitalId, actor.user().getId())))
       throw new ApiException(403, "HOSPITAL_OWNER_REQUIRED", "Only a hospital owner can manage this hospital.");
+  }
+
+  @Transactional
+  public Map<String, Object> archiveDepartment(long departmentId) {
+    long hospitalId = departmentHospital(departmentId);
+    owner(hospitalId);
+    int changed = jdbc.update("update departments set archived_at=now() where id=? and archived_at is null", departmentId);
+    if (changed == 1) audit.logForDepartment(departmentId, "DEPARTMENT_ARCHIVED", "Department", departmentId,
+        "UI", Map.of("hospitalId", hospitalId));
+    return Map.of("departmentId", departmentId, "archived", true);
+  }
+
+  @Transactional
+  public Map<String, Object> restoreDepartment(long departmentId) {
+    long hospitalId = departmentHospital(departmentId);
+    owner(hospitalId);
+    int changed = jdbc.update("update departments set archived_at=null where id=? and archived_at is not null", departmentId);
+    if (changed == 1) audit.logForDepartment(departmentId, "DEPARTMENT_RESTORED", "Department", departmentId,
+        "UI", Map.of("hospitalId", hospitalId));
+    return Map.of("departmentId", departmentId, "archived", false);
+  }
+
+  private long departmentHospital(long departmentId) {
+    Long hospitalId = jdbc.query("select hospital_id from departments where id=?", rs -> rs.next() ? rs.getLong(1) : null,
+        departmentId);
+    if (hospitalId == null) throw ApiException.missing();
+    return hospitalId;
   }
 
   @Transactional

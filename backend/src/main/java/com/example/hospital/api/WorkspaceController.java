@@ -67,6 +67,10 @@ public class WorkspaceController {
   public Object timeZone(@PathVariable long id, @Valid @RequestBody TimeZoneInput input) {
     return workspaces.setTimeZone(id, input.timeZone());
   }
+  @PostMapping("/departments/{id}/archive")
+  public Object archiveDepartment(@PathVariable long id) { return workspaces.archiveDepartment(id); }
+  @PostMapping("/departments/{id}/restore")
+  public Object restoreDepartment(@PathVariable long id) { return workspaces.restoreDepartment(id); }
   @PostMapping("/join")
   public Object join(@Valid @RequestBody JoinInput input, HttpServletRequest request) {
     return workspaces.join(input.code(), clientAddresses.sourceAddress(request));

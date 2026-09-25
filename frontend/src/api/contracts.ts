@@ -248,6 +248,7 @@ export interface WorkspaceDepartment {
   role: string;
   hasJoinCode: boolean;
   timeZone: string;
+  archivedAt?: string | null;
 }
 export interface WorkspaceHospital {
   id: number;
