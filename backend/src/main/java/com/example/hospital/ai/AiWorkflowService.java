@@ -22,9 +22,10 @@ public class AiWorkflowService {
       String excerpt,
       boolean verified,
       Integer characterStart,
-      Integer characterEnd) {
+      Integer characterEnd,
+      String verifiedLocation) {
     public Citation(String sourceId, String sourceName, String location, String excerpt) {
-      this(sourceId, sourceName, location, excerpt, false, null, null);
+      this(sourceId, sourceName, location, excerpt, false, null, null, null);
     }
   }
   public record FieldEvidence(
@@ -314,6 +315,7 @@ public class AiWorkflowService {
     Integer start = null;
     Integer end = null;
     boolean verified = false;
+    String verifiedLocation = null;
     if (citation.sourceId() != null && !citation.sourceId().isBlank()
         && authorizedSources.contains(citation.sourceId())) {
       try {
@@ -324,12 +326,14 @@ public class AiWorkflowService {
           start = found;
           end = found + citation.excerpt().length();
           verified = true;
+          verifiedLocation = source.locationFor(start, end);
         }
       } catch (ApiException unavailable) {
         // Keep the reported citation visible, but never present it as verified.
       }
     }
-    return new Citation(citation.sourceId(), sourceName, citation.location(), citation.excerpt(), verified, start, end);
+    return new Citation(citation.sourceId(), sourceName, citation.location(), citation.excerpt(),
+        verified, start, end, verifiedLocation);
   }
 
   private static boolean requiresDecision(String status, double confidence, List<Citation> sources, List<Citation> conflicts) {

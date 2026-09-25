@@ -55,15 +55,17 @@ class PatientDocumentDraftIntegrationTest {
     mvc.perform(get("/api/v1/assistant/provider-disclosure").with(user("admin")).header("X-Department-Id", "1"))
         .andExpect(status().isOk()).andExpect(jsonPath("$.sendsDocumentsToExternalProvider").value(true))
         .andExpect(jsonPath("$.disclosure").value(org.hamcrest.Matchers.containsString("filename and extracted text")));
-    mvc.perform(post("/api/v1/patients").with(user("admin")).with(csrf()).header("X-Department-Id", "1")
+    var patientResponse = mvc.perform(post("/api/v1/patients").with(user("admin")).with(csrf()).header("X-Department-Id", "1")
         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
             "patientIdentifier", "P-DRAFT-427", "firstName", "Alice", "lastName", "Example", "dateOfBirth", "1981-04-03"))))
-        .andExpect(status().isCreated());
+        .andExpect(status().isCreated()).andReturn();
+    long patientId = json.readTree(patientResponse.getResponse().getContentAsString()).path("id").asLong();
     var source = mvc.perform(multipart("/api/v1/assistant/sources")
         .file(new MockMultipartFile("file", "referral.txt", "text/plain", TEXT.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
         .with(user("admin")).with(csrf()).header("X-Department-Id", "1"))
         .andExpect(status().isOk()).andReturn();
     String sourceId = json.readTree(source.getResponse().getContentAsString()).path("id").asText();
+    org.mockito.Mockito.verify(model, org.mockito.Mockito.never()).complete(anyString(), any());
     var response = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
         .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
         .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
@@ -84,9 +86,19 @@ class PatientDocumentDraftIntegrationTest {
     assertThat(draft.at("/followUpActions/0/sources/0/excerpt").asText()).isEqualTo("Follow up with cardiology by 2026-10-12 at 09:30");
     assertThat(draft.at("/followUpActions/0/sources/0/characterStart").asInt()).isEqualTo(TEXT.indexOf("Follow up with cardiology"));
     String draftId = draft.path("draftId").asText();
+    mvc.perform(put("/api/v1/assistant/patient-drafts/" + draftId + "/patient").with(user("admin")).with(csrf())
+        .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of("patientId", patientId))))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.patientId").value(patientId));
+    mvc.perform(get("/api/v1/assistant/patient-drafts/" + draftId).with(user("staff")).header("X-Department-Id", "1"))
+        .andExpect(status().isNotFound());
     mvc.perform(get("/api/v1/assistant/patient-drafts/" + draftId).with(user("admin")).header("X-Department-Id", "1"))
-        .andExpect(status().isOk());
+        .andExpect(status().isOk()).andExpect(jsonPath("$.patientId").value(patientId));
     assertThat(jdbc.queryForObject("select count(*) from patients where patient_identifier='P-DRAFT-427'", Long.class)).isEqualTo(1);
+    mvc.perform(delete("/api/v1/assistant/sources/" + sourceId).with(user("admin")).with(csrf()).header("X-Department-Id", "1"))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/v1/assistant/patient-drafts/" + draftId).with(user("admin")).header("X-Department-Id", "1"))
+        .andExpect(status().isNotFound());
   }
 
   @Test void doctorNeedsDepartmentScopedPermissionAndUnownedSourceIsHidden() throws Exception {

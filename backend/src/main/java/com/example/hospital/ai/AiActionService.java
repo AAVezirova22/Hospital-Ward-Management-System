@@ -177,7 +177,9 @@ public class AiActionService {
     if (citation.sourceId() != null) view.put("sourceId", citation.sourceId());
     view.put("sourceName", citation.sourceName() == null ? "Unverified source" : citation.sourceName());
     view.put("location", citation.verified()
-        ? "characters " + citation.characterStart() + "-" + citation.characterEnd()
+        ? citation.verifiedLocation() == null
+            ? "characters " + citation.characterStart() + "-" + citation.characterEnd()
+            : citation.verifiedLocation()
         : "Unverified location");
     view.put("reportedLocation", citation.location());
     view.put("excerpt", citation.excerpt());

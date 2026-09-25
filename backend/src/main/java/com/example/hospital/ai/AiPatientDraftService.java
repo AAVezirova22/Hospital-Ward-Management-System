@@ -38,7 +38,7 @@ public class AiPatientDraftService {
 
   private record FollowUpCandidate(String title, LocalDate dueDate, LocalTime dueTime,
       double confidence, String sourceName, String excerpt, String reportedLocation,
-      int characterStart, int characterEnd) {}
+      int characterStart, int characterEnd, String parserLocation) {}
   private record FollowUpRecord(FollowUpCandidate primary, List<FollowUpCandidate> conflicts,
       String status) {}
   private record DraftState(long userId, long departmentId, String sourceId, Long patientId, Instant expiresAt,
@@ -124,8 +124,10 @@ public class AiPatientDraftService {
         int offset = source.text().indexOf(excerpt);
         String location = candidate.path("location").isTextual() ? candidate.path("location").asText().strip() : "";
         if (location.length() > 100) throw invalidDraft();
+        String parserLocation = source.locationFor(offset, offset + excerpt.length());
         candidates.add(Map.of("value", value, "confidence", confidence,
-            "source", Map.of("name", source.name(), "location", "characters " + offset + "-" + (offset + excerpt.length()),
+            "source", Map.of("name", source.name(), "location", parserLocation == null
+                    ? "characters " + offset + "-" + (offset + excerpt.length()) : parserLocation,
                 "reportedLocation", location,
                 "excerpt", excerpt, "characterStart", offset,
                 "characterEnd", offset + excerpt.length())));
@@ -248,7 +250,8 @@ public class AiPatientDraftService {
       } else throw invalidReview();
       result.add(new ValidatedFollowUpAction(selection.actionId(), draft.sourceId(), title, selection.dueDate(),
           selection.dueTime(), decision, cited.sourceName(),
-          "characters " + cited.characterStart() + "-" + cited.characterEnd(),
+          cited.parserLocation() == null ? "characters " + cited.characterStart() + "-" + cited.characterEnd()
+              : cited.parserLocation(),
           cited.excerpt(), cited.confidence(), edited));
     }
     if (seen.size() != draft.actions().size()) throw invalidReview();
@@ -274,7 +277,9 @@ public class AiPatientDraftService {
 
   private Map<String, Object> candidateSourceView(FollowUpCandidate candidate) {
     return Map.of("name", candidate.sourceName(),
-        "location", "characters " + candidate.characterStart() + "-" + candidate.characterEnd(),
+        "location", candidate.parserLocation() == null
+            ? "characters " + candidate.characterStart() + "-" + candidate.characterEnd()
+            : candidate.parserLocation(),
         "reportedLocation", candidate.reportedLocation(), "excerpt", candidate.excerpt(),
         "characterStart", candidate.characterStart(), "characterEnd", candidate.characterEnd());
   }
@@ -373,7 +378,7 @@ public class AiPatientDraftService {
     if (reportedLocation.length() > 100) throw invalidDraft();
     int start = source.text().indexOf(excerpt);
     return new FollowUpCandidate(title, date, time, confidence, source.name(), excerpt,
-        reportedLocation, start, start + excerpt.length());
+        reportedLocation, start, start + excerpt.length(), source.locationFor(start, start + excerpt.length()));
   }
 
   private static LocalDate optionalDate(JsonNode value) {

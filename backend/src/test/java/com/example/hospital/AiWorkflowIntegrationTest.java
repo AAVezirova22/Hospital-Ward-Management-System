@@ -469,7 +469,9 @@ assertThat(admissions.get("items").get(0).toString())
     }
     try (var book = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
          var out = new java.io.ByteArrayOutputStream()) {
-      book.createSheet("Workflow").createRow(0).createCell(0).setCellValue("Excel workflow source");
+      var sheet = book.createSheet("Workflow");
+      sheet.createRow(0).createCell(0).setCellValue("Excel workflow source");
+      sheet.createRow(2).createCell(0).setCellValue("later row marker");
       book.write(out); bytes.add(out.toByteArray());
     }
     try (var pdf = new org.apache.pdfbox.pdmodel.PDDocument();
@@ -494,6 +496,49 @@ assertThat(admissions.get("items").get(0).toString())
       }).when(model).complete(anyString(), any());
       postJson("admin", "/assistant/messages", Map.of("message", "Read", "sourceIds", List.of(source.get("id").asText())))
           .andExpect(status().isOk());
+
+      String expectedLocation = switch (extensions.get(i)) {
+        case "xlsx" -> "spreadsheet sheet 1";
+        case "pdf" -> "PDF page 1";
+        default -> null;
+      };
+      var evidence = new LinkedHashMap<String, Object>();
+      evidence.put("patientIdentifier", Map.of("status", "SUPPORTED", "confidence", 0.99,
+          "sources", List.of(Map.of("sourceId", source.get("id").asText(),
+              "location", "model says page 999", "excerpt", "workflow source")), "conflicts", List.of()));
+      if ("xlsx".equals(extensions.get(i))) evidence.put("firstName", Map.of("status", "SUPPORTED", "confidence", 0.99,
+          "sources", List.of(Map.of("sourceId", source.get("id").asText(), "location", "row 999",
+              "excerpt", "later row marker")), "conflicts", List.of()));
+      var patientStep = new LinkedHashMap<String, Object>();
+      patientStep.put("key", "p"); patientStep.put("operation", "createPatient");
+      patientStep.put("source", "source." + extensions.get(i));
+      patientStep.put("fields", Map.of("patientIdentifier", "workflow source",
+          "firstName", "xlsx".equals(extensions.get(i)) ? "later row marker" : "Workflow",
+          "lastName", "Source", "dateOfBirth", "1990-01-01"));
+      patientStep.put("evidence", evidence);
+      doReturn(new AiModelClient.ToolCall("prepareWorkflow", Map.of("plan", plan(List.of(patientStep)))))
+          .when(model).complete(anyString(), any());
+      var proposal = body(postJson("admin", "/assistant/messages", Map.of("message", "Prepare import",
+          "sourceIds", List.of(source.get("id").asText()))));
+      var citation = proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0");
+      assertThat(citation.path("verified").asBoolean()).isTrue();
+      assertThat(citation.path("reportedLocation").asText()).isEqualTo("model says page 999");
+      if (expectedLocation == null) assertThat(citation.path("location").asText()).startsWith("characters ");
+      else assertThat(citation.path("location").asText()).isEqualTo(expectedLocation);
+      if ("xlsx".equals(extensions.get(i))) {
+        var laterRowCitation = proposal.at("/data/workflow/steps/0/evidence/firstName/sources/0");
+        assertThat(laterRowCitation.path("location").asText()).isEqualTo("spreadsheet sheet 1");
+        assertThat(laterRowCitation.path("location").asText()).doesNotContain("row");
+        assertThat(laterRowCitation.path("reportedLocation").asText()).isEqualTo("row 999");
+      }
     }
+  }
+
+  @Test void parserLocationRequiresEveryCitedCharacterToBeMapped() {
+    var source = new AiSourceService.Source("source", 1, 1, "file.pdf", "first gap third",
+        java.time.Instant.now(), List.of(new AiSourceService.LocationSpan(0, 5, "PDF page 1"),
+            new AiSourceService.LocationSpan(10, 15, "PDF page 2")));
+    assertThat(source.locationFor(0, 5)).isEqualTo("PDF page 1");
+    assertThat(source.locationFor(0, 15)).isNull();
   }
 }
