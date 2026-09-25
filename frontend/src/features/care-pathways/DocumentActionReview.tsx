@@ -178,10 +178,18 @@ export function DocumentActionReview({
                 <blockquote>
                   “{candidate.source.excerpt}”
                   <small>
-                    {candidate.source.name} · {candidate.source.location}
-                    {candidate.source.reportedLocation
-                      ? ` · ${candidate.source.reportedLocation}`
-                      : ""}
+                    {candidate.source.name} ·{" "}
+                    {candidate.source.location ??
+                      "Verified location unavailable"}
+                    {candidate.source.reportedLocation && (
+                      <>
+                        {" "}
+                        · Model reported: {
+                          candidate.source.reportedLocation
+                        }{" "}
+                        (unverified)
+                      </>
+                    )}
                   </small>
                 </blockquote>
                 <button
