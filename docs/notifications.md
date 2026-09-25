@@ -35,5 +35,5 @@ Server-side inbox for staff (`ADMIN`, `MEDICAL_STAFF`, `DOCTOR`), scoped to the 
 ## Not included yet
 
 - Frontend: `NotificationCenter` still derives alerts in the browser. Switching it to this API is a separate change.
-- Email/push delivery: waits for the reminder mailer (#453) and push work (#306).
+- Email delivery waits for the reminder mailer (#453). Browser push for opted-in staff is available through the task reminder preferences and subscriptions API; see [the API guide](api.md#clinician-task-reminders-and-browser-push).
 - Bed holds (#454): once merged, held beds should count as unavailable in the capacity calculation.
