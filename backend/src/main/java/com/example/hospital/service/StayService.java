@@ -139,7 +139,9 @@ public class StayService {
   }
 
   public Map<String, Object> view(Long id) {
-    return hospital.admissionView(hospital.admission(id));
+    var view = hospital.admissionView(hospital.admission(id));
+    audit.read("ADMISSION_VIEWED", "Admission", id, "UI");
+    return view;
   }
 
   @Transactional

@@ -8,6 +8,11 @@ import com.example.hospital.api.RoomInput;
 import com.example.hospital.api.Views;
 import com.example.hospital.domain.BedHold;
 import com.example.hospital.domain.Doctor;
+import com.example.hospital.domain.BedHold;
+import com.example.hospital.repository.BedHoldRepository;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.stream.Collectors;
 import com.example.hospital.domain.MedicalProcedure;
 import com.example.hospital.domain.Room;
 import com.example.hospital.repository.AdmissionRepository;
@@ -22,7 +27,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +50,7 @@ public class CatalogueService {
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
   private final AuditService audit;
+  private final BedHoldRepository bedHolds;
 
   public CatalogueService(
       HospitalService hospital,
@@ -54,7 +62,8 @@ public class CatalogueService {
       MedicalProcedureRepository catalogue,
       AdmissionRepository admissions,
       AuditService audit,
-      RoomAssignmentRepository assignments) {
+      RoomAssignmentRepository assignments,
+      BedHoldRepository bedHolds) {
     this.hospital = hospital;
     this.lock = lock;
     this.actor = actor;
@@ -65,6 +74,7 @@ public class CatalogueService {
     this.admissions = admissions;
     this.assignments = assignments;
     this.audit = audit;
+    this.bedHolds = bedHolds;
   }
 
   public List<Doctor> doctors() {
@@ -130,6 +140,8 @@ public class CatalogueService {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
+
+    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
     boolean hasQuery = q != null && !q.isBlank();
     String query = pattern(q);
     boolean hasActive = active != null;
@@ -137,85 +149,94 @@ public class CatalogueService {
     boolean hasRoomId = roomId != null;
     List<String> requiredCapabilities =
         List.copyOf(RoomCapabilityMatcher.normalize(requestedCapabilities));
+
     int size = safeSize(requestedSize);
-    long candidates = countRoomCandidates(
-        hasQuery, query, hasRoomId, roomId, hasActive, activeValue, requiredCapabilities);
-    Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-    Map<Long, List<BedHold>> holdsByRoom = bedHolds
-        .findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
+Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+
+long total =
+    requiredCapabilities.isEmpty()
+        ? rooms.countDirectory(
+            hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, now)
+        : rooms.countDirectoryWithCapabilities(
+            hasQuery,
+            query,
+            hasRoomId,
+            roomId,
+            hasActive,
+            activeValue,
+            minFree,
+            now,
+            requiredCapabilities,
+            requiredCapabilities.size());
+
+int page = safePage(requestedPage, size, total);
+Pageable pageable =
+    PageRequest.of(page, size, Sort.by("roomNumber", "id"));
+
+var selected =
+    requiredCapabilities.isEmpty()
+        ? rooms.searchDirectory(
+            hasQuery,
+            query,
+            hasRoomId,
+            roomId,
+            hasActive,
+            activeValue,
+            minFree,
+            now,
+            pageable)
+        : rooms.searchDirectoryWithCapabilities(
+            hasQuery,
+            query,
+            hasRoomId,
+            roomId,
+            hasActive,
+            activeValue,
+            minFree,
+            now,
+            requiredCapabilities,
+            requiredCapabilities.size(),
+            pageable);
+
+Map<Long, List<BedHold>> holdsByRoom =
+    bedHolds.findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
         .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
 
-    if (minFree == 0) {
-      int page = safePage(requestedPage, size, candidates);
-      var selected = searchRoomCandidates(
-          hasQuery, query, hasRoomId, roomId, hasActive, activeValue, requiredCapabilities,
-          PageRequest.of(page, size, Sort.by("roomNumber", "id")));
-      return PagedResult.of(roomViews(selected, holdsByRoom, now), page, size, candidates);
-    }
-
-    int scanSize = 100;
-    long scanPages = (candidates + scanSize - 1) / scanSize;
-    var eligible = new ArrayList<Map<String, Object>>();
-    for (long scanPage = 0; scanPage < scanPages; scanPage++) {
-      var selected = searchRoomCandidates(
-          hasQuery, query, hasRoomId, roomId, hasActive, activeValue, requiredCapabilities,
-          PageRequest.of(Math.toIntExact(scanPage), scanSize, Sort.by("roomNumber", "id")));
-      for (var room : roomViews(selected, holdsByRoom, now)) {
-        if (((Number) room.get("availableBeds")).intValue() >= minFree) eligible.add(room);
-      }
-    }
-    long total = eligible.size();
-    int page = safePage(requestedPage, size, total);
-    int start = Math.toIntExact((long) page * size);
-    int end = (int) Math.min(eligible.size(), (long) start + size);
-    return PagedResult.of(new ArrayList<>(eligible.subList(start, end)), page, size, total);
-  }
-
-  private long countRoomCandidates(
-      boolean hasQuery, String query, boolean hasRoomId, Long roomId,
-      boolean hasActive, boolean active, List<String> requiredCapabilities) {
-    return requiredCapabilities.isEmpty()
-        ? rooms.countDirectory(hasQuery, query, hasRoomId, roomId, hasActive, active, 0)
-        : rooms.countDirectoryWithCapabilities(
-            hasQuery, query, hasRoomId, roomId, hasActive, active, 0,
-            requiredCapabilities, requiredCapabilities.size());
-  }
-
-  private List<Room> searchRoomCandidates(
-      boolean hasQuery, String query, boolean hasRoomId, Long roomId,
-      boolean hasActive, boolean active, List<String> requiredCapabilities, Pageable pageable) {
-    return requiredCapabilities.isEmpty()
-        ? rooms.searchDirectory(hasQuery, query, hasRoomId, roomId, hasActive, active, 0, pageable)
-        : rooms.searchDirectoryWithCapabilities(
-            hasQuery, query, hasRoomId, roomId, hasActive, active, 0,
-            requiredCapabilities, requiredCapabilities.size(), pageable);
-  }
-
-  private List<Map<String, Object>> roomViews(
-      List<Room> selected, Map<Long, List<BedHold>> holdsByRoom, Instant now) {
+return PagedResult.of(
+    roomViews(selected, holdsByRoom, now),
+    page,
+    size,
+    total);
     Map<Long, Long> occupiedByRoom = new HashMap<>();
+
     if (!selected.isEmpty()) {
       var ids = selected.stream().map(Room::getId).toList();
+      holdsByRoom =
+          bedHolds
+              .findByRoomIdInAndCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(ids, now)
+              .stream()
+              .collect(Collectors.groupingBy(BedHold::getRoomId));
+
       for (Object[] row : assignments.countActiveByRoomIds(ids)) {
         occupiedByRoom.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
       }
     }
+
     List<Map<String, Object>> items = new ArrayList<>(selected.size());
     for (Room room : selected) {
       long occupied = occupiedByRoom.getOrDefault(room.getId(), 0L);
       var holds = holdsByRoom.getOrDefault(room.getId(), List.of());
-      int reserved = BedHoldCapacity.reserved(holds, now);
-      Map<String, Object> item = new java.util.LinkedHashMap<>(Views.room(room));
-      item.put("occupiedBeds", occupied);
-      item.put("heldBeds", reserved);
-      item.put("activeHeldBeds", BedHoldCapacity.active(holds, now));
-      item.put("holds", holds.stream().map(Views::bedHold).toList());
-      item.put("availableBeds", room.isActive()
-          ? Math.max(0, room.getBedCount() - (int) occupied - reserved) : 0);
-      items.add(item);
-    }
-    return items;
-  }
+
+      items.add(
+          BedHoldCapacity.roomView(
+              room,
+              occupied,
+              holds,
+              now));
+      }
+
+      return items;
+        }
 
   private static String pattern(String q) {
     String escaped = q == null ? "" : q.strip().toLowerCase(Locale.ROOT);

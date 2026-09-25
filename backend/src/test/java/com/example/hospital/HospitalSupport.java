@@ -34,6 +34,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
       "app.seed=true",
       "app.bootstrap-password=IntegrationPassword123!",
       "app.ai.rate-limit=10000",
+      "app.rate-limits.enabled=false",
       "server.servlet.session.cookie.secure=false"
     })
 @AutoConfigureMockMvc
@@ -142,9 +143,20 @@ abstract class HospitalSupport {
   }
 
   JsonNode roomCapacity(long roomId) throws Exception {
-    var page = result(request("admin", "GET", "/api/v1/rooms?roomId=" + roomId + "&size=1", null), 200);
-    var rooms = page.isArray() ? page : page.path("items");
-    for (var room : rooms) if (room.path("id").asLong() == roomId) return room;
+var page =
+    result(
+        request(
+            "admin",
+            "GET",
+            "/api/v1/rooms?roomId=" + roomId + "&size=1",
+            null),
+        200);
+
+for (var room : page.path("items")) {
+  if (room.path("id").asLong() == roomId) {
+    return room;
+  }
+}
     throw new AssertionError("Room capacity is not visible in the current department.");
   }
 

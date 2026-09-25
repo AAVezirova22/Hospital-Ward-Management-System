@@ -205,11 +205,12 @@ public class HospitalService {
     return assignments.countByRoomIdAndReleasedAtIsNull(id);
   }
 
-public Long roomIdForAdmission(Long admissionId) {
-  return assignments.findByAdmissionIdAndReleasedAtIsNull(admissionId)
-      .map(RoomAssignment::getRoomId)
-      .orElseThrow(ApiException::missing);
-}
+  public Long roomIdForAdmission(Long admissionId) {
+    return assignments
+        .findByAdmissionIdAndReleasedAtIsNull(admissionId)
+        .map(RoomAssignment::getRoomId)
+        .orElseThrow(ApiException::missing);
+  }
 
 public int held(Long id) {
   var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
@@ -237,27 +238,15 @@ public int held(Long id) {
     if (minFree < 0 || minFree > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Minimum available beds must be between 0 and 100.");
-var required = RoomCapabilityMatcher.normalize(requiredCapabilities);
-
-var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-var holdsByRoom =
-    bedHolds.findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
-        .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
+    var required = RoomCapabilityMatcher.normalize(requiredCapabilities);
+    var now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+    var holdsByRoom =
+        bedHolds.findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
+            .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
     return rooms.findAll().stream()
         .filter(r -> RoomCapabilityMatcher.missing(required, r.getCapabilities()).isEmpty())
-        .map(
-            r -> {
-              Map<String, Object> m = new LinkedHashMap<>(Views.room(r));
-              long used = occupied(r.getId());
-              var holds = holdsByRoom.getOrDefault(r.getId(), List.of());
-              int reserved = BedHoldCapacity.reserved(holds, now);
-              m.put("occupiedBeds", used);
-              m.put("heldBeds", reserved);
-              m.put("activeHeldBeds", BedHoldCapacity.active(holds, now));
-              m.put("holds", holds.stream().map(Views::bedHold).toList());
-              m.put("availableBeds", r.isActive() ? Math.max(0, r.getBedCount() - (int) used - reserved) : 0);
-              return m;
-            })
+        .map(r -> BedHoldCapacity.roomView(
+            r, occupied(r.getId()), holdsByRoom.getOrDefault(r.getId(), List.of()), now))
         .filter(m -> ((Number) m.get("availableBeds")).intValue() >= minFree)
         .toList();
   }

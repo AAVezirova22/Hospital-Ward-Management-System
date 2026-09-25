@@ -61,4 +61,21 @@ class RateLimitHeadersTest extends HospitalSupport {
         .containsKey("Retry-After");
     assertThat(Long.parseLong(rejected.headers().get("Retry-After"))).isBetween(1L, 60L);
   }
+
+  @Test
+  void shortWindowsDoNotEraseLongerWindowsOfOtherKeys() {
+    String longKey = "test-long:" + unique();
+    rates.hit(longKey, 1, Duration.ofMinutes(10), "RATE_LIMITED", "Slow down.");
+    jdbc.update(
+        "update rate_windows set window_start = now() - interval '2 minutes' where rate_key = ?", longKey);
+
+    rates.hit("test-short:" + unique(), 5, Duration.ofMinutes(1), "RATE_LIMITED", "Slow down.");
+
+    var rejected =
+        catchThrowableOfType(
+            ApiException.class,
+            () -> rates.hit(longKey, 1, Duration.ofMinutes(10), "RATE_LIMITED", "Slow down."));
+    assertThat(rejected).as("the 10 minute window must still be in force").isNotNull();
+    assertThat(rejected.getStatus()).isEqualTo(429);
+  }
 }

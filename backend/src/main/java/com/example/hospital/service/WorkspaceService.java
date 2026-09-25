@@ -28,25 +28,56 @@ public class WorkspaceService {
     this.actor = actor;
     this.audit = audit;
   }
-  public record Department(long id, String name, String role, boolean hasJoinCode, String timeZone) {}
+  public record Department(
+      long id, String name, String role, boolean hasJoinCode, String timeZone, Instant accessExpiresAt) {}
   public record Hospital(long id, String name, boolean owner, boolean hasJoinCode, List<Department> departments) {}
-  public record DepartmentRole(long departmentId, String departmentName, String role, Long doctorId,
-      String doctorIdentifier, String doctorName, Instant joinedAt) {}
-  public record HospitalMember(long userId, String username, String role, Instant joinedAt,
-      boolean enabled, List<DepartmentRole> departments) {}
-  public record DepartmentMember(long userId, String username, String role, Long doctorId,
-      String doctorIdentifier, String doctorName, Instant joinedAt, boolean enabled) {}
-  private record HospitalMemberBase(long userId, String username, String role, Instant joinedAt,
-      boolean enabled) {}
+  private record MembershipRole(long departmentId, String role, Long doctorId) {}
+public record DepartmentRole(
+    long departmentId,
+    String departmentName,
+    String role,
+    Long doctorId,
+    String doctorIdentifier,
+    String doctorName,
+    Instant joinedAt) {}
+
+public record HospitalMember(
+    long userId,
+    String username,
+    String role,
+    Instant joinedAt,
+    boolean enabled,
+    List<DepartmentRole> departments) {}
+
+public record DepartmentMember(
+    long userId,
+    String username,
+    String role,
+    Long doctorId,
+    String doctorIdentifier,
+    String doctorName,
+    Instant joinedAt,
+    boolean enabled) {}
+
+/** A department role captured before a membership is removed, for the permission audit. */
+private record RemovedRole(long departmentId, String role, Long doctorId) {}
+
+private record HospitalMemberBase(
+    long userId,
+    String username,
+    String role,
+    Instant joinedAt,
+    boolean enabled) {}
 
   public List<Hospital> list() {
     var user = actor.user();
     return jdbc.query("select h.id,h.name,m.owner from hospitals h join hospital_memberships m on m.hospital_id=h.id where m.user_id=? order by h.name,h.id",
         (rs, n) -> {
           long id = rs.getLong(1); boolean owner = rs.getBoolean(3);
-          var departments = jdbc.query("select d.id,d.name,m.role,d.time_zone from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? order by d.name,d.id",
+          var departments = jdbc.query("select d.id,d.name,m.role,d.time_zone,m.expires_at from departments d join department_memberships m on m.department_id=d.id where d.hospital_id=? and m.user_id=? and " + com.example.hospital.security.WorkspaceAccess.ACTIVE_MEMBERSHIP + " order by d.name,d.id",
               (d, i) -> new Department(d.getLong(1), d.getString(2), d.getString(3),
-                  "ADMIN".equals(d.getString(3)), d.getString(4)), id, user.getId());
+                  "ADMIN".equals(d.getString(3)), d.getString(4),
+                  d.getTimestamp(5) == null ? null : d.getTimestamp(5).toInstant()), id, user.getId());
           return new Hospital(id, rs.getString(2), owner, owner, departments);
         }, user.getId());
   }
@@ -182,11 +213,19 @@ public class WorkspaceService {
       assertJoinFresh(row.get("join_code_expires_at"));
       long id = ((Number) row.get("id")).longValue();
       long hospitalId = ((Number) row.get("hospital_id")).longValue();
+      String oldDepartmentRole = jdbc.query("select role from department_memberships where department_id=? and user_id=?",
+          rs -> rs.next() ? rs.getString(1) : null, id, user.getId());
+      boolean hadHospitalMembership = Boolean.TRUE.equals(jdbc.queryForObject(
+          "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?",
+          Boolean.class, hospitalId, user.getId()));
       if (Boolean.TRUE.equals(row.get("join_code_single_use"))) consumeJoinCode(false, id, code);
       clearJoinAttempts(user.getId(), remoteAddr);
       jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", hospitalId, user.getId());
       jdbc.update("insert into department_memberships(department_id,user_id,role) values (?,?,'MEDICAL_STAFF') on conflict do nothing", id, user.getId());
-      audit.log("WORKSPACE_JOINED", "Department", id, "UI");
+      permissionAudit("WORKSPACE_JOINED", "DEPARTMENT", id, user.getId(),
+          oldDepartmentRole == null ? "NONE" : oldDepartmentRole,
+          oldDepartmentRole == null ? "MEDICAL_STAFF" : oldDepartmentRole, false, false,
+          null, null, null, Map.of("hospitalMembershipCreated", !hadHospitalMembership));
       return Map.of("hospitalId", hospitalId, "departmentId", id);
     }
     var hospitals = jdbc.queryForList("select id,join_code_expires_at,join_code_single_use from hospitals where join_code=?", code);
@@ -198,10 +237,13 @@ public class WorkspaceService {
     var hospital = hospitals.getFirst();
     assertJoinFresh(hospital.get("join_code_expires_at"));
     long id = ((Number) hospital.get("id")).longValue();
+    boolean wasMember = Boolean.TRUE.equals(jdbc.queryForObject(
+        "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, id, user.getId()));
     if (Boolean.TRUE.equals(hospital.get("join_code_single_use"))) consumeJoinCode(true, id, code);
     clearJoinAttempts(user.getId(), remoteAddr);
     jdbc.update("insert into hospital_memberships(hospital_id,user_id) values (?,?) on conflict do nothing", id, user.getId());
-    audit.log("WORKSPACE_JOINED", "Hospital", id, "UI");
+    permissionAudit("WORKSPACE_JOINED", "HOSPITAL", id, user.getId(),
+        wasMember ? "MEMBER" : "NONE", "MEMBER", false, false, null, null, null);
     String hospitalName = jdbc.queryForObject("select name from hospitals where id=?", String.class, id);
     return Map.of("hospitalId", id, "hospitalName", hospitalName == null ? "" : hospitalName);
   }
@@ -256,7 +298,7 @@ public class WorkspaceService {
   @Transactional
   public String rotate(boolean hospital, long id, Integer expiresInHours, boolean singleUse) {
     if (hospital) owner(id);
-    else if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'", Boolean.class, id, actor.user().getId())))
+    else if (!Boolean.TRUE.equals(jdbc.queryForObject("select count(*) > 0 from department_memberships m where m.department_id=? and m.user_id=? and m.role='ADMIN' and " + com.example.hospital.security.WorkspaceAccess.ACTIVE_MEMBERSHIP, Boolean.class, id, actor.user().getId())))
       throw new ApiException(403, "DEPARTMENT_ADMIN_REQUIRED", "Only a department administrator can replace its code.");
     String table = hospital ? "hospitals" : "departments";
     for (int attempt = 0; attempt < 8; attempt++) {
@@ -301,9 +343,40 @@ public class WorkspaceService {
     return count == null ? 0 : count;
   }
 
+  private void permissionAudit(String event, String workspaceType, long workspaceId,
+      Long targetUserId, String oldRole, String newRole, Boolean oldOwner, Boolean newOwner,
+      Long oldDoctorId, Long newDoctorId, String reason) {
+    permissionAudit(event, workspaceType, workspaceId, targetUserId, oldRole, newRole,
+        oldOwner, newOwner, oldDoctorId, newDoctorId, reason, Map.of());
+  }
+
+  private void permissionAudit(String event, String workspaceType, long workspaceId,
+      Long targetUserId, String oldRole, String newRole, Boolean oldOwner, Boolean newOwner,
+      Long oldDoctorId, Long newDoctorId, String reason, Map<String, ?> additional) {
+    var details = new LinkedHashMap<String, Object>();
+    details.put("targetUserId", targetUserId);
+    details.put("workspaceType", workspaceType);
+    details.put("workspaceId", workspaceId);
+    if (workspaceType.equals("DEPARTMENT"))
+      details.put("hospitalId", jdbc.queryForObject("select hospital_id from departments where id=?", Long.class, workspaceId));
+    details.put("oldRole", oldRole);
+    details.put("newRole", newRole);
+    if (workspaceType.equals("HOSPITAL")) {
+      details.put("oldOwner", oldOwner);
+      details.put("newOwner", newOwner);
+    }
+    details.put("oldDoctorId", oldDoctorId);
+    details.put("newDoctorId", newDoctorId);
+    details.putAll(additional);
+    if (reason != null && !reason.isBlank()) details.put("reason", reason.strip());
+    if (workspaceType.equals("DEPARTMENT"))
+      audit.logForDepartment(workspaceId, event, "Department", workspaceId, "UI", details);
+    else audit.log(event, "Hospital", workspaceId, "UI", details);
+  }
+
   private void departmentAdmin(long departmentId) {
     if (Boolean.TRUE.equals(jdbc.queryForObject(
-        "select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='ADMIN'",
+        "select count(*) > 0 from department_memberships m where m.department_id=? and m.user_id=? and m.role='ADMIN' and " + com.example.hospital.security.WorkspaceAccess.ACTIVE_MEMBERSHIP,
         Boolean.class, departmentId, actor.user().getId()))) return;
     Long hospitalId = jdbc.queryForObject("select hospital_id from departments where id=?", Long.class, departmentId);
     if (hospitalId == null) throw new ApiException(404, "NOT_FOUND", "Department not found.");
@@ -324,60 +397,240 @@ public class WorkspaceService {
 
   @Transactional
   public void leaveDepartment(long departmentId) {
+    leaveDepartment(departmentId, null);
+  }
+
+  @Transactional
+  public void leaveDepartment(long departmentId, String reason) {
     long userId = actor.user().getId();
-    if (!Boolean.TRUE.equals(jdbc.queryForObject(
-        "select count(*) > 0 from department_memberships where department_id=? and user_id=?", Boolean.class, departmentId, userId)))
+    String oldRole = jdbc.query("select role from department_memberships where department_id=? and user_id=?",
+        rs -> rs.next() ? rs.getString(1) : null, departmentId, userId);
+    if (oldRole == null)
       throw new ApiException(404, "NOT_FOUND", "You are not a member of this department.");
     jdbc.update("delete from department_memberships where department_id=? and user_id=?", departmentId, userId);
-    audit.log("DEPARTMENT_LEFT", "Department", departmentId, "UI");
+    permissionAudit("DEPARTMENT_LEFT", "DEPARTMENT", departmentId, userId, oldRole, "NONE", false, false, null, null, reason);
   }
 
   @Transactional
   public void leaveHospital(long hospitalId) {
+    leaveHospital(hospitalId, null);
+  }
+
+  @Transactional
+  public void leaveHospital(long hospitalId, String reason) {
     long userId = actor.user().getId();
-    if (!Boolean.TRUE.equals(jdbc.queryForObject(
-        "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, hospitalId, userId)))
+    Boolean oldOwner = jdbc.query("select owner from hospital_memberships where hospital_id=? and user_id=?",
+        rs -> rs.next() ? rs.getBoolean(1) : null, hospitalId, userId);
+    if (oldOwner == null)
       throw new ApiException(404, "NOT_FOUND", "You are not a member of this hospital.");
-    if (hospitalOwner(hospitalId, userId) && ownerCount(hospitalId) <= 1)
+    if (oldOwner && ownerCount(hospitalId) <= 1)
       throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before leaving.");
+    var departmentRoles = jdbc.query(
+        "select dm.department_id,dm.role,dm.doctor_id from department_memberships dm join departments d on d.id=dm.department_id where d.hospital_id=? and dm.user_id=? order by dm.department_id",
+        (rs, row) -> new RemovedRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
+        hospitalId, userId);
     jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
     jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
-    audit.log("HOSPITAL_LEFT", "Hospital", hospitalId, "UI");
+    for (var membership : departmentRoles)
+      permissionAudit("DEPARTMENT_LEFT", "DEPARTMENT", membership.departmentId(), userId,
+          membership.role(), "NONE", false, false, membership.doctorId(), null, reason);
+    permissionAudit("HOSPITAL_LEFT", "HOSPITAL", hospitalId, userId, oldOwner ? "OWNER" : "MEMBER", "NONE", oldOwner, false, null, null, reason);
   }
 
   @Transactional
   public void revokeDepartment(long departmentId, long userId) {
+    revokeDepartment(departmentId, userId, null);
+  }
+
+  @Transactional
+  public void revokeDepartment(long departmentId, long userId, String reason) {
     departmentAdmin(departmentId);
     if (userId == actor.user().getId()) {
-      leaveDepartment(departmentId);
+      leaveDepartment(departmentId, reason);
       return;
     }
+    String oldRole = jdbc.query("select role from department_memberships where department_id=? and user_id=?",
+        rs -> rs.next() ? rs.getString(1) : null, departmentId, userId);
+    if (oldRole == null) throw new ApiException(404, "NOT_FOUND", "Department member not found.");
     jdbc.update("delete from department_memberships where department_id=? and user_id=?", departmentId, userId);
-    audit.log("DEPARTMENT_MEMBER_REVOKED", "Department", departmentId, "UI");
+    permissionAudit("DEPARTMENT_MEMBER_REVOKED", "DEPARTMENT", departmentId, userId, oldRole, "NONE", false, false, null, null, reason);
   }
 
   @Transactional
   public void revokeHospital(long hospitalId, long userId) {
-    owner(hospitalId);
-    if (hospitalOwner(hospitalId, userId) && ownerCount(hospitalId) <= 1)
-      throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before removing the last owner.");
-    jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
-    jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
-    audit.log("HOSPITAL_MEMBER_REVOKED", "Hospital", hospitalId, "UI");
+    revokeHospital(hospitalId, userId, null);
   }
 
   @Transactional
-  public void grantOwner(long hospitalId, long userId) {
+  public void revokeHospital(long hospitalId, long userId, String reason) {
     owner(hospitalId);
+    Boolean oldOwner = jdbc.query("select owner from hospital_memberships where hospital_id=? and user_id=?",
+        rs -> rs.next() ? rs.getBoolean(1) : null, hospitalId, userId);
+    if (oldOwner == null) throw new ApiException(404, "NOT_FOUND", "Hospital member not found.");
+    if (oldOwner && ownerCount(hospitalId) <= 1)
+      throw ApiException.conflict("LAST_OWNER", "Transfer hospital ownership before removing the last owner.");
+    var departmentRoles = jdbc.query(
+        "select dm.department_id,dm.role,dm.doctor_id from department_memberships dm join departments d on d.id=dm.department_id where d.hospital_id=? and dm.user_id=? order by dm.department_id",
+        (rs, row) -> new RemovedRole(rs.getLong(1), rs.getString(2), rs.getObject(3, Long.class)),
+        hospitalId, userId);
+    jdbc.update("delete from department_memberships where user_id=? and department_id in (select id from departments where hospital_id=?)", userId, hospitalId);
+    jdbc.update("delete from hospital_memberships where hospital_id=? and user_id=?", hospitalId, userId);
+    for (var membership : departmentRoles)
+      permissionAudit("DEPARTMENT_MEMBER_REVOKED", "DEPARTMENT", membership.departmentId(), userId,
+          membership.role(), "NONE", false, false, membership.doctorId(), null, reason);
+    permissionAudit("HOSPITAL_MEMBER_REVOKED", "HOSPITAL", hospitalId, userId, oldOwner ? "OWNER" : "MEMBER", "NONE", oldOwner, false, null, null, reason);
+  }
+
+  @Transactional
+  public Map<String, Object> grantOwner(long hospitalId, long userId) {
+    return grantOwner(hospitalId, userId, null);
+  }
+
+  /** Invites a member to become a co-owner; ownership changes only when they accept (#362). */
+  @Transactional
+  public Map<String, Object> grantOwner(long hospitalId, long userId, String reason) {
+    return requestOwnershipTransfer(hospitalId, userId, false, null, reason);
+  }
+
+  private static final java.time.Duration OWNERSHIP_TRANSFER_TTL = java.time.Duration.ofDays(7);
+  private static final String TRANSFER_QUERY =
+      "select t.id, t.hospital_id, h.name, t.from_user_id, fu.username, t.to_user_id, tu.username, t.step_down,"
+          + " t.status, t.requested_at, t.expires_at, t.resolved_at from ownership_transfers t"
+          + " join hospitals h on h.id=t.hospital_id join app_users fu on fu.id=t.from_user_id"
+          + " join app_users tu on tu.id=t.to_user_id";
+
+  /**
+   * Starts an ownership handover. The requesting owner confirms by making the request; stepping
+   * down as part of it also requires typing the hospital name. Nothing changes until the target
+   * member accepts before the request expires.
+   */
+  @Transactional
+  public Map<String, Object> requestOwnershipTransfer(
+      long hospitalId, long userId, boolean stepDown, String confirmation, String reason) {
+    owner(hospitalId);
+    long requester = actor.user().getId();
+    if (userId == requester)
+      throw new ApiException(400, "INVALID_TRANSFER", "Choose another member of the hospital.");
     if (!Boolean.TRUE.equals(jdbc.queryForObject(
         "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?", Boolean.class, hospitalId, userId)))
       throw new ApiException(400, "NOT_A_MEMBER", "That account must join the hospital before becoming an owner.");
-    jdbc.update("update hospital_memberships set owner=true where hospital_id=? and user_id=?", hospitalId, userId);
-    audit.log("HOSPITAL_OWNER_GRANTED", "Hospital", hospitalId, "UI");
+    if (hospitalOwner(hospitalId, userId))
+      throw ApiException.conflict("ALREADY_OWNER", "That member already owns this hospital.");
+    String name = jdbc.queryForObject("select name from hospitals where id=?", String.class, hospitalId);
+    if (stepDown && (confirmation == null || !confirmation.strip().equals(name)))
+      throw new ApiException(400, "CONFIRMATION_REQUIRED", "Type the hospital name to hand over your ownership.");
+    String note = reason == null || reason.isBlank() ? null : reason.strip();
+    var details = new LinkedHashMap<String, Object>();
+    details.put("targetUserId", userId);
+    details.put("stepDown", stepDown);
+    if (note != null) details.put("reason", note);
+    // Audited first so the reason is validated like every permission change before anything is stored.
+    audit.log("OWNERSHIP_TRANSFER_REQUESTED", "Hospital", hospitalId, "UI", details);
+    Long id;
+    try {
+      id = jdbc.queryForObject(
+          "insert into ownership_transfers(hospital_id, from_user_id, to_user_id, step_down, reason, expires_at)"
+              + " values (?,?,?,?,?,?) returning id",
+          Long.class, hospitalId, requester, userId, stepDown, note,
+          java.sql.Timestamp.from(Instant.now().plus(OWNERSHIP_TRANSFER_TTL)));
+    } catch (org.springframework.dao.DuplicateKeyException e) {
+      throw ApiException.conflict("TRANSFER_PENDING", "An ownership request for this member is already waiting.");
+    }
+    return transfer(id);
+  }
+
+  public Map<String, Object> ownershipTransfers() {
+    long me = actor.user().getId();
+    var result = new LinkedHashMap<String, Object>();
+    result.put("incoming", jdbc.query(
+        TRANSFER_QUERY + " where t.status='PENDING' and t.expires_at > now() and t.to_user_id=? order by t.requested_at",
+        (rs, n) -> transferRow(rs), me));
+    result.put("outgoing", jdbc.query(
+        TRANSFER_QUERY + " where t.status='PENDING' and t.expires_at > now() and exists (select 1 from hospital_memberships m"
+            + " where m.hospital_id=t.hospital_id and m.user_id=? and m.owner=true) order by t.requested_at",
+        (rs, n) -> transferRow(rs), me));
+    return result;
+  }
+
+  @Transactional
+  public Map<String, Object> acceptOwnershipTransfer(long transferId) {
+    var pending = pendingTransfer(transferId);
+    long me = actor.user().getId();
+    if (((Number) pending.get("to_user_id")).longValue() != me) throw ApiException.missing();
+    long hospitalId = ((Number) pending.get("hospital_id")).longValue();
+    long from = ((Number) pending.get("from_user_id")).longValue();
+    if (!hospitalOwner(hospitalId, from))
+      throw ApiException.conflict("TRANSFER_INVALID", "The requesting owner no longer owns this hospital.");
+    int updated = jdbc.update("update hospital_memberships set owner=true where hospital_id=? and user_id=?", hospitalId, me);
+    if (updated == 0) throw new ApiException(400, "NOT_A_MEMBER", "You are no longer a member of this hospital.");
+    jdbc.update("update ownership_transfers set status='ACCEPTED', resolved_at=now() where id=?", transferId);
+    String reason = (String) pending.get("reason");
+    permissionAudit("HOSPITAL_OWNER_GRANTED", "HOSPITAL", hospitalId, me, "MEMBER", "OWNER", false, true,
+        null, null, reason, Map.of("transferId", transferId, "requestedBy", from));
+    if (Boolean.TRUE.equals(pending.get("step_down"))) {
+      jdbc.update("update hospital_memberships set owner=false where hospital_id=? and user_id=?", hospitalId, from);
+      permissionAudit("HOSPITAL_OWNER_STEPPED_DOWN", "HOSPITAL", hospitalId, from, "OWNER", "MEMBER", true, false,
+          null, null, reason, Map.of("transferId", transferId, "acceptedBy", me));
+    }
+    return transfer(transferId);
+  }
+
+  @Transactional
+  public Map<String, Object> declineOwnershipTransfer(long transferId) {
+    var pending = pendingTransfer(transferId);
+    if (((Number) pending.get("to_user_id")).longValue() != actor.user().getId()) throw ApiException.missing();
+    return resolveTransfer(transferId, "DECLINED", ((Number) pending.get("hospital_id")).longValue());
+  }
+
+  @Transactional
+  public Map<String, Object> cancelOwnershipTransfer(long transferId) {
+    var pending = pendingTransfer(transferId);
+    long hospitalId = ((Number) pending.get("hospital_id")).longValue();
+    if (!hospitalOwner(hospitalId, actor.user().getId())) throw ApiException.missing();
+    return resolveTransfer(transferId, "CANCELLED", hospitalId);
+  }
+
+  private Map<String, Object> resolveTransfer(long transferId, String status, long hospitalId) {
+    jdbc.update("update ownership_transfers set status=?, resolved_at=now() where id=?", status, transferId);
+    audit.log("OWNERSHIP_TRANSFER_" + status, "Hospital", hospitalId, "UI", Map.of("transferId", transferId));
+    return transfer(transferId);
+  }
+
+  private Map<String, Object> pendingTransfer(long transferId) {
+    var rows = jdbc.queryForList(
+        "select * from ownership_transfers where id=? and status='PENDING' and expires_at > now() for update", transferId);
+    if (rows.isEmpty()) throw new ApiException(404, "TRANSFER_NOT_FOUND", "This ownership request is no longer open.");
+    return rows.getFirst();
+  }
+
+  private Map<String, Object> transfer(long id) {
+    return jdbc.queryForObject(TRANSFER_QUERY + " where t.id=?", (rs, n) -> transferRow(rs), id);
+  }
+
+  private static Map<String, Object> transferRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+    var row = new LinkedHashMap<String, Object>();
+    row.put("id", rs.getLong(1));
+    row.put("hospitalId", rs.getLong(2));
+    row.put("hospital", rs.getString(3));
+    row.put("fromUserId", rs.getLong(4));
+    row.put("fromUsername", rs.getString(5));
+    row.put("toUserId", rs.getLong(6));
+    row.put("toUsername", rs.getString(7));
+    row.put("stepDown", rs.getBoolean(8));
+    row.put("status", rs.getString(9));
+    row.put("requestedAt", rs.getTimestamp(10).toInstant());
+    row.put("expiresAt", rs.getTimestamp(11).toInstant());
+    row.put("resolvedAt", rs.getTimestamp(12) == null ? null : rs.getTimestamp(12).toInstant());
+    return row;
   }
 
   @Transactional
   public Map<String, Object> grantRole(long departmentId, long userId, String role, Long doctorId) {
+    return grantRole(departmentId, userId, role, doctorId, null);
+  }
+
+  @Transactional
+  public Map<String, Object> grantRole(long departmentId, long userId, String role, Long doctorId, String reason) {
     departmentAdmin(departmentId);
     String assigned = role == null ? "" : role.strip().toUpperCase(Locale.ROOT);
     if (!Set.of("ADMIN", "MEDICAL_STAFF", "DOCTOR").contains(assigned))
@@ -388,11 +641,16 @@ public class WorkspaceService {
         "select count(*) > 0 from hospital_memberships where hospital_id=? and user_id=?",
         Boolean.class, hospitalId, userId)))
       throw new ApiException(400, "NOT_A_MEMBER", "That account must join the hospital first.");
+    var oldMembership = jdbc.query("select role,doctor_id from department_memberships where department_id=? and user_id=?",
+        rs -> rs.next() ? new Object[] {rs.getString(1), rs.getObject(2, Long.class)} : null, departmentId, userId);
+    String oldRole = oldMembership == null ? null : (String) oldMembership[0];
+    Long oldDoctorId = oldMembership == null ? null : (Long) oldMembership[1];
     Long linked = "DOCTOR".equals(assigned) ? doctorInDepartment(departmentId, userId, doctorId) : null;
     jdbc.update(
         "insert into department_memberships(department_id,user_id,role,doctor_id) values (?,?,?,?) on conflict (department_id,user_id) do update set role=excluded.role, doctor_id=excluded.doctor_id",
         departmentId, userId, assigned, linked);
-    audit.log("DEPARTMENT_ROLE_GRANTED", "Department", departmentId, "UI");
+    permissionAudit("DEPARTMENT_ROLE_GRANTED", "DEPARTMENT", departmentId, userId,
+        oldRole == null ? "NONE" : oldRole, assigned, false, false, oldDoctorId, linked, reason);
     var result = new LinkedHashMap<String, Object>();
     result.put("departmentId", departmentId);
     result.put("userId", userId);
@@ -447,6 +705,31 @@ public class WorkspaceService {
     return jdbc.queryForObject(
         "insert into doctors(doctor_identifier, first_name, last_name, specialty, active, department_id, version, created_at, updated_at) values (?,?,?,?,true,?,0,now(),now()) returning id",
         Long.class, identifier, first, last, specialty, departmentId);
+  }
+
+  /**
+   * Sets or clears when a department membership ends (#347). Access stops at that time; the row
+   * stays until it is removed or extended. Changing the time re-arms the advance notice.
+   */
+  @Transactional
+  public Map<String, Object> setMembershipExpiry(long departmentId, long userId, Instant expiresAt) {
+    departmentAdmin(departmentId);
+    if (expiresAt != null && !expiresAt.isAfter(Instant.now()))
+      throw new ApiException(400, "INVALID_EXPIRY", "Choose a future end time, or clear it.");
+    if (expiresAt != null && userId == actor.user().getId())
+      throw ApiException.conflict("SELF_EXPIRY", "You cannot put an end date on your own access.");
+    int updated = jdbc.update(
+        "update department_memberships set expires_at=?, expiry_notified_at=null where department_id=? and user_id=?",
+        expiresAt == null ? null : java.sql.Timestamp.from(expiresAt), departmentId, userId);
+    if (updated == 0)
+      throw new ApiException(404, "NOT_A_MEMBER", "That account is not a member of this department.");
+    audit.log("MEMBERSHIP_EXPIRY_SET", "Department", departmentId, "UI",
+        Map.of("userId", userId, "expiresAt", expiresAt == null ? "none" : expiresAt.toString()));
+    var result = new LinkedHashMap<String, Object>();
+    result.put("departmentId", departmentId);
+    result.put("userId", userId);
+    result.put("expiresAt", expiresAt);
+    return result;
   }
 
   public void enroll(long userId, String role, Long doctorId) {

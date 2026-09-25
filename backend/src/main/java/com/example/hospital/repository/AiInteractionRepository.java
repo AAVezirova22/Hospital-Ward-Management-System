@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.*;
 public interface AiInteractionRepository extends JpaRepository<AiInteraction, Long> {
   java.util.List<AiInteraction> findTop50BySessionIdAndUserIdOrderByStartedAtDesc(
       String sessionId, Long userId);
+
+  java.util.Optional<AiInteraction> findByRetryTokenAndUserId(String retryToken, Long userId);
 }

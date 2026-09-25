@@ -61,7 +61,11 @@ public class SecurityConfig {
       WorkspaceAccess workspaces,
       LoginBackoff backoff,
       SessionLifetime lifetime,
-      ClientAddressResolver clientAddresses)
+      ClientAddressResolver clientAddresses,
+      ApiRateLimits rateLimits,
+      org.springframework.jdbc.core.JdbcTemplate jdbc,
+      @org.springframework.beans.factory.annotation.Value("${app.idempotency.ttl:24h}") java.time.Duration idempotencyTtl,
+      com.example.hospital.service.SecurityEventService securityEvents)
       throws Exception {
     http.authorizeHttpRequests(
             a ->
@@ -69,7 +73,7 @@ public class SecurityConfig {
                     "/api/v1/demo/status", "/api/v1/demo/login", "/api/v1/registration/status",
                     "/api/v1/registration/hospitals",
                     "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend",
-                    "/api/v1/registration/recover")
+                    "/api/v1/registration/recover", "/api/v1/calendar/feeds/*")
                     .permitAll()
                     .requestMatchers("/api/v1/auth/me", "/api/v1/auth/logout")
                     .authenticated()
@@ -101,6 +105,7 @@ public class SecurityConfig {
                         (r, s, e) -> {
                           backoff.failure(
                               r.getParameter("username"), clientAddresses.sourceAddress(r));
+                          reportFailedLogin(securityEvents, r.getParameter("username"));
                           s.setStatus(401);
                           s.setContentType("application/json");
                           json.writeValue(
@@ -159,10 +164,30 @@ public class SecurityConfig {
               protected void doFilterInternal(
                   HttpServletRequest r, HttpServletResponse s, FilterChain c)
                   throws ServletException, IOException {
+                try {
+                  rateLimits.check(r);
+                } catch (com.example.hospital.api.ApiException e) {
+                  e.headers().forEach(s::setHeader);
+                  s.setStatus(e.getStatus());
+                  s.setContentType("application/json");
+                  json.writeValue(
+                      s.getWriter(), Errors.body(e.getStatus(), e.code, e.getMessage(), r.getRequestURI()));
+                  return;
+                }
+                c.doFilter(r, s);
+              }
+            },
+            UsernamePasswordAuthenticationFilter.class)
+        .addFilterBefore(
+            new OncePerRequestFilter() {
+              protected void doFilterInternal(
+                  HttpServletRequest r, HttpServletResponse s, FilterChain c)
+                  throws ServletException, IOException {
                 if ("POST".equalsIgnoreCase(r.getMethod())
                     && (r.getContextPath() + "/api/v1/auth/login").equals(r.getRequestURI())
                     && backoff.blocked(
                         r.getParameter("username"), clientAddresses.sourceAddress(r))) {
+                  reportFailedLogin(securityEvents, r.getParameter("username"));
                   s.setStatus(401);
                   s.setContentType("application/json");
                   json.writeValue(
@@ -180,7 +205,21 @@ public class SecurityConfig {
             UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(
             new DepartmentScopeFilter(users, workspaces, json, lifetime),
-            AuthorizationFilter.class);
+            AuthorizationFilter.class)
+        .addFilterAfter(
+            new IdempotencyFilter(jdbc, users, json, idempotencyTtl),
+            DepartmentScopeFilter.class);
     return http.build();
+  }
+
+  /** The security review queue must never change the sign-in response. */
+  private static void reportFailedLogin(
+      com.example.hospital.service.SecurityEventService securityEvents, String username) {
+    try {
+      securityEvents.failedLogin(username);
+    } catch (RuntimeException e) {
+      org.slf4j.LoggerFactory.getLogger(SecurityConfig.class)
+          .warn("Failed sign-in was not added to the security review queue: {}", e.getClass().getSimpleName());
+    }
   }
 }

@@ -18,16 +18,18 @@ public class AiToolRegistry {
   private final Actor actor;
   private final WorkspaceService workspaces;
   private final DepartmentTimeService departmentTime;
+  private final AuditService audit;
 
   public AiToolRegistry(
       HospitalService h, ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces,
-      DepartmentTimeService departmentTime) {
+      DepartmentTimeService departmentTime, AuditService audit) {
     this.h = h;
     this.reports = reports;
     actions = a;
     this.actor = actor;
     this.workspaces = workspaces;
     this.departmentTime = departmentTime;
+    this.audit = audit;
   }
 
   public record Response(
@@ -205,11 +207,12 @@ public class AiToolRegistry {
                 : "Matching patients within your access.",
             data);
       }
-      case "getPatientSummary" ->
-          response(
-              "PATIENT_SUMMARY",
-              "Recorded operational history.",
-              h.summary(resolve(a.get("patientQuery"), selected).getId()));
+      case "getPatientSummary" -> {
+        long patientId = resolve(a.get("patientQuery"), selected).getId();
+        var summary = h.summary(patientId);
+        audit.read("PATIENT_VIEWED", "Patient", patientId, "AI");
+        yield response("PATIENT_SUMMARY", "Recorded operational history.", summary);
+      }
       case "getAvailableRooms", "getRoomOccupancy" -> {
         int n = intArg(a.getOrDefault("minimumFreeBeds", "0"));
         if (n < 0 || n > 100) throw new IllegalArgumentException();

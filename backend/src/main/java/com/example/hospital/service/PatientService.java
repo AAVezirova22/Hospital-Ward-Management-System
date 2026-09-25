@@ -42,7 +42,10 @@ public class PatientService {
   }
 
   public Map<String, Object> summary(String ref) {
-    return hospital.summary(ref);
+    var summary = hospital.summary(ref);
+    var patient = (Map<?, ?>) summary.get("patient");
+    audit.read("PATIENT_VIEWED", "Patient", ((Number) patient.get("id")).longValue(), "UI");
+    return summary;
   }
 
   @Transactional

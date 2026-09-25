@@ -77,6 +77,54 @@ Watch saturation through the administrator-only metrics endpoint (pool tag `hosp
 
 Sustained pending connections mean too many instances for the database or slow statements; check slow queries before enlarging the pool.
 
+## Client addresses behind proxies
+
+Login backoff, join-code attempts and registration resend/recovery limits are keyed by the client address. The backend only reads forwarding headers when the direct peer is a trusted proxy:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `TRUSTED_PROXIES` | Loopback, private IPv4 (`10/8`, `172.16/12`, `192.168/16`), link-local, IPv6 unique-local | Comma-separated IPs or CIDR blocks allowed to supply `X-Forwarded-For`; `none` ignores forwarding headers entirely. Invalid entries stop startup. |
+| `CLIENT_IP_HEADER` | empty | Optional header holding one client address, set by your edge (for example Cloudflare's `True-Client-IP`). Read only from trusted peers; ignored if it is not a single valid address. |
+
+Requests from untrusted peers are keyed by the peer address and their `X-Forwarded-For` is ignored. From a trusted peer, `X-Forwarded-For` is read right to left: trusted hops are skipped and the first untrusted address is the client. Entries further left may have been written by the client, so a forged header cannot open new rate-limit buckets. A malformed entry stops the walk at the last valid hop.
+
+Narrow `TRUSTED_PROXIES` to your load balancer's range when other hosts share the private network. Otherwise a host on that network can claim any address. Render routes through Cloudflare, whose public addresses appear in `X-Forwarded-For`, so `render.yaml` sets `CLIENT_IP_HEADER=True-Client-IP`. The demo-login loopback check always uses the direct peer and never trusts forwarded headers.
+## Audit integrity
+
+`audit_events` is append-only for the application. A database trigger rejects every `UPDATE`, `DELETE` and `TRUNCATE` on the table, including SQL sent by the backend's own database role, and the entity is read-only in Hibernate. New events are still inserted normally.
+
+Two controlled paths may remove history: the synthetic demo reset (`DEMO_MODE=true`, `APP_ENVIRONMENT=demo`) and an administrator applying a configured retention policy (see [Data retention](#data-retention)). Each opts in for its own transaction only, with `select set_config('hospital.audit_maintenance', 'on', true)`. The setting ends with that transaction and cannot leak into pooled connections.
+
+Limits of this protection:
+
+- It stops accidental ORM updates, buggy or injected SQL through the application, and casual edits with the application credentials. It is not cryptographic tamper evidence.
+- Whoever can alter the schema can bypass it. Flyway runs as the application role, which owns the table and could drop the trigger or set the maintenance flag. For stronger separation, run migrations with a dedicated owner role, give the runtime role only `SELECT, INSERT` on `audit_events`, and keep superuser credentials out of the application.
+- Copy audit events to storage the database operators cannot rewrite (log shipping, write-once object storage) if records must stand up to an administrator with database access.
+- Backups contain the same rows. Protect and retain them according to [Database backup security](database-backup-security.md) and your organisation's retention rules.
+## Data retention
+
+Operational metadata can be removed after an organisation-defined period. Each category is set in days; `0` keeps it forever:
+
+| Variable | Default | Removes |
+| --- | --- | --- |
+| `RETENTION_AUDIT_DAYS` | `0` (keep) | Audit events older than the period |
+| `RETENTION_AI_INTERACTION_DAYS` | `90` | Assistant request metadata (no conversation text is stored) |
+| `RETENTION_AI_ACTION_DAYS` | `90` | Assistant proposals that are no longer pending |
+| `RETENTION_SECURITY_EVENT_DAYS` | `365` | Resolved or dismissed security review entries |
+
+Patients, admissions, room assignments and procedures are never removed by retention. Nothing is deleted automatically. A department administrator reviews `GET /api/v1/retention/preview` (a dry run with the cutoff and eligible count per category), then calls `POST /api/v1/retention/apply` with `{"confirmation": "APPLY RETENTION"}`. Only the administrator's active department is affected. The removal is recorded as a `RETENTION_APPLIED` audit event with the count per category. Keep backups according to the same policy, or deleted rows remain in older backups.
+
+## Read auditing
+
+Patient and admission detail views are audited so administrators can reconstruct who opened a record. Volume controls:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `AUDIT_RECORD_READS` | `true` | `false` stops recording read events; changes are always audited |
+| `AUDIT_READ_DEDUPE_WINDOW` | `15m` | Repeat views of one record by one user inside this window are recorded once; `0s` records every view |
+
+Read events publish no notifications or live refreshes. Each stores only actor, department, record ID, source and time, and uses the `audit_read_lookup` index for the repeat-view check. Estimate volume as distinct (user, record) pairs per window; a busy ward with 50 staff opening 40 records each per shift adds about 2,000 rows per shift at the default window.
+
 ## Slow-query diagnostics
 
 Every JDBC statement is timed. Statements taking `SLOW_QUERY_MS` or longer (default `500`; `0` turns the log off) are logged at `WARN` on the `hospital.slow-query` logger:
@@ -125,6 +173,13 @@ The requested sender is `Medcore <onboarding@resend.dev>`. Resend restricts this
 Signup, resend and recovery write the account changes, hashed verification link and delivery request in one database transaction. A background worker claims queued messages across backend instances, sends outside the signup transaction and retries temporary provider failures with bounded backoff. The same confirmation token is used for retries, with a stable provider idempotency key. A delivery failure therefore leaves the account disabled and its confirmation request queued; it does not discard the account. The default worker polls every five seconds and claims up to ten messages (`EMAIL_OUTBOX_POLL_INTERVAL_MS`, `EMAIL_OUTBOX_INITIAL_DELAY_MS` and `EMAIL_OUTBOX_BATCH_SIZE` tune this behavior).
 
 The outbox holds the one-time confirmation token, recipient and first name while delivery is pending, for at most the configured confirmation lifetime. It clears those values after delivery, replacement, verification or expiry. Terminal delivery records are retained for 30 days. Restrict direct database access and protect database backups while pending messages may contain these secrets.
+
+
+### Checking email settings
+
+Administrators can inspect delivery settings at `GET /api/v1/settings/email`. The response shows whether an API key is present (never the key), the sender and whether it is a valid address, whether it is the Resend testing sender (`@resend.dev`), whether `PUBLIC_APP_URL` is a valid origin, the provider host, readiness for registration and reminder emails, and the last test on this instance.
+
+`POST /api/v1/settings/email/test` with `{"recipient": "..."}` (defaults to your verified account email) sends a short message with no patient content. It reports one of `ACCEPTED_BY_PROVIDER` (with the provider message ID), `PROVIDER_REJECTED` (HTTP 4xx, for example an unverified sender domain), `PROVIDER_UNAVAILABLE` (5xx or 429), `NETWORK_ERROR`, `NOT_CONFIGURED` or `INVALID_SENDER`, plus the provider HTTP status. Provider response text is never shown. Tests are limited to 5 per administrator per 10 minutes and audited as `EMAIL_SETTINGS_TESTED` with the outcome and the recipient's domain only.
 
 ## Upcoming discharge reminders
 
