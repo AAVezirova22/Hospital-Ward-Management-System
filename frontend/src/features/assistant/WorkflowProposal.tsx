@@ -228,6 +228,7 @@ export function WorkflowProposal({
                                     ? "primary"
                                     : "secondary"
                                 }
+                                aria-label={`Accept ${labels[key] || key} in step ${step.key}`}
                                 disabled={busy || expired}
                                 onClick={() =>
                                   choose(step.key, key, value, "ACCEPTED")
@@ -242,6 +243,7 @@ export function WorkflowProposal({
                                     ? "primary"
                                     : "secondary"
                                 }
+                                aria-label={`Edit ${labels[key] || key} in step ${step.key}`}
                                 disabled={busy || expired}
                                 onClick={() =>
                                   choose(step.key, key, value, "EDITED")
@@ -268,6 +270,21 @@ export function WorkflowProposal({
                                       <option value="true">Yes</option>
                                       <option value="false">No</option>
                                     </select>
+                                  ) : Array.isArray(value) ||
+                                    (typeof value === "object" &&
+                                      value !== null) ? (
+                                    <textarea
+                                      value={choice.input}
+                                      onChange={(event) =>
+                                        setChoices((current) => ({
+                                          ...current,
+                                          [reviewKey(step.key, key)]: {
+                                            decision: "EDITED",
+                                            input: event.target.value,
+                                          },
+                                        }))
+                                      }
+                                    />
                                   ) : (
                                     <input
                                       type={

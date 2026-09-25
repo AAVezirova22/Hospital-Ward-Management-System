@@ -1475,7 +1475,8 @@ footer .live-dot {
   width: 100%;
 }
 .workflow-field-decision input,
-.workflow-field-decision select {
+.workflow-field-decision select,
+.workflow-field-decision textarea {
   width: 100%;
 }
 @media (max-width: 600px) {
