@@ -19,6 +19,7 @@ import { DataTable } from "../../components/data-table/DataTable";
 import { useUrlState } from "../../components/useUrlState";
 import { LoadingState } from "../../components/LoadingState";
 import { PatientDocumentDraft } from "./PatientDocumentDraft";
+import { PatientCorrectionQueue } from "./PatientCorrectionQueue";
 export function Patients() {
   const user = useUser();
   const [search, setSearch] = useUrlState("q");
@@ -62,6 +63,7 @@ export function Patients() {
       {documentDraft && (
         <PatientDocumentDraft onClose={() => setDocumentDraft(false)} />
       )}
+      <PatientCorrectionQueue user={user} />
       <div className="toolbar">
         <Search size={18} />
         <input

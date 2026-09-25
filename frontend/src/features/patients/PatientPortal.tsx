@@ -1,5 +1,6 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { api, fullName, date, money, type User } from "../../api";
 import type { Patient, AdmissionView } from "../../api/contracts";
 import { ThemeToggle } from "../../cinematic";
@@ -12,10 +13,29 @@ export function PatientPortal({
   user: User;
   onLogout: () => void;
 }) {
+  const client = useQueryClient();
+  const [correction, setCorrection] = useState({ firstName: "", lastName: "", dateOfBirth: "", address: "", phoneNumber: "" });
+  const [correctionMessage, setCorrectionMessage] = useState("");
   const query = useQuery({
     queryKey: ["portal", user.id],
     queryFn: () =>
       api<{ patient: Patient; admissions: AdmissionView[] }>("/portal/me"),
+  });
+  const requests = useQuery({ queryKey: ["portal-corrections", user.id], queryFn: () => api<any[]>("/portal/correction-requests") });
+  const submitCorrection = useMutation({
+    mutationFn: () => api("/portal/correction-requests", "POST", {
+      ...correction,
+      dateOfBirth: correction.dateOfBirth || null,
+      firstName: correction.firstName || null,
+      lastName: correction.lastName || null,
+      address: correction.address || null,
+      phoneNumber: correction.phoneNumber || null,
+    }),
+    onSuccess: async () => {
+      setCorrection({ firstName: "", lastName: "", dateOfBirth: "", address: "", phoneNumber: "" });
+      setCorrectionMessage("Your correction request was sent to the care team.");
+      await client.invalidateQueries({ queryKey: ["portal-corrections", user.id] });
+    },
   });
   return (
     <div className="patient-portal workspace">
@@ -63,6 +83,22 @@ export function PatientPortal({
               <button className="secondary" onClick={() => window.print()}>
                 Print my summary
               </button>
+            </section>
+            <section className="panel">
+              <h2>Request a profile correction</h2>
+              <p>Changes are reviewed by your care team before they update your record. Leave fields blank if they do not need correction.</p>
+              <form className="form-grid" onSubmit={(event) => { event.preventDefault(); setCorrectionMessage(""); submitCorrection.mutate(); }}>
+                <label>First name<input value={correction.firstName} onChange={(event) => setCorrection({ ...correction, firstName: event.target.value })} maxLength={100} /></label>
+                <label>Last name<input value={correction.lastName} onChange={(event) => setCorrection({ ...correction, lastName: event.target.value })} maxLength={100} /></label>
+                <label>Date of birth<input type="date" value={correction.dateOfBirth} onChange={(event) => setCorrection({ ...correction, dateOfBirth: event.target.value })} /></label>
+                <label>Address<input value={correction.address} onChange={(event) => setCorrection({ ...correction, address: event.target.value })} maxLength={500} /></label>
+                <label>Phone number<input value={correction.phoneNumber} onChange={(event) => setCorrection({ ...correction, phoneNumber: event.target.value })} maxLength={40} /></label>
+                <button className="primary" disabled={submitCorrection.isPending}>Submit for review</button>
+              </form>
+              {correctionMessage && <p role="status">{correctionMessage}</p>}
+              {submitCorrection.error && <p className="error" role="alert">{submitCorrection.error.message}</p>}
+              <h3>Your requests</h3>
+              {requests.data?.length ? requests.data.map((request) => <div className="result-row" key={request.id}><span>{[request.firstName, request.lastName, request.dateOfBirth, request.address, request.phoneNumber].filter(Boolean).join(" · ")}<small>{request.createdAt ? new Date(request.createdAt).toLocaleString() : ""}{request.reviewNote ? ` · ${request.reviewNote}` : ""}</small></span><strong>{request.status}</strong></div>) : <p>No correction requests yet.</p>}
             </section>
             {!query.data.admissions.length && (
               <section className="panel">
