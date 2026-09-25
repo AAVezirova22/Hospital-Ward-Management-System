@@ -8,6 +8,7 @@ import com.example.hospital.ai.AiPatientDraftService;
 import com.example.hospital.security.Actor;
 import com.example.hospital.security.DepartmentContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -75,7 +76,7 @@ public class CareWorkflowService {
       @jakarta.validation.constraints.Size(max=200) String title,
       @jakarta.validation.constraints.Size(max=2000) String description,
       @jakarta.validation.constraints.Pattern(regexp="ADMIN|MEDICAL_STAFF|DOCTOR") String ownerRole,
-      Long assignedUserId,
+      JsonNode assignedUserId,
       @jakarta.validation.constraints.Min(0) @jakarta.validation.constraints.Max(525600) Long dueOffsetMinutes,
       @jakarta.validation.constraints.Size(max=100) List<String> dependsOn) {}
   public record ReviewedAction(
@@ -646,7 +647,22 @@ public class CareWorkflowService {
       if (override.title() != null) { if (override.title().isBlank()) throw invalid("Task title cannot be blank."); task.put("title", override.title().strip()); changed = true; }
       if (override.description() != null) { task.put("description", override.description().strip()); changed = true; }
       if (override.ownerRole() != null) { task.put("ownerRole", override.ownerRole()); changed = true; }
-      if (override.assignedUserId() != null) { task.put("assignedUserId", override.assignedUserId()); changed = true; }
+      JsonNode assignedUser = override.assignedUserId();
+      if (assignedUser != null) {
+        if (assignedUser.isNull()) {
+          if (task.get("assignedUserId") != null) { task.put("assignedUserId", null); changed = true; }
+        } else {
+          if (!assignedUser.isIntegralNumber() || !assignedUser.canConvertToLong() || assignedUser.asLong() <= 0)
+            throw invalid("Choose an active department member for the task owner.");
+          long userId = assignedUser.asLong();
+          Object existingAssignee = task.get("assignedUserId");
+          Long existingId = existingAssignee instanceof Number number ? number.longValue() : null;
+          if (!java.util.Objects.equals(existingId, userId)) {
+            task.put("assignedUserId", userId);
+            changed = true;
+          }
+        }
+      }
       if (override.dueOffsetMinutes() != null) { task.put("dueOffsetMinutes", override.dueOffsetMinutes()); changed = true; }
       if (override.dependsOn() != null) { task.put("dependsOn", override.dependsOn()); changed = true; }
       if (changed) task.put("taskOrigin", "OVERRIDDEN");

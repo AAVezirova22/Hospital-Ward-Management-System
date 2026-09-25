@@ -92,4 +92,34 @@ class CareWorkflowIntegrationTest {
     assertThat(approved.get("status").asText()).isEqualTo("ACTIVE");
     assertThat(approved.get("tasks").size()).isEqualTo(2);
   }
+
+  @Test
+  void launchOverrideCanClearAssigneeWhenOwnerRoleChanges() throws Exception {
+    Long patientId = jdbc.queryForObject("select min(id) from patients where department_id=1", Long.class);
+    Long adminId = jdbc.queryForObject("select id from app_users where username='admin'", Long.class);
+    var task = Map.of("key", "handoff", "title", "Review handoff", "ownerRole", "ADMIN",
+        "assignedUserId", adminId, "dueOffsetMinutes", 0, "dependsOn", List.of());
+    var created = post("/care-workflows", Map.of("name", "Clear owner " + UUID.randomUUID(), "description", "",
+        "triggers", List.of("MANUAL"), "tasks", List.of(task), "version", 0));
+    long templateId = created.get("id").asLong();
+    var published = post("/care-workflows/" + templateId + "/publish", Map.of("version", 0));
+
+    var override = new java.util.LinkedHashMap<String, Object>();
+    override.put("key", "handoff");
+    override.put("ownerRole", "DOCTOR");
+    override.put("assignedUserId", null);
+    var overrides = List.of(override);
+    var preview = post("/care-workflows/" + templateId + "/preview", Map.of(
+        "patientId", patientId, "trigger", "MANUAL", "workflowVersion", published.get("version").asLong(),
+        "taskOverrides", overrides));
+    assertThat(preview.at("/tasks/0/ownerRole").asText()).isEqualTo("DOCTOR");
+    assertThat(preview.at("/tasks/0/assignedUserId").isNull()).isTrue();
+
+    var launched = post("/care-workflows/" + templateId + "/launch", Map.of(
+        "workflowVersion", published.get("version").asLong(), "patientId", patientId,
+        "idempotencyKey", UUID.randomUUID().toString(), "approved", true, "taskOverrides", overrides));
+    long runId = launched.get("id").asLong();
+    assertThat(jdbc.queryForObject("select assigned_user_id is null from care_tasks where workflow_run_id=?",
+        Boolean.class, runId)).isTrue();
+  }
 }
