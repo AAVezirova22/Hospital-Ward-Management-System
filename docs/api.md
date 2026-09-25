@@ -71,22 +71,24 @@ Discharge reminder outcomes include the expected date, reminder window, status, 
 
 ## Clinician task reminders and browser push
 
-These routes require an authenticated department staff member (admin, medical staff, or doctor) and an active department. Browser push is available only when `PUSH_VAPID_PUBLIC_KEY` and `PUSH_VAPID_PRIVATE_KEY` are configured. `TASK_REMINDERS_ENABLED=true` starts the due-reminder scheduler; it defaults to disabled. The browser must also support service workers, Push API, and notifications, and the site must be served over HTTPS (localhost is allowed by browsers for development).
+These routes require an authenticated department staff member (admin, medical staff, or doctor) and an active department. Browser push is available only when `PUSH_VAPID_PUBLIC_KEY` and `PUSH_VAPID_PRIVATE_KEY` are configured and `TASK_REMINDERS_ENABLED=true`; the scheduler defaults to disabled. The browser must also support service workers, Push API, and notifications, and the site must be served over HTTPS (localhost is allowed by browsers for development).
 
 | Method | Path | Request / result |
 | --- | --- | --- |
-| GET | `/task-reminders/preferences` | Preference fields plus `pushAvailable` and `activeSubscriptions` |
-| PUT | `/task-reminders/preferences` | `{optedIn,timeZone,minutesBefore,quietHoursStart,quietHoursEnd,operationalAlerts}`; lead time is one of `0,5,10,15,30,60`; quiet hours use local `HH:mm` values or both null |
+| GET | `/task-reminders/preferences` | Preference fields plus `pushAvailable`, `activeSubscriptions`, and `availableLeadMinutes` |
+| PUT | `/task-reminders/preferences` | `{optedIn,timeZone,minutesBefore,quietHoursStart,quietHoursEnd,operationalAlerts}`; choose `minutesBefore` from the response's `availableLeadMinutes`; quiet hours use local `HH:mm` values or both null |
 | GET | `/task-reminders/vapid-public-key` | `{publicKey}`; null when server push is unavailable |
 | GET | `/task-reminders/subscriptions` | `{subscribed,activeCount,pushAvailable}` |
 | POST | `/task-reminders/subscriptions` | Standard browser subscription `{endpoint,p256dh,auth}` |
 | DELETE | `/task-reminders/subscriptions/{id}` | Revoke one subscription owned by the current account |
 | DELETE | `/task-reminders/subscriptions` | Revoke all subscriptions owned by the current account |
 | GET | `/task-reminders/outcomes?limit=50` | Recent status, attempt time/count, sent time, and safe error code; task or patient details are omitted |
+| GET | `/task-reminders/operational-outcomes?limit=50` | Operational push delivery status, retry count, and safe error code |
 | GET | `/task-reminders/open/{token}` | Resolve opaque notification token to `{taskId,departmentId,dueAt,status}` after authentication and current assignment checks |
+| GET | `/task-reminders/open-notification/{token}` | Resolve an operational push token to its in-app notification after authentication and visibility checks |
 | POST | `/task-reminders/snooze/{token}` | Optional `{minutes}` (5–240; defaults to 15) |
 
-The push body is always generic and the link contains only a random UUID token. It includes no patient or task details. The client must call the authenticated `/open/{token}` route after navigation before requesting the task. Push endpoints are limited to known browser push provider hosts. Revoked provider subscriptions are marked revoked and excluded from future deliveries; retries use a fixed delay and stop after five attempts. Quiet hours are evaluated in the clinician's configured IANA time zone.
+Push titles and bodies are generic for both task reminders and operational notices; links contain only a random UUID token. Task links use `/app/tasks?reminder=…`, and operational links use `/app/dashboard?notification=…`. They include no patient, task, or notice details. The client must call the corresponding authenticated open route after navigation before requesting task or notification details. Push endpoints are limited to known browser push provider hosts. Revoked provider subscriptions are marked revoked and excluded from future deliveries; retries use a fixed delay and stop after five attempts. Quiet hours are evaluated in the clinician's configured IANA time zone.
 
 ## Assistant
 

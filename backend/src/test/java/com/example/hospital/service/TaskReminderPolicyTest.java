@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.net.URI;
 import java.time.Instant;
 import java.time.LocalTime;
+import java.util.UUID;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 class TaskReminderPolicyTest {
@@ -26,5 +28,22 @@ class TaskReminderPolicyTest {
     assertFalse(TaskReminderService.safePushEndpoint(URI.create("http://fcm.googleapis.com/send/example")));
     assertFalse(TaskReminderService.safePushEndpoint(URI.create("https://localhost/admin")));
     assertFalse(TaskReminderService.safePushEndpoint(URI.create("https://attacker.example/push")));
+  }
+
+  @Test
+  void taskAndOperationalPayloadsContainOnlyGenericTextAndOpaqueTokens() throws Exception {
+    UUID token = UUID.fromString("103c6e4c-605e-49d8-9db3-45e97f5fdff0");
+    var mapper = new ObjectMapper();
+    var task = mapper.writeValueAsString(TaskReminderService.taskPushPayload(token));
+    assertTrue(task.contains("Care task reminder"));
+    assertTrue(task.contains("/app/tasks?reminder=" + token));
+    assertFalse(task.contains("patient"));
+    assertFalse(task.contains("diagnosis"));
+
+    var operational = mapper.writeValueAsString(TaskReminderService.operationalPushPayload(token));
+    assertTrue(operational.contains("Department alert"));
+    assertTrue(operational.contains("/app/dashboard?notification=" + token));
+    assertFalse(operational.contains("patient"));
+    assertFalse(operational.contains("diagnosis"));
   }
 }

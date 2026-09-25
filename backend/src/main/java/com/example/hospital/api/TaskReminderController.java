@@ -64,9 +64,20 @@ public class TaskReminderController {
     return reminders.outcomes(limit);
   }
 
+  @GetMapping("/operational-outcomes")
+  public List<TaskReminderService.OperationalDeliveryOutcome> operationalOutcomes(
+      @RequestParam(defaultValue = "50") int limit) {
+    return reminders.operationalOutcomes(limit);
+  }
+
   @GetMapping("/open/{token}")
   public TaskReminderService.OpenReminder open(@PathVariable UUID token) {
     return reminders.open(token);
+  }
+
+  @GetMapping("/open-notification/{token}")
+  public TaskReminderService.OpenOperationalNotification openOperationalNotification(@PathVariable UUID token) {
+    return reminders.openOperationalNotification(token);
   }
 
   @PostMapping("/snooze/{token}")

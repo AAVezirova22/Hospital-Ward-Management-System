@@ -41,6 +41,8 @@ public class TaskReminderService {
   private static final long SENDING_LEASE_MS = 10 * 60_000L;
   private static final String GENERIC_TITLE = "Care task reminder";
   private static final String GENERIC_BODY = "You have a care task to review. Sign in to view it.";
+  private static final String OPERATIONAL_TITLE = "Department alert";
+  private static final String OPERATIONAL_BODY = "A department update needs review. Sign in to view it.";
 
   private final JdbcTemplate jdbc;
   private final Actor actor;
@@ -48,6 +50,7 @@ public class TaskReminderService {
   private final String vapidPublicKey;
   private final String vapidPrivateKey;
   private final String vapidSubject;
+  private final boolean schedulerEnabled;
 
   public TaskReminderService(
       JdbcTemplate jdbc,
@@ -55,13 +58,15 @@ public class TaskReminderService {
       ObjectMapper json,
       @Value("${app.push.vapid-public-key:}") String vapidPublicKey,
       @Value("${app.push.vapid-private-key:}") String vapidPrivateKey,
-      @Value("${app.push.vapid-subject:mailto:admin@example.invalid}") String vapidSubject) {
+      @Value("${app.push.vapid-subject:mailto:admin@example.invalid}") String vapidSubject,
+      @Value("${app.task-reminders.enabled:false}") boolean schedulerEnabled) {
     this.jdbc = jdbc;
     this.actor = actor;
     this.json = json;
     this.vapidPublicKey = vapidPublicKey == null ? "" : vapidPublicKey.strip();
     this.vapidPrivateKey = vapidPrivateKey == null ? "" : vapidPrivateKey.strip();
     this.vapidSubject = vapidSubject;
+    this.schedulerEnabled = schedulerEnabled;
   }
 
   public Preferences preferences() {
@@ -95,7 +100,12 @@ public class TaskReminderService {
     if (!input.optedIn()) {
       jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'OPTED_OUT', updated_at = now()"
           + " where recipient_user_id = ? and status in ('PENDING', 'FAILED')", user.getId());
+      jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'OPTED_OUT', updated_at = now()"
+          + " where recipient_user_id = ? and status in ('PENDING', 'FAILED')", user.getId());
     } else {
+      if (!input.operationalAlerts())
+        jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'EVENTS_DISABLED', updated_at = now()"
+            + " where recipient_user_id = ? and status in ('PENDING', 'FAILED')", user.getId());
       reconcileForUser(user.getId());
     }
     return loadPreferences(user.getId());
@@ -133,6 +143,8 @@ public class TaskReminderService {
     var user = requireStaff();
     jdbc.update("update push_subscriptions set revoked_at = now() where id = ? and user_id = ? and revoked_at is null",
         subscriptionId, user.getId());
+    jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
+        + " where subscription_id = ? and status in ('PENDING', 'FAILED')", subscriptionId);
     return subscriptionStatus(user.getId());
   }
 
@@ -140,6 +152,8 @@ public class TaskReminderService {
   public SubscriptionStatus revokeAllSubscriptions() {
     var user = requireStaff();
     jdbc.update("update push_subscriptions set revoked_at = now() where user_id = ? and revoked_at is null", user.getId());
+    jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'SUBSCRIPTIONS_REVOKED', updated_at = now()"
+        + " where recipient_user_id = ? and status in ('PENDING', 'FAILED')", user.getId());
     return subscriptionStatus(user.getId());
   }
 
@@ -159,6 +173,36 @@ public class TaskReminderService {
         task.status(), task.dependencyState());
   }
 
+  /** Queue a generic push for an in-app notice, without copying its title, entity, or detail. */
+  @Transactional
+  public void queueOperationalNotice(long departmentId, long notificationId, Long recipientUserId) {
+    if (departmentId <= 0 || !pushAvailable()) return;
+    var versions = jdbc.queryForList("select version from notifications where id = ? and department_id = ?"
+        + " and category in ('CAPACITY', 'ACTIVITY') and status in ('OPEN', 'INFO')"
+        + " and (expires_at is null or expires_at > now())", Long.class, notificationId, departmentId);
+    if (versions.isEmpty()) return;
+    long version = versions.getFirst();
+    jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'NOTICE_UPDATED', updated_at = now()"
+        + " where notification_id = ? and notice_version <> ? and status in ('PENDING', 'FAILED')", notificationId, version);
+    var targets = jdbc.query("""
+        select distinct u.id as user_id, s.id as subscription_id
+          from department_memberships m
+          join app_users u on u.id = m.user_id and u.enabled = true
+          join task_reminder_preferences p on p.user_id = u.id and p.opted_in = true and p.operational_alerts = true
+          join push_subscriptions s on s.user_id = u.id and s.revoked_at is null
+         where m.department_id = ? and (? is null or u.id = ?)
+         order by u.id, s.id
+        """, (rs, n) -> new OperationalTarget(rs.getLong("user_id"), rs.getLong("subscription_id")),
+        departmentId, recipientUserId, recipientUserId);
+    for (var target : targets) {
+      jdbc.update("""
+          insert into operational_push_deliveries(department_id, notification_id, recipient_user_id,
+            subscription_id, notice_version, action_token, next_attempt_at)
+          values (?, ?, ?, ?, ?, ?, now()) on conflict do nothing
+          """, departmentId, notificationId, target.userId(), target.subscriptionId(), version, UUID.randomUUID());
+    }
+  }
+
   /** Periodic repair pass makes reminder scheduling resilient to restarts and missed in-process events. */
   @Transactional
   public int reconcileAndDeliverDue() {
@@ -171,7 +215,7 @@ public class TaskReminderService {
     for (var task : tasks) reconcileTask(task.id(), task.departmentId(), task.assignedUserId(), task.dueAt(),
         task.status(), task.dependencyState());
     cancelStaleReminders();
-    return deliverDue();
+    return deliverDue() + deliverOperationalDue();
   }
 
   @Transactional
@@ -258,6 +302,31 @@ public class TaskReminderService {
         """, DELIVERY, user.getId(), DepartmentContext.id(), capped);
   }
 
+  public OpenOperationalNotification openOperationalNotification(UUID actionToken) {
+    var user = requireStaff();
+    var rows = jdbc.query("""
+        select n.id, n.department_id, n.status
+          from operational_push_deliveries d
+          join notifications n on n.id = d.notification_id and n.department_id = d.department_id
+         where d.action_token = ? and d.recipient_user_id = ? and d.department_id = ?
+           and (n.recipient_user_id is null or n.recipient_user_id = ?)
+           and n.status in ('OPEN', 'INFO') and (n.expires_at is null or n.expires_at > now())
+        """, (rs, n) -> new OpenOperationalNotification(rs.getLong("id"), rs.getLong("department_id"),
+            rs.getString("status")), actionToken, user.getId(), DepartmentContext.id(), user.getId());
+    if (rows.isEmpty()) throw ApiException.missing();
+    return rows.getFirst();
+  }
+
+  public List<OperationalDeliveryOutcome> operationalOutcomes(int limit) {
+    var user = requireStaff();
+    if (DepartmentContext.id() <= 0) return List.of();
+    return jdbc.query("""
+        select id, status, attempt_count, last_attempt_at, sent_at, error_code, created_at
+          from operational_push_deliveries where recipient_user_id = ? and department_id = ?
+         order by created_at desc, id desc limit ?
+        """, OPERATIONAL_DELIVERY, user.getId(), DepartmentContext.id(), Math.max(1, Math.min(100, limit)));
+  }
+
   private int deliverDue() {
     Instant now = Instant.now();
     var due = jdbc.query("""
@@ -314,14 +383,101 @@ public class TaskReminderService {
     return sent;
   }
 
+  private int deliverOperationalDue() {
+    var now = Instant.now();
+    jdbc.update("""
+        update operational_push_deliveries d set status = 'CANCELLED', error_code = 'NOTICE_EXPIRED', updated_at = now()
+         where d.status in ('PENDING', 'FAILED') and not exists (
+           select 1 from notifications n where n.id = d.notification_id and n.department_id = d.department_id
+             and n.status in ('OPEN', 'INFO') and (n.expires_at is null or n.expires_at > now()))
+        """);
+    jdbc.update("""
+        update operational_push_deliveries d set status = 'CANCELLED', error_code = 'PUSH_DISABLED', updated_at = now()
+         where d.status in ('PENDING', 'FAILED') and not exists (
+           select 1 from task_reminder_preferences p where p.user_id = d.recipient_user_id
+             and p.opted_in = true and p.operational_alerts = true)
+        """);
+    var due = jdbc.query("""
+        select d.id, d.recipient_user_id, d.subscription_id, d.action_token, d.attempt_count,
+               s.endpoint, s.p256dh_key, s.auth_secret
+          from operational_push_deliveries d
+          join push_subscriptions s on s.id = d.subscription_id and s.user_id = d.recipient_user_id
+            and s.revoked_at is null
+          join task_reminder_preferences p on p.user_id = d.recipient_user_id
+            and p.opted_in = true and p.operational_alerts = true
+          join notifications n on n.id = d.notification_id and n.department_id = d.department_id
+            and n.status in ('OPEN', 'INFO') and (n.expires_at is null or n.expires_at > ?)
+         where d.status in ('PENDING', 'FAILED') and (d.status <> 'FAILED' or d.attempt_count < ?)
+           and d.next_attempt_at <= ?
+         order by d.next_attempt_at, d.id limit 100
+        """, OPERATIONAL_ROW, Timestamp.from(now), MAX_ATTEMPTS, Timestamp.from(now));
+    int sent = 0;
+    for (var row : due) {
+      Instant attemptAt = Instant.now();
+      int claimed = jdbc.update("""
+          update operational_push_deliveries set status = 'SENDING', attempt_count = attempt_count + 1,
+            last_attempt_at = ?, updated_at = now()
+           where id = ? and status in ('PENDING', 'FAILED') and next_attempt_at <= ?
+          """, Timestamp.from(attemptAt), row.id(), Timestamp.from(attemptAt));
+      if (claimed != 1) continue;
+      try {
+        sendOperational(row);
+        jdbc.update("update operational_push_deliveries set status = 'SENT', sent_at = now(), error_code = null, updated_at = now()"
+            + " where id = ? and status = 'SENDING'", row.id());
+        jdbc.update("update push_subscriptions set last_used_at = now() where id = ?", row.subscriptionId());
+        sent++;
+      } catch (PushFailure failure) {
+        if (failure.gone()) {
+          jdbc.update("update push_subscriptions set revoked_at = now() where id = ?", row.subscriptionId());
+          jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
+              + " where subscription_id = ? and status in ('PENDING', 'FAILED', 'SENDING')", row.subscriptionId());
+        } else {
+          int attempts = row.attemptCount() + 1;
+          String state = attempts >= MAX_ATTEMPTS ? "FAILED" : "PENDING";
+          jdbc.update("update operational_push_deliveries set status = ?, error_code = ?, next_attempt_at = ?, updated_at = now()"
+              + " where id = ? and status = 'SENDING'", state, failure.code(),
+              Timestamp.from(Instant.now().plusMillis(RETRY_DELAY_MS)), row.id());
+          log.warn("Operational push delivery failed with code {}.", failure.code());
+        }
+      }
+    }
+    return sent;
+  }
+
   private void send(DeliveryRow row) {
     try {
       if (!pushAvailable()) throw new PushFailure("PUSH_UNAVAILABLE", 0);
       if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
         Security.addProvider(new BouncyCastleProvider());
-      byte[] payload = json.writeValueAsBytes(new PushPayload(GENERIC_TITLE, GENERIC_BODY,
-          "/tasks?reminder=" + row.actionToken(), row.actionToken().toString()));
-      var notification = new Notification(row.endpoint(), decodeKey(row.p256dh()), decode(row.auth()), payload, 300);
+      sendPayload(row.endpoint(), row.p256dh(), row.auth(), taskPushPayload(row.actionToken()));
+    } catch (PushFailure failure) {
+      throw failure;
+    } catch (Exception exception) {
+      throw new PushFailure("PUSH_PROVIDER_ERROR", 0);
+    }
+  }
+
+  private void sendOperational(OperationalDeliveryRow row) {
+    if (!pushAvailable()) throw new PushFailure("PUSH_UNAVAILABLE", 0);
+    sendPayload(row.endpoint(), row.p256dh(), row.auth(), operationalPushPayload(row.actionToken()));
+  }
+
+  static PushPayload taskPushPayload(UUID token) {
+    return new PushPayload("TASK_REMINDER", GENERIC_TITLE, GENERIC_BODY,
+        "/app/tasks?reminder=" + token, token.toString(), null);
+  }
+
+  static PushPayload operationalPushPayload(UUID token) {
+    return new PushPayload("OPERATIONAL_ALERT", OPERATIONAL_TITLE, OPERATIONAL_BODY,
+        "/app/dashboard?notification=" + token, null, token.toString());
+  }
+
+  private void sendPayload(String endpoint, String p256dh, String auth, PushPayload value) {
+    try {
+      if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
+        Security.addProvider(new BouncyCastleProvider());
+      byte[] payload = json.writeValueAsBytes(value);
+      var notification = new Notification(endpoint, decodeKey(p256dh), decode(auth), payload, 300);
       var response = new PushService(vapidPublicKey, vapidPrivateKey, vapidSubject).send(notification);
       int status = response.getStatusLine().getStatusCode();
       if (status == 404 || status == 410) throw new PushFailure("SUBSCRIPTION_GONE", status);
@@ -364,7 +520,8 @@ public class TaskReminderService {
         select opted_in, time_zone, minutes_before, quiet_hours_start, quiet_hours_end, operational_alerts
           from task_reminder_preferences where user_id = ?
         """, PREFS, userId);
-    return rows.isEmpty() ? new Preferences(false, "UTC", 10, null, null, false, pushAvailable(), 0)
+    return rows.isEmpty() ? new Preferences(false, "UTC", 10, null, null, false, pushAvailable(), 0,
+        LEAD_MINUTES.stream().sorted().toList())
         : rows.getFirst().withDelivery(pushAvailable(), subscriptionCount(userId));
   }
 
@@ -376,7 +533,9 @@ public class TaskReminderService {
 
   private int subscriptionCount(long userId) { return subscriptionStatus(userId).activeCount(); }
 
-  private boolean pushAvailable() { return !vapidPublicKey.isBlank() && !vapidPrivateKey.isBlank(); }
+  private boolean pushAvailable() {
+    return schedulerEnabled && !vapidPublicKey.isBlank() && !vapidPrivateKey.isBlank();
+  }
 
   private com.example.hospital.domain.AppUser requireStaff() {
     var user = actor.user();
@@ -434,27 +593,36 @@ public class TaskReminderService {
   }
 
   public record Preferences(boolean optedIn, String timeZone, int minutesBefore, LocalTime quietHoursStart,
-      LocalTime quietHoursEnd, boolean operationalAlerts, boolean pushAvailable, int activeSubscriptions) {
+      LocalTime quietHoursEnd, boolean operationalAlerts, boolean pushAvailable, int activeSubscriptions,
+      List<Integer> availableLeadMinutes) {
     Preferences withDelivery(boolean available, int count) {
       return new Preferences(optedIn, timeZone, minutesBefore, quietHoursStart, quietHoursEnd,
-          operationalAlerts, available, count);
+          operationalAlerts, available, count, LEAD_MINUTES.stream().sorted().toList());
     }
   }
   public record SubscriptionStatus(boolean subscribed, int activeCount, boolean pushAvailable) {}
   public record SnoozeResult(Instant scheduledAt) {}
   public record OpenReminder(long taskId, long departmentId, Instant dueAt, String status) {}
+  public record OpenOperationalNotification(long notificationId, long departmentId, String status) {}
   public record DeliveryOutcome(long id, String status, int attemptCount, Instant lastAttemptAt,
       Instant sentAt, String errorCode, Instant createdAt) {}
-  record PushPayload(String title, String body, String url, String reminderToken) {}
+  public record OperationalDeliveryOutcome(long id, String status, int attemptCount, Instant lastAttemptAt,
+      Instant sentAt, String errorCode, Instant createdAt) {}
+  record PushPayload(String type, String title, String body, String url,
+      String reminderToken, String notificationToken) {}
   private record Task(long id, long departmentId, Long assignedUserId, Instant dueAt, String status, String dependencyState) {}
   private record DeliveryRow(long id, long taskId, long departmentId, long recipientUserId, UUID actionToken,
       long subscriptionId, String endpoint, String p256dh, String auth, String timeZone,
       LocalTime quietStart, LocalTime quietEnd, int attemptCount) {}
+  private record OperationalTarget(long userId, long subscriptionId) {}
+  private record OperationalDeliveryRow(long id, long recipientUserId, long subscriptionId, UUID actionToken,
+      int attemptCount, String endpoint, String p256dh, String auth) {}
   private static final RowMapper<Task> TASK = (rs, n) -> new Task(rs.getLong("id"), rs.getLong("department_id"),
       nullableLong(rs, "assigned_user_id"), instant(rs, "due_at"), rs.getString("status"), rs.getString("dependency_state"));
   private static final RowMapper<Preferences> PREFS = (rs, n) -> new Preferences(rs.getBoolean("opted_in"),
       rs.getString("time_zone"), rs.getInt("minutes_before"), rs.getObject("quiet_hours_start", LocalTime.class),
-      rs.getObject("quiet_hours_end", LocalTime.class), rs.getBoolean("operational_alerts"), false, 0);
+      rs.getObject("quiet_hours_end", LocalTime.class), rs.getBoolean("operational_alerts"), false, 0,
+      LEAD_MINUTES.stream().sorted().toList());
   private static final RowMapper<DeliveryOutcome> DELIVERY = (rs, n) -> new DeliveryOutcome(rs.getLong("id"),
       rs.getString("status"), rs.getInt("attempt_count"), instant(rs, "last_attempt_at"),
       instant(rs, "sent_at"), rs.getString("error_code"), instant(rs, "created_at"));
@@ -464,6 +632,14 @@ public class TaskReminderService {
       rs.getString("p256dh_key"), rs.getString("auth_secret"), rs.getString("time_zone"),
       rs.getObject("quiet_hours_start", LocalTime.class), rs.getObject("quiet_hours_end", LocalTime.class),
       rs.getInt("attempt_count"));
+  private static final RowMapper<OperationalDeliveryOutcome> OPERATIONAL_DELIVERY =
+      (rs, n) -> new OperationalDeliveryOutcome(rs.getLong("id"), rs.getString("status"),
+          rs.getInt("attempt_count"), instant(rs, "last_attempt_at"), instant(rs, "sent_at"),
+          rs.getString("error_code"), instant(rs, "created_at"));
+  private static final RowMapper<OperationalDeliveryRow> OPERATIONAL_ROW = (rs, n) ->
+      new OperationalDeliveryRow(rs.getLong("id"), rs.getLong("recipient_user_id"),
+          rs.getLong("subscription_id"), rs.getObject("action_token", UUID.class), rs.getInt("attempt_count"),
+          rs.getString("endpoint"), rs.getString("p256dh_key"), rs.getString("auth_secret"));
 
   private static final class PushFailure extends RuntimeException {
     private final String code;
