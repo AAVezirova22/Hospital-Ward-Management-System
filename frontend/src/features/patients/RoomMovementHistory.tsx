@@ -17,7 +17,7 @@ export function RoomMovementHistory({ rooms }: { rooms: RoomHistory }) {
         movements.map(({ assignment, room }) => (
           <div className="result-row" key={assignment.id}>
             <span>
-              Room {room.roomNumber}
+              Room {room.roomNumber}{assignment.bedIdentifier ? ` · Bed ${assignment.bedIdentifier}` : ""}
               <small>
                 Assigned {date(assignment.assignedAt)}
                 {assignment.releasedAt

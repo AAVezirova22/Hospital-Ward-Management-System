@@ -47,6 +47,7 @@ export interface Doctor extends Entity {
 export interface RoomCapacity extends Entity {
   roomNumber: string;
   bedCount: number;
+  bedIdentifiers: string[];
   active: boolean;
   capabilities: string[];
   occupiedBeds: number;
@@ -77,6 +78,7 @@ export interface Admission extends Entity {
 export interface RoomAssignment extends Entity {
   admissionId: number;
   roomId: number;
+  bedIdentifier: string;
   assignedAt: string;
   releasedAt: string | null;
   reason: string;

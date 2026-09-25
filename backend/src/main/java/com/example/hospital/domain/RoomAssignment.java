@@ -8,6 +8,8 @@ import java.time.Instant;
 public class RoomAssignment extends DepartmentEntity {
   private Long admissionId;
   private Long roomId;
+  private Long bedId;
+  private String bedIdentifier;
   private Instant assignedAt;
   private Instant releasedAt;
   private String reason;
@@ -17,6 +19,10 @@ public class RoomAssignment extends DepartmentEntity {
   public void setAdmissionId(Long admissionId) { this.admissionId = admissionId; }
   public Long getRoomId() { return roomId; }
   public void setRoomId(Long roomId) { this.roomId = roomId; }
+  public Long getBedId() { return bedId; }
+  public void setBedId(Long bedId) { this.bedId = bedId; }
+  public String getBedIdentifier() { return bedIdentifier; }
+  public void setBedIdentifier(String bedIdentifier) { this.bedIdentifier = bedIdentifier; }
   public Instant getAssignedAt() { return assignedAt; }
   public void setAssignedAt(Instant assignedAt) { this.assignedAt = assignedAt; }
   public Instant getReleasedAt() { return releasedAt; }

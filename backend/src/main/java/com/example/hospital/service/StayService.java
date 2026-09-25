@@ -16,6 +16,7 @@ import com.example.hospital.repository.DoctorRepository;
 import com.example.hospital.repository.MedicalProcedureRepository;
 import com.example.hospital.repository.PerformedProcedureRepository;
 import com.example.hospital.repository.RoomAssignmentRepository;
+import com.example.hospital.repository.RoomBedRepository;
 import com.example.hospital.repository.WorkflowLockRepository;
 import com.example.hospital.security.Actor;
 import java.time.DateTimeException;
@@ -47,6 +48,7 @@ public class StayService {
   private final Actor actor;
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
+  private final RoomBedRepository beds;
   private final DoctorRepository doctors;
   private final MedicalProcedureRepository catalogue;
   private final PerformedProcedureRepository performed;
@@ -59,6 +61,7 @@ public class StayService {
       Actor actor,
       AdmissionRepository admissions,
       RoomAssignmentRepository assignments,
+      RoomBedRepository beds,
       DoctorRepository doctors,
       MedicalProcedureRepository catalogue,
       PerformedProcedureRepository performed,
@@ -69,6 +72,7 @@ public class StayService {
     this.actor = actor;
     this.admissions = admissions;
     this.assignments = assignments;
+    this.beds = beds;
     this.doctors = doctors;
     this.catalogue = catalogue;
     this.performed = performed;
@@ -200,15 +204,37 @@ if (hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
     return r;
   }
 
+  private com.example.hospital.domain.RoomBed freeBed(Long roomId, String requestedIdentifier) {
+    if (assignments.existsByRoomIdAndReleasedAtIsNullAndBedIdIsNull(roomId))
+      throw ApiException.conflict(
+          "LEGACY_BED_ASSIGNMENTS",
+          "Move or discharge admissions with unassigned legacy beds before assigning a named bed in this room.");
+    var available = beds.findByRoomIdOrderByIdentifier(roomId).stream()
+        .filter(bed -> assignments.findByBedIdAndReleasedAtIsNull(bed.getId()).isEmpty())
+        .toList();
+    if (requestedIdentifier != null && !requestedIdentifier.isBlank()) {
+      var chosen = beds.findByRoomIdAndIdentifier(roomId, requestedIdentifier.trim())
+          .orElseThrow(() -> ApiException.conflict("BED_NOT_FOUND", "Choose a bed in the selected room."));
+      if (assignments.findByBedIdAndReleasedAtIsNull(chosen.getId()).isPresent())
+        throw ApiException.conflict("BED_OCCUPIED", "That bed is already occupied.");
+      return chosen;
+    }
+    return available.stream().findFirst()
+        .orElseThrow(() -> ApiException.conflict("ROOM_CAPACITY_EXCEEDED", "The room has no available named beds."));
+  }
+
   private void active(Admission a) {
     if (!a.getStatus().equals("ACTIVE"))
       throw ApiException.conflict("ADMISSION_CLOSED", "This admission is already closed.");
   }
 
-  private void assign(Admission a, Long roomId, String reason, String source) {
+  private void assign(Admission a, Long roomId, String bedIdentifier, String reason, String source) {
     var ra = new RoomAssignment();
     ra.setAdmissionId(a.getId());
     ra.setRoomId(roomId);
+    var bed = freeBed(roomId, bedIdentifier);
+    ra.setBedId(bed.getId());
+    ra.setBedIdentifier(bed.getIdentifier());
     ra.setAssignedAt(Instant.now());
     ra.setReason(reason);
     ra.setCreatedBy(actor.user().getId());
@@ -235,7 +261,7 @@ if (hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
     a.setCreatedBy(actor.user().getId());
     a.setRequiredRoomCapabilities(requirements);
     admissions.saveAndFlush(a);
-    assign(a, in.roomId(), "Admission", source);
+    assign(a, in.roomId(), in.bedIdentifier(), "Admission", source);
     audit.log("ADMISSION_CREATED", "Admission", a.getId(), source);
     careWorkflows.launchForTrigger(a.getId(), "ADMISSION");
     return a;
@@ -250,12 +276,17 @@ if (hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
     HospitalService.version(a, in.version());
     var ra =
         assignments.findByAdmissionIdAndReleasedAtIsNull(id).orElseThrow(ApiException::missing);
-    if (ra.getRoomId().equals(in.roomId()))
+    if (ra.getRoomId().equals(in.roomId()) &&
+        (in.bedIdentifier() == null || in.bedIdentifier().isBlank() || in.bedIdentifier().equals(ra.getBedIdentifier())))
       throw ApiException.conflict("SAME_ROOM", "The patient is already in that room.");
-    freeRoom(in.roomId(), a.getRequiredRoomCapabilities());
+    if (!ra.getRoomId().equals(in.roomId()))
+      freeRoom(in.roomId(), a.getRequiredRoomCapabilities());
+    else
+      RoomCapabilityMatcher.require(hospital.room(in.roomId()), a.getRequiredRoomCapabilities());
+    var destinationBed = freeBed(in.roomId(), in.bedIdentifier());
     ra.setReleasedAt(Instant.now());
     assignments.saveAndFlush(ra);
-    assign(a, in.roomId(), in.reason(), source);
+    assign(a, in.roomId(), destinationBed.getIdentifier(), in.reason(), source);
     a.setUpdatedAt(Instant.now());
     admissions.saveAndFlush(a);
     audit.log("ROOM_TRANSFERRED", "Admission", a.getId(), source);

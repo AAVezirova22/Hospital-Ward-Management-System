@@ -10,6 +10,9 @@ public class Room extends DepartmentEntity {
   private String roomNumber;
   private int bedCount;
   private boolean active = true;
+  @OneToMany(fetch = FetchType.EAGER)
+  @JoinColumn(name = "room_id", referencedColumnName = "id", insertable = false, updatable = false)
+  private java.util.List<RoomBed> beds = new java.util.ArrayList<>();
   @ElementCollection(fetch = FetchType.EAGER)
   @CollectionTable(
       name = "room_capabilities",
@@ -23,6 +26,8 @@ public class Room extends DepartmentEntity {
   public int getBedCount() { return bedCount; }
   public void setBedCount(int bedCount) { this.bedCount = bedCount; }
   public boolean isActive() { return active; }
+  public java.util.List<RoomBed> getBeds() { return beds; }
+  public void setBeds(java.util.List<RoomBed> beds) { this.beds = beds == null ? new java.util.ArrayList<>() : beds; }
   public void setActive(boolean active) { this.active = active; }
   public Set<String> getCapabilities() { return capabilities; }
   public void setCapabilities(Set<String> capabilities) {

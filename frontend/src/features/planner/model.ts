@@ -5,6 +5,7 @@ export interface PlannedTransfer {
   patientName: string;
   fromRoomId: number;
   toRoomId: number;
+  bedIdentifier: string;
   toRoomVersion: number;
   requiredRoomCapabilities: string[];
   version: number;

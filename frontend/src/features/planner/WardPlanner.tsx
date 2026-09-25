@@ -29,6 +29,8 @@ export function WardPlanner({ user }: { user: User }) {
     setSelected,
     destination,
     setDestination,
+    bedIdentifier,
+    setBedIdentifier,
     review,
     setReview,
     busy,
@@ -69,6 +71,7 @@ export function WardPlanner({ user }: { user: User }) {
       for (const p of order) {
         await api(`/admissions/${p.admissionId}/transfer`, "POST", {
           roomId: p.toRoomId,
+          bedIdentifier: p.bedIdentifier,
           version: p.version,
           reason: "Confirmed ward plan",
         });
@@ -146,6 +149,7 @@ export function WardPlanner({ user }: { user: User }) {
           loadError={Boolean(roomsQuery.error || admissionsQuery.error)}
           selected={selected}
           destination={destination}
+          bedIdentifier={bedIdentifier}
           rooms={rooms}
           active={active}
           current={current}
@@ -159,7 +163,8 @@ export function WardPlanner({ user }: { user: User }) {
             setSelected(id);
             setDischargeDate(discharge ?? "");
           }}
-          onDestination={setDestination}
+          onDestination={(value) => { setDestination(value); setBedIdentifier(""); }}
+          onBedIdentifier={setBedIdentifier}
           onStage={stage}
           onDischargeDate={setDischargeDate}
           onSchedule={schedule}

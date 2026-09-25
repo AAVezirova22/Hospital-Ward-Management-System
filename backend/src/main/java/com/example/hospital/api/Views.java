@@ -94,6 +94,7 @@ public final class Views {
     row.put("version", r.getVersion());
     row.put("roomNumber", r.getRoomNumber());
     row.put("bedCount", r.getBedCount());
+    row.put("bedIdentifiers", r.getBeds().stream().map(RoomBed::getIdentifier).distinct().sorted().toList());
     row.put("active", r.isActive());
     row.put("capabilities", r.getCapabilities().stream().sorted().toList());
     return row;
@@ -122,6 +123,8 @@ public final class Views {
     row.put("version", a.getVersion());
     row.put("admissionId", a.getAdmissionId());
     row.put("roomId", a.getRoomId());
+    row.put("bedId", a.getBedId());
+    row.put("bedIdentifier", a.getBedIdentifier());
     row.put("assignedAt", a.getAssignedAt());
     row.put("releasedAt", a.getReleasedAt());
     row.put("reason", a.getReason());

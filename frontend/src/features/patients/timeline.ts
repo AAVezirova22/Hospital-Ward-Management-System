@@ -1,4 +1,4 @@
-import type { AdmissionView } from "../../api/contracts";
+﻿import type { AdmissionView } from "../../api/contracts";
 
 export interface CareEvent {
   id: string;
@@ -22,7 +22,7 @@ export function careTimeline(admissions: AdmissionView[]): CareEvent[] {
           at: v.admission.admissionDateTime,
           title: "Admitted",
           detail: rooms[0]
-            ? `Room ${rooms[0].room.roomNumber}`
+            ? `Room ${rooms[0].room.roomNumber}${rooms[0].assignment.bedIdentifier ? ` Â· Bed ${rooms[0].assignment.bedIdentifier}` : ""}`
             : "Initial room not recorded",
           kind: "admission",
           admissionNumber: v.admission.admissionNumber,
@@ -35,7 +35,7 @@ export function careTimeline(admissions: AdmissionView[]): CareEvent[] {
             id: `transfer-${r.assignment.id}`,
             at: r.assignment.assignedAt,
             title: "Room transfer",
-            detail: `Room ${rooms[i].room.roomNumber} → ${r.room.roomNumber}${r.assignment.reason ? ` · ${r.assignment.reason}` : ""}`,
+            detail: `Room ${rooms[i].room.roomNumber}${rooms[i].assignment.bedIdentifier ? ` · Bed ${rooms[i].assignment.bedIdentifier}` : ""} → ${r.room.roomNumber}${r.assignment.bedIdentifier ? ` · Bed ${r.assignment.bedIdentifier}` : ""}${r.assignment.reason ? ` · ${r.assignment.reason}` : ""}`,
             kind: "transfer",
             admissionNumber: v.admission.admissionNumber,
           }),
@@ -45,7 +45,7 @@ export function careTimeline(admissions: AdmissionView[]): CareEvent[] {
           id: `procedure-${p.record.id}`,
           at: p.record.performedAt,
           title: p.procedure.procedureName,
-          detail: `Dr. ${p.doctor.firstName} ${p.doctor.lastName}${p.record.note ? ` · ${p.record.note}` : ""}`,
+          detail: `Dr. ${p.doctor.firstName} ${p.doctor.lastName}${p.record.note ? ` Â· ${p.record.note}` : ""}`,
           kind: "procedure",
           admissionNumber: v.admission.admissionNumber,
         }),

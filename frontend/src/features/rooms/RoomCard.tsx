@@ -24,6 +24,11 @@ export function RoomCard({
   const capabilities = Array.isArray(r.capabilities) ? r.capabilities : [];
   const held = r.heldBeds ?? 0;
   const holds = Array.isArray(r.holds) ? r.holds : [];
+  const occupiedIdentifiers = new Set(
+    occupants.flatMap((view) => view.rooms
+      .filter((entry) => entry.room.id === r.id && !entry.assignment.releasedAt && entry.assignment.bedIdentifier)
+      .map((entry) => entry.assignment.bedIdentifier)),
+  );
   const now = Date.now();
   return (
     <div className={"room-card " + (!r.availableBeds ? "full" : "")}>
@@ -46,12 +51,15 @@ export function RoomCard({
           ) : null}
         </div>
       </div>
-      <div className="beds" aria-label={`${r.bedCount} bed capacity slots`}>
+      <div className="beds" aria-label={`${r.bedCount} named beds`}>
         {Array.from({ length: Math.min(r.bedCount, 12) }, (_, i) => {
-          const state = i < r.occupiedBeds ? "occupied" : i < r.occupiedBeds + held ? "held" : "";
+          const identifier = r.bedIdentifiers?.[i] ?? String(i + 1);
+          const state = occupiedIdentifiers.has(identifier) ? "occupied" : "";
+          const availability = occupantsLoading || occupantsError ? "occupancy unknown" : state || "no named occupant";
           return (
-            <span key={i} className={state}>
+            <span key={i} className={state} title={`Bed ${identifier}: ${availability}`} aria-label={`Bed ${identifier}: ${availability}`}>
               <BedDouble size={compact ? 19 : 24} />
+              {!compact && <small>{identifier}</small>}
             </span>
           );
         })}
@@ -85,9 +93,10 @@ export function RoomCard({
     <p role="status">Loading current occupants…</p>
   ) : occupants.length ? (
     <ul aria-label={`Current occupants of room ${r.roomNumber}`}>
-      {occupants.map(({ admission, patient, doctor }) => (
+      {occupants.map(({ admission, patient, doctor, rooms: assignments }) => (
         <li key={admission.id}>
           <Link to={patientHref(patient)}>{fullName(patient)}</Link>
+          <small>Bed {assignments.find((entry) => entry.room.id === r.id && !entry.assignment.releasedAt)?.assignment.bedIdentifier ?? "Unspecified"}</small>
           <span>
             <Link to={`/app/admissions?q=${encodeURIComponent(admission.admissionNumber)}`}>
               Admission {admission.admissionNumber}

@@ -39,6 +39,7 @@ export function useWardPlanner(user: User) {
   const [plan, setPlan] = useState<PlannedTransfer[]>([]),
     [selected, setSelected] = useState<number>(),
     [destination, setDestination] = useState("");
+  const [bedIdentifier, setBedIdentifier] = useState("");
   const [review, setReview] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -59,7 +60,8 @@ export function useWardPlanner(user: User) {
       !v ||
       v.admission.version !== p.version ||
       v.assignment?.roomId !== p.fromRoomId ||
-      destination?.version !== p.toRoomVersion
+      destination?.version !== p.toRoomVersion ||
+      !(destination?.bedIdentifiers ?? []).includes(p.bedIdentifier)
     );
   });
   const conflicts = projectRooms(rooms, plan).some(
@@ -87,6 +89,21 @@ export function useWardPlanner(user: User) {
       return;
     }
     const target = rooms.find((room) => room.id === roomId)!;
+    const takenBeds = new Set([
+      ...active.flatMap((patient) => patient.rooms
+        .filter((entry) => !entry.assignment.releasedAt && entry.assignment.roomId === roomId)
+        .map((entry) => entry.assignment.bedIdentifier)),
+      ...plan.filter((transfer) => transfer.admissionId !== id && transfer.toRoomId === roomId)
+        .map((transfer) => transfer.bedIdentifier),
+    ]);
+    const preferredBed = roomId === Number(destination) ? bedIdentifier : "";
+    const targetBed = preferredBed && !takenBeds.has(preferredBed)
+      ? preferredBed
+      : target.bedIdentifiers?.find((identifier) => !takenBeds.has(identifier));
+    if (!targetBed) {
+      setError("Choose an available named bed in the destination room.");
+      return;
+    }
     setPlan((p) => [
       ...p.filter((x) => x.admissionId !== id),
       {
@@ -94,6 +111,7 @@ export function useWardPlanner(user: User) {
         patientName: fullName(view.patient),
         fromRoomId: view.assignment!.roomId,
         toRoomId: roomId,
+        bedIdentifier: targetBed,
         toRoomVersion: target.version,
         requiredRoomCapabilities: view.admission.requiredRoomCapabilities ?? [],
         version: view.admission.version,
@@ -116,6 +134,8 @@ export function useWardPlanner(user: User) {
     setSelected,
     destination,
     setDestination,
+    bedIdentifier,
+    setBedIdentifier,
     review,
     setReview,
     busy,

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
 import { api, fullName, money, date, type Row, type User } from "../../api";
+import type { AdmissionView } from "../../api/contracts";
 import {
   Link,
   useUser,
@@ -31,10 +32,12 @@ export function Workflow({
     client = useQueryClient();
   const { data: doctors } = useAllPages<Row>("/doctors?active=true"),
     { data: rooms } = useAllPages<Row>("/rooms?active=true&minFree=1"),
+    { data: activeAdmissions = [] } = useAllPages<AdmissionView>("/admissions?status=ACTIVE"),
     { data: procedures } = useAllPages<Row>("/procedures?active=true");
   const [values, setValues] = useState<Row>({
       doctorId: active?.doctor.id || user.doctorId || "",
       roomId: "",
+      bedIdentifier: "",
       requiredRoomCapabilitiesText: "",
       medicalProcedureId: "",
       reason: "",
@@ -70,6 +73,14 @@ export function Workflow({
       room.active &&
       missingCapabilities(requiredRoomCapabilities, room.capabilities).length > 0,
   );
+  const selectedRoom = roomRows.find((room) => room.id === Number(values.roomId));
+  const occupiedBeds = new Set(activeAdmissions.flatMap((view) =>
+    view.rooms.filter((entry) => !entry.assignment.releasedAt && entry.assignment.roomId === selectedRoom?.id)
+      .map((entry) => entry.assignment.bedIdentifier),
+  ));
+  const availableBedIdentifiers = (selectedRoom?.bedIdentifiers ?? []).filter((identifier: string) =>
+    !occupiedBeds.has(identifier) || identifier === active?.assignment?.bedIdentifier,
+  );
   const update =
     (key: string) =>
     (
@@ -88,11 +99,13 @@ export function Workflow({
           patientId: patient.id,
           doctorId: Number(values.doctorId),
           roomId: Number(values.roomId),
+          bedIdentifier: values.bedIdentifier,
           requiredRoomCapabilities,
         });
       else if (kind === "transfer")
         await api(`/admissions/${admission.id}/transfer`, "POST", {
           roomId: Number(values.roomId),
+          bedIdentifier: values.bedIdentifier,
           reason: values.reason,
           version: admission.version,
         });
@@ -151,10 +164,7 @@ export function Workflow({
               <p>
                 Destination:{" "}
                 <strong>
-                  Room{" "}
-                  {Array.isArray(rooms) &&
-                    rooms.find((r: Row) => r.id === Number(values.roomId))
-                      ?.roomNumber}
+                  Room {selectedRoom?.roomNumber}{values.bedIdentifier ? ` · Bed ${values.bedIdentifier}` : ""}
                 </strong>
               </p>
             )}
@@ -278,7 +288,11 @@ export function Workflow({
                 aria-label="Destination room"
                 required
                 value={values.roomId}
-                onChange={update("roomId")}
+                onChange={(e) => setValues((current: Row) => ({
+                  ...current,
+                  roomId: e.target.value,
+                  bedIdentifier: "",
+                }))}
               >
                 <option value="">
                   {compatibleRooms.length > 0
@@ -289,6 +303,18 @@ export function Workflow({
                   <option key={room.id} value={room.id}>
                     Room {room.roomNumber} · {room.availableBeds} free beds
                   </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {["admit", "transfer"].includes(kind) && selectedRoom && (
+            <label>
+              Destination bed
+              <select aria-label="Destination bed" required value={values.bedIdentifier}
+                onChange={update("bedIdentifier")}>
+                <option value="">Select an available bed</option>
+                {availableBedIdentifiers.map((identifier: string) => (
+                  <option key={identifier} value={identifier}>{identifier}</option>
                 ))}
               </select>
             </label>

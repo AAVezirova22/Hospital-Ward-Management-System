@@ -66,6 +66,13 @@ export const configs: Record<string, EntityConfig> = {
       { key: "roomNumber", label: "Room number", required: true },
       { key: "bedCount", label: "Bed count", type: "number", required: true },
       {
+        key: "bedIdentifiersText",
+        label: "Bed identifiers (comma-separated)",
+        type: "bed-identifiers",
+        placeholder: "A, B, C",
+        help: "Enter one unique identifier for each bed. Leave blank to keep existing identifiers or use numbered beds.",
+      },
+      {
         key: "capabilitiesText",
         label: "Capabilities (comma-separated tags)",
         type: "tags",
@@ -117,6 +124,9 @@ export function EntityForm({
     capabilitiesText: Array.isArray(record.capabilities)
       ? record.capabilities.join(", ")
       : "",
+    bedIdentifiersText: Array.isArray(record.bedIdentifiers)
+      ? record.bedIdentifiers.join(", ")
+      : "",
     password: "",
   };
   const shape: Record<string, z.ZodTypeAny> = {};
@@ -125,14 +135,16 @@ export function EntityForm({
       (shape[f.key] =
         f.type === "checkbox"
           ? z.boolean()
-          : f.type === "tags"
+          : f.type === "tags" || f.type === "bed-identifiers"
             ? z.string().max(2000).superRefine((text, context) => {
                 if (!text.trim()) return;
                 const tags = text.split(",");
-                if (tags.length > 30)
+                if (f.type === "tags" && tags.length > 30)
                   context.addIssue({ code: "custom", message: "Use no more than 30 capability tags." });
                 if (tags.some((tag) => !tag.trim() || tag.trim().length > 64))
-                  context.addIssue({ code: "custom", message: "Each tag must contain 1 to 64 characters." });
+                  context.addIssue({ code: "custom", message: "Each value must contain 1 to 64 characters." });
+                if (new Set(tags.map((tag) => tag.trim())).size !== tags.length)
+                  context.addIssue({ code: "custom", message: "Values must be unique." });
               })
           : f.type === "number"
             ? f.key === "bedCount"
@@ -180,10 +192,19 @@ export function EntityForm({
           setBusy(true);
           setError(null);
           try {
+            if (kind === "rooms" && String(values.bedIdentifiersText || "").trim()) {
+              const identifiers = String(values.bedIdentifiersText).split(",").map((value) => value.trim());
+              if (identifiers.length !== Number(values.bedCount))
+                throw new Error("Enter one bed identifier for each bed count.");
+            }
             const body: Row = { ...values, version: record.version ?? null };
             if (kind === "rooms") {
               body.capabilities = normalizeCapabilities(body.capabilitiesText);
               delete body.capabilitiesText;
+              body.bedIdentifiers = String(body.bedIdentifiersText || "").trim()
+                ? String(body.bedIdentifiersText).split(",").map((value) => value.trim())
+                : null;
+              delete body.bedIdentifiersText;
             }
             if (kind === "users") {
               body.doctorId =
@@ -237,10 +258,10 @@ export function EntityForm({
               </select>
             ) : (
               <input
-                type={f.type === "tags" ? "text" : f.type || "text"}
+                type={f.type === "tags" || f.type === "bed-identifiers" ? "text" : f.type || "text"}
                 placeholder={f.placeholder}
                 {...register(f.key)}
-                maxLength={f.type === "tags" ? 2000 : undefined}
+                maxLength={f.type === "tags" || f.type === "bed-identifiers" ? 2000 : undefined}
                 aria-invalid={Boolean(errors[f.key])}
                 aria-describedby={describedBy(f)}
                 readOnly={

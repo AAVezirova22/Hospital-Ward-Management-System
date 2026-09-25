@@ -53,7 +53,7 @@ export function PlanReview({
           <div>
             <span>
               Room {roomName(p.fromRoomId)} <ArrowRight size={16} /> Room{" "}
-              {roomName(p.toRoomId)}
+              {roomName(p.toRoomId)} · Bed {p.bedIdentifier}
             </span>
             {p.requiredRoomCapabilities.length > 0 && (
               <small>Required capabilities: {p.requiredRoomCapabilities.join(", ")}</small>

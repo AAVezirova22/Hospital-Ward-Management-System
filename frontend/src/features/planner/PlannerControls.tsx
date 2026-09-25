@@ -10,6 +10,7 @@ export function PlannerControls({
   loadError,
   selected,
   destination,
+  bedIdentifier,
   rooms,
   active,
   current,
@@ -21,6 +22,7 @@ export function PlannerControls({
   simulation,
   onSelect,
   onDestination,
+  onBedIdentifier,
   onStage,
   onDischargeDate,
   onSchedule,
@@ -34,6 +36,7 @@ export function PlannerControls({
   loadError: boolean;
   selected?: number;
   destination: string;
+  bedIdentifier: string;
   rooms: RoomCapacity[];
   active: AdmissionView[];
   current?: AdmissionView;
@@ -45,6 +48,7 @@ export function PlannerControls({
   simulation?: ArrivalPlan;
   onSelect: (id: number | undefined, discharge?: string) => void;
   onDestination: (value: string) => void;
+  onBedIdentifier: (value: string) => void;
   onStage: (id: number, roomId: number) => void;
   onDischargeDate: (value: string) => void;
   onSchedule: () => void;
@@ -68,6 +72,12 @@ export function PlannerControls({
     (room) =>
       missingCapabilities(requiredRoomCapabilities, room.capabilities).length > 0,
   );
+  const destinationRoom = rooms.find((room) => room.id === Number(destination));
+  const unavailableBeds = new Set([
+    ...active.flatMap((view) => view.rooms.filter((entry) => !entry.assignment.releasedAt && entry.assignment.roomId === destinationRoom?.id)
+      .map((entry) => entry.assignment.bedIdentifier)),
+  ]);
+  const availableBeds = (destinationRoom?.bedIdentifiers ?? []).filter((id) => !unavailableBeds.has(id));
   return (
     <aside className="panel planner-controls">
       <h2>{canWrite ? "Plan a placement" : "Ward overview"}</h2>
@@ -125,6 +135,16 @@ export function PlannerControls({
                   ))}
             </select>
           </label>
+          {destinationRoom && (
+            <label>
+              Destination bed
+              <select aria-label="Destination bed" value={bedIdentifier}
+                disabled={busy} onChange={(e) => onBedIdentifier(e.target.value)}>
+                <option value="">Choose an available bed</option>
+                {availableBeds.map((id) => <option value={id} key={id}>{id}</option>)}
+              </select>
+            </label>
+          )}
           {current && placeableRooms.length === 0 && (
             <p role="status">
               {requiredRoomCapabilities.length > 0
@@ -150,7 +170,7 @@ export function PlannerControls({
           )}
           <button
             className="primary"
-            disabled={!selected || !destination || busy || loadError}
+            disabled={!selected || !destination || !bedIdentifier || busy || loadError}
             onClick={() => onStage(selected!, Number(destination))}
           >
             Preview transfer
