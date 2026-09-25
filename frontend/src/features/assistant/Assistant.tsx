@@ -93,11 +93,11 @@ export function Assistant({ onClose }: { onClose: () => void }) {
       setBusy(false);
     }
   }
-  async function action(id: number, op: string, index: number) {
+  async function action(id: number, op: string, index: number, body?: unknown) {
     setBusy(true);
     setError(null);
     try {
-      const completed = await api<Row>(`/ai-actions/${id}/${op}`, "POST");
+      const completed = await api<Row>(`/ai-actions/${id}/${op}`, "POST", body);
       setResults((r) =>
         r.map((v, i) =>
           i === index
@@ -150,17 +150,14 @@ export function Assistant({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         {results.map((r, i) => (
-          <div
-            key={i}
-            ref={i === results.length - 1 ? lastResult : undefined}
-          >
+          <div key={i} ref={i === results.length - 1 ? lastResult : undefined}>
             {r.responseType === "WORKFLOW_PROPOSAL" ? (
               <WorkflowProposal
                 data={r.data}
                 done={r.done}
                 busy={busy}
-                onAction={(op) =>
-                  action(Number((r.data as Row).action.id), op, i)
+                onAction={(op, body) =>
+                  action(Number((r.data as Row).action.id), op, i, body)
                 }
               />
             ) : (

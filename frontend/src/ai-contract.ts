@@ -21,6 +21,23 @@ const room = z
     capabilities: z.array(z.string()).default([]),
   })
   .passthrough();
+const workflowCitation = z.object({
+  sourceId: z.string().optional(),
+  sourceName: z.string(),
+  location: z.string(),
+  reportedLocation: z.string().nullable().optional(),
+  excerpt: z.string(),
+  verified: z.boolean(),
+  characterStart: z.number().int().optional(),
+  characterEnd: z.number().int().optional(),
+});
+const workflowFieldEvidence = z.object({
+  status: z.enum(["SUPPORTED", "UNCERTAIN", "CONFLICT", "UNRESOLVED"]),
+  confidence: z.number().min(0).max(1),
+  requiresDecision: z.boolean(),
+  sources: z.array(workflowCitation),
+  conflicts: z.array(workflowCitation),
+});
 const base = {
   message: z.string(),
   sessionId: z.string().nullable(),
@@ -53,6 +70,7 @@ export const aiResponse = z.discriminatedUnion("responseType", [
               operation: z.string(),
               source: z.string(),
               fields: z.record(z.string(), z.unknown()),
+              evidence: z.record(z.string(), workflowFieldEvidence).default({}),
             }),
           )
           .min(1)

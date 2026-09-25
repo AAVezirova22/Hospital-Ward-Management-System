@@ -48,6 +48,7 @@ export function FileWorkflow() {
             key: "patient",
             operation: "createPatient",
             source: "sample-admissions.csv",
+            evidence: {},
             fields: {
               firstName: "Vera",
               lastName: "Angelova",
@@ -58,6 +59,7 @@ export function FileWorkflow() {
             key: "admission",
             operation: "admit",
             source: "sample-admissions.csv",
+            evidence: {},
             fields: {
               patientId: "$patient",
               roomId: "307",
