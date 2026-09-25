@@ -6,6 +6,7 @@ import type { Patient, AdmissionView } from "../../api/contracts";
 import { ThemeToggle } from "../../cinematic";
 import { LoadingState } from "../../components/LoadingState";
 import { PortalFollowUp } from "./PortalFollowUp";
+import { RoomMovementHistory } from "./RoomMovementHistory";
 export function PatientPortal({
   user,
   onLogout,
@@ -146,6 +147,7 @@ export function PatientPortal({
                 {v.admission.expectedDischargeDate && (
                   <p>Expected discharge: {v.admission.expectedDischargeDate}</p>
                 )}
+                <RoomMovementHistory rooms={v.rooms} />
                 <h3>Recorded procedures</h3>
                 {v.procedures.map((p) => (
                   <div className="result-row" key={p.record.id}>
