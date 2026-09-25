@@ -35,7 +35,7 @@ class PatientDocumentDraftIntegrationTest {
   @Autowired ObjectMapper json;
   @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
   @MockitoBean AiModelClient model;
-  private static final String TEXT = "Patient ID: P-DRAFT-427\nName: Alice Example\nDate of birth: 1981-04-03\nPhone: +359888123456";
+  private static final String TEXT = "Patient ID: P-DRAFT-427\nName: Alice Example\nDate of birth: 1981-04-03\nPhone: +359888123456\nFollow up with cardiology by 2026-10-12 at 09:30; other form says by 2026-10-13 at 10:00";
 
   @BeforeEach void setup() throws Exception {
     when(model.identifier()).thenReturn("patient-draft-fixture");
@@ -44,7 +44,8 @@ class PatientDocumentDraftIntegrationTest {
          "firstName":[{"value":"Alice","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
          "lastName":[{"value":"Example","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
          "dateOfBirth":[{"value":"1981-04-03","confidence":0.9,"excerpt":"1981-04-03","location":"page 1"}],
-         "address":[],"phoneNumber":[{"value":"+359888123456","confidence":0.91,"excerpt":"+359888123456","location":"page 1"}]}
+         "address":[],"phoneNumber":[{"value":"+359888123456","confidence":0.91,"excerpt":"+359888123456","location":"page 1"}],
+         "followUpActions":[{"title":"Follow up with cardiology","dueDate":"2026-10-12","dueTime":"09:30","confidence":0.92,"excerpt":"Follow up with cardiology by 2026-10-12 at 09:30","location":"page 1","conflicts":[]}]}
         """;
     when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", draft)));
   }
@@ -54,16 +55,12 @@ class PatientDocumentDraftIntegrationTest {
         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
             "patientIdentifier", "P-DRAFT-427", "firstName", "Alice", "lastName", "Example", "dateOfBirth", "1981-04-03"))))
         .andExpect(status().isCreated());
-    mvc.perform(put("/api/v1/workspaces/departments/1/members/" + doctorUserId() + "/patient-import")
-        .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
-        .content("{\"enabled\":true}"))
-        .andExpect(status().isOk());
     var source = mvc.perform(multipart("/api/v1/assistant/sources")
         .file(new MockMultipartFile("file", "referral.txt", "text/plain", TEXT.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-        .with(user("doctor")).with(csrf()).header("X-Department-Id", "1"))
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1"))
         .andExpect(status().isOk()).andReturn();
     String sourceId = json.readTree(source.getResponse().getContentAsString()).path("id").asText();
-    var response = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("doctor")).with(csrf())
+    var response = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
         .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
         .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
         .andExpect(status().isOk()).andReturn();
@@ -75,6 +72,15 @@ class PatientDocumentDraftIntegrationTest {
     assertThat(draft.at("/fields/firstName/sources/0/excerpt").asText()).isEqualTo("Alice Example");
     assertThat(draft.at("/fields/firstName/sources/0/characterStart").asInt()).isEqualTo(TEXT.indexOf("Alice Example"));
     assertThat(draft.path("matchCandidates").size()).isEqualTo(1);
+    assertThat(draft.at("/followUpActions/0/title").asText()).isEqualTo("Follow up with cardiology");
+    assertThat(draft.at("/followUpActions/0/dueDate").asText()).isEqualTo("2026-10-12");
+    assertThat(draft.at("/followUpActions/0/dueTime").asText()).isEqualTo("09:30");
+    assertThat(draft.at("/followUpActions/0/requiresResolution").asBoolean()).isFalse();
+    assertThat(draft.at("/followUpActions/0/sources/0/excerpt").asText()).isEqualTo("Follow up with cardiology by 2026-10-12 at 09:30");
+    assertThat(draft.at("/followUpActions/0/sources/0/characterStart").asInt()).isEqualTo(TEXT.indexOf("Follow up with cardiology"));
+    String draftId = draft.path("draftId").asText();
+    mvc.perform(get("/api/v1/assistant/patient-drafts/" + draftId).with(user("admin")).header("X-Department-Id", "1"))
+        .andExpect(status().isOk());
     assertThat(jdbc.queryForObject("select count(*) from patients where patient_identifier='P-DRAFT-427'", Long.class)).isEqualTo(1);
   }
 
@@ -97,6 +103,27 @@ class PatientDocumentDraftIntegrationTest {
     mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("doctor")).with(csrf()).header("X-Department-Id", "1")
         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("sourceId", sourceId))))
         .andExpect(status().isNotFound());
+  }
+
+  @Test void contradictoryFollowUpDatesStayUnresolvedAndSourceLinked() throws Exception {
+    when(model.complete(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
+            {"followUpActions":[{"title":"Follow up with cardiology","dueDate":"2026-10-12","dueTime":"09:30","confidence":0.9,"excerpt":"Follow up with cardiology by 2026-10-12 at 09:30","conflicts":[{"title":"Follow up with cardiology","dueDate":"2026-10-13","dueTime":"10:00","confidence":0.8,"excerpt":"other form says by 2026-10-13 at 10:00"}]}]}
+            """)));
+    var source = mvc.perform(multipart("/api/v1/assistant/sources")
+        .file(new MockMultipartFile("file", "referral.txt", "text/plain", TEXT.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1"))
+        .andExpect(status().isOk()).andReturn();
+    String sourceId = json.readTree(source.getResponse().getContentAsString()).path("id").asText();
+    var response = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
+        .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .andExpect(status().isOk()).andReturn();
+    JsonNode draft = json.readTree(response.getResponse().getContentAsString());
+    assertThat(draft.at("/followUpActions/0/status").asText()).isEqualTo("CONFLICT");
+    assertThat(draft.at("/followUpActions/0/fieldStatuses/dueDate").asText()).isEqualTo("CONFLICT");
+    assertThat(draft.at("/followUpActions/0/requiresResolution").asBoolean()).isTrue();
+    assertThat(draft.at("/followUpActions/0/conflicts/0/source/excerpt").asText()).isEqualTo("other form says by 2026-10-13 at 10:00");
   }
 
   private long doctorUserId() {

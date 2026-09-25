@@ -30,6 +30,17 @@ public class AiController {
     return patientDrafts.extract(input.sourceId());
   }
 
+  @GetMapping("/assistant/patient-drafts/{draftId}")
+  public Object patientDraft(@PathVariable String draftId) {
+    return patientDrafts.getDraft(draftId);
+  }
+
+  @PutMapping("/assistant/patient-drafts/{draftId}/patient")
+  public Object bindPatientDraft(@PathVariable String draftId,
+      @Valid @RequestBody PatientDraftPatientInput input) {
+    return patientDrafts.bindPatient(draftId, input.patientId());
+  }
+
   @PostMapping(value = "/assistant/sources", consumes = "multipart/form-data")
   public Object upload(@RequestParam("file") MultipartFile file) {
     return sources.upload(file);
