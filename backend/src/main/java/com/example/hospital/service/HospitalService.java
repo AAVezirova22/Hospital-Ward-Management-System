@@ -152,6 +152,8 @@ public class HospitalService {
       Instant toDateExclusive,
       Long doctorId,
       String query,
+      String sortBy,
+      boolean ascending,
       Pageable pageable) {
     var currentActor = actor.user();
     boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
@@ -174,6 +176,8 @@ public class HospitalService {
         scopedDoctorId,
         patientScoped,
         scopedPatientId,
+        sortBy,
+        ascending,
         pageable);
   }
 

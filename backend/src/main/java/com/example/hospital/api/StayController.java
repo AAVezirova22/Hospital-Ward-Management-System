@@ -25,8 +25,10 @@ public class StayController {
       @RequestParam(required = false) LocalDate from,
       @RequestParam(required = false) LocalDate to,
       @RequestParam(required = false) Long doctorId,
-      @RequestParam(required = false) String q) {
-    var result = stays.list(page, size, status, from, to, doctorId, q);
+      @RequestParam(required = false) String q,
+      @RequestParam(defaultValue = "admissionDate") String sort,
+      @RequestParam(defaultValue = "desc") String direction) {
+    var result = stays.list(page, size, status, from, to, doctorId, q, sort, direction);
     return PagedResult.of(result.map(stays::view));
   }
 

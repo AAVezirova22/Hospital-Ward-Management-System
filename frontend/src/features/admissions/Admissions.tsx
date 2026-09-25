@@ -18,9 +18,12 @@ export function Admissions() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [doctorId, setDoctorId] = useState("");
+  const [sort, setSort] = useState({ key: "admissionDate", direction: "desc" as "asc" | "desc" });
   const [page, setPage] = useState(0);
   const { data: doctors } = useData("/doctors");
   const params = new URLSearchParams({ page: String(page), size: "20" });
+  params.set("sort", sort.key);
+  params.set("direction", sort.direction);
   if (status) params.set("status", status);
   if (search.trim()) params.set("q", search.trim());
   if (from) params.set("from", from);
@@ -31,6 +34,24 @@ export function Admissions() {
   const updateFilter = (setter: (value: string) => void) => (value: string) => {
     setter(value);
     setPage(0);
+  };
+  const sortableHeader = (key: string, label: string) => {
+    const active = sort.key === key;
+    return (
+      <th scope="col" aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
+        <button
+          className="table-sort"
+          type="button"
+          aria-label={`Sort by ${label}${active ? `, currently ${sort.direction === "asc" ? "ascending" : "descending"}` : ""}`}
+          onClick={() => {
+            setSort({ key, direction: active && sort.direction === "asc" ? "desc" : "asc" });
+            setPage(0);
+          }}
+        >
+          {label}{active ? (sort.direction === "asc" ? " ↑" : " ↓") : " ↕"}
+        </button>
+      </th>
+    );
   };
   return (
     <>
@@ -125,11 +146,11 @@ export function Admissions() {
         <table>
           <thead>
             <tr>
-              <th scope="col">Patient</th>
-              <th scope="col">Admission</th>
+              {sortableHeader("patient", "Patient")}
+              {sortableHeader("admissionDate", "Admission")}
               <th scope="col">Attending doctor</th>
-              <th scope="col">Room</th>
-              <th scope="col">Status</th>
+              {sortableHeader("room", "Room")}
+              {sortableHeader("status", "Status")}
             </tr>
           </thead>
           <tbody>

@@ -32,7 +32,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class StayService {
   private static final int MAX_PAGE_SIZE = 100;
   private static final Set<String> ADMISSION_STATUSES = Set.of("ACTIVE", "DISCHARGED", "CANCELLED");
+  private static final Set<String> ADMISSION_SORTS = Set.of("patient", "admissionDate", "room", "status");
 
   private final HospitalService hospital;
   private final WorkflowLockRepository lock;
@@ -81,7 +81,8 @@ public class StayService {
   }
 
   public Page<Admission> list(
-      int page, int size, String status, LocalDate from, LocalDate to, Long doctorId, String query) {
+      int page, int size, String status, LocalDate from, LocalDate to, Long doctorId, String query,
+      String sortBy, String direction) {
     if (page < 0 || size < 1 || (doctorId != null && doctorId < 1))
       throw new ApiException(
           400, "VALIDATION_ERROR", "Check the admission filters and page values.");
@@ -108,12 +109,15 @@ public class StayService {
     String normalizedQuery = query == null || query.isBlank() ? null : query.trim();
     if (normalizedQuery != null && normalizedQuery.length() > 120)
       throw new ApiException(400, "VALIDATION_ERROR", "Search text must be at most 120 characters.");
-    Sort sort =
-        Sort.by(Sort.Order.desc("admissionDateTime")).and(Sort.by(Sort.Order.desc("id")));
+    String normalizedSort = sortBy == null ? "admissionDate" : sortBy.trim();
+    String normalizedDirection = direction == null ? "desc" : direction.trim().toLowerCase(Locale.ROOT);
+    if (!ADMISSION_SORTS.contains(normalizedSort) || !Set.of("asc", "desc").contains(normalizedDirection))
+      throw new ApiException(400, "VALIDATION_ERROR", "Choose a valid admission sort column and direction.");
     return page(
         page,
         pageSize,
-        sort,
+        normalizedSort,
+        normalizedDirection.equals("asc"),
         normalizedStatus,
         fromDate,
         toDateExclusive,
@@ -124,7 +128,8 @@ public class StayService {
   private Page<Admission> page(
       int page,
       int size,
-      Sort sort,
+      String sortBy,
+      boolean ascending,
       String status,
       Instant fromDate,
       Instant toDateExclusive,
@@ -133,9 +138,9 @@ public class StayService {
     long totalElements = hospital.admissionCount(status, fromDate, toDateExclusive, doctorId, query);
     long lastPageNumber = totalElements == 0 ? 0 : (totalElements - 1) / size;
     int effectivePage = (int) Math.min(page, Math.min(lastPageNumber, Integer.MAX_VALUE));
-    Pageable pageable = PageRequest.of(effectivePage, size, sort);
+    Pageable pageable = PageRequest.of(effectivePage, size);
     List<Admission> content =
-        hospital.admissions(status, fromDate, toDateExclusive, doctorId, query, pageable);
+        hospital.admissions(status, fromDate, toDateExclusive, doctorId, query, sortBy, ascending, pageable);
     return new PageImpl<>(content, pageable, totalElements);
   }
 

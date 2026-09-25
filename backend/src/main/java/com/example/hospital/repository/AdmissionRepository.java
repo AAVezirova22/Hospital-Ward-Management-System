@@ -31,6 +31,24 @@ public interface AdmissionRepository extends JpaRepository<Admission, Long> {
             ))
             and (:doctorScoped = false or a.attendingDoctorId = :scopedDoctorId)
             and (:patientScoped = false or a.patientId = :scopedPatientId)
+          order by
+            case when :sortBy = 'patient' and :ascending = true then
+              (select lower(concat(concat(p.firstName, ' '), p.lastName)) from Patient p where p.id = a.patientId)
+            end asc,
+            case when :sortBy = 'patient' and :ascending = false then
+              (select lower(concat(concat(p.firstName, ' '), p.lastName)) from Patient p where p.id = a.patientId)
+            end desc,
+            case when :sortBy = 'admissionDate' and :ascending = true then a.admissionDateTime end asc,
+            case when :sortBy = 'admissionDate' and :ascending = false then a.admissionDateTime end desc,
+            case when :sortBy = 'room' and :ascending = true then
+              (select min(r.roomNumber) from RoomAssignment ra, Room r where ra.admissionId = a.id and ra.roomId = r.id and ra.releasedAt is null)
+            end asc,
+            case when :sortBy = 'room' and :ascending = false then
+              (select min(r.roomNumber) from RoomAssignment ra, Room r where ra.admissionId = a.id and ra.roomId = r.id and ra.releasedAt is null)
+            end desc,
+            case when :sortBy = 'status' and :ascending = true then a.status end asc,
+            case when :sortBy = 'status' and :ascending = false then a.status end desc,
+            a.admissionDateTime desc, a.id desc
           """)
   List<Admission> searchAdmissions(
       @Param("departmentId") Long departmentId,
@@ -48,6 +66,8 @@ public interface AdmissionRepository extends JpaRepository<Admission, Long> {
       @Param("scopedDoctorId") Long scopedDoctorId,
       @Param("patientScoped") boolean patientScoped,
       @Param("scopedPatientId") Long scopedPatientId,
+      @Param("sortBy") String sortBy,
+      @Param("ascending") boolean ascending,
       Pageable pageable);
 
   @Query("""
