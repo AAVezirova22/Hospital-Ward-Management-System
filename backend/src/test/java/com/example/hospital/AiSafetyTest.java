@@ -10,6 +10,7 @@ import com.example.hospital.repository.*;
 import com.example.hospital.security.Actor;
 import com.example.hospital.service.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.*;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -112,10 +113,13 @@ class AiSafetyTest {
             });
     var interactions = mock(AiInteractionRepository.class);
     var rates = mock(RateLimitService.class);
-    doNothing()
-        .doThrow(new ApiException(429, "AI_RATE_LIMIT", "Wait"))
-        .when(rates)
-        .hit(any(), anyInt(), any(), any(), any());
+    var attempts = new AtomicInteger();
+    when(rates.hit(any(), anyInt(), any(), any(), any()))
+        .thenAnswer(
+            call -> {
+              if (attempts.incrementAndGet() == 1) return new RateLimitService.Budget(1, 0, 60);
+              throw new ApiException(429, "AI_RATE_LIMIT", "Wait");
+            });
     var service =
         new AiAssistantService(
             model, registry, sessions, interactions, actor, hospital, mock(AuditService.class), rates, 1);

@@ -168,7 +168,9 @@ public class AiAssistantService {
             break;
           }
           result = local ? tools.execute(call, s.getSelectedPatientId())
-              : tools.executeAgent(call, s.getSelectedPatientId(), fileSourceNames);
+              : fileSourceNames.isEmpty()
+                  ? tools.executeAgent(call, s.getSelectedPatientId())
+                  : tools.executeAgent(call, s.getSelectedPatientId(), fileSourceNames);
           if (local || Set.of("TEXT", "ERROR", "CONFIRMATION_CARD", "WORKFLOW_PROPOSAL", "NAVIGATION_COMMAND").contains(result.responseType())) break;
           String data;
           try { data = json.writeValueAsString(result.data()); }

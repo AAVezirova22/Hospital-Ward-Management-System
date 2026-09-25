@@ -4,15 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.example.hospital.repository.AiPendingActionRepository;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 
 class HospitalAiTest extends HospitalSupport {
-  @Autowired AiPendingActionRepository actions;
-
   @Test
   void aiPreparationDoesNotMutateUntilOwnerConfirms() throws Exception {
     var p = createPatient();
@@ -23,12 +19,12 @@ class HospitalAiTest extends HospitalSupport {
         ai("admin", "Move him to room " + dest.get("roomNumber").asText(), p.get("id").asLong());
     assertThat(res.get("responseType").asText()).isEqualTo("CONFIRMATION_CARD");
     long actionId = res.path("data").path("action").path("id").asLong();
-    assertThat(assignments.countByRoomIdAndReleasedAtIsNull(source.get("id").asLong())).isOne();
+    assertThat(activeAssignments(source.get("id").asLong())).isOne();
     request("staff", "POST", "/api/v1/ai-actions/" + actionId + "/confirm", null)
         .andExpect(status().isForbidden());
     request("admin", "POST", "/api/v1/ai-actions/" + actionId + "/confirm", null)
         .andExpect(status().isOk());
-    assertThat(assignments.countByRoomIdAndReleasedAtIsNull(dest.get("id").asLong())).isOne();
+    assertThat(activeAssignments(dest.get("id").asLong())).isOne();
     request("admin", "POST", "/api/v1/ai-actions/" + actionId + "/confirm", null)
         .andExpect(status().isConflict());
   }
@@ -45,7 +41,7 @@ class HospitalAiTest extends HospitalSupport {
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/confirm", null)
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("ROOM_CAPACITY_EXCEEDED"));
-    assertThat(assignments.countByRoomIdAndReleasedAtIsNull(dest.get("id").asLong())).isOne();
+    assertThat(activeAssignments(dest.get("id").asLong())).isOne();
   }
 
   @Test
@@ -54,20 +50,22 @@ class HospitalAiTest extends HospitalSupport {
     admit(p, room(1));
     var res = ai("admin", "discharge him", p.get("id").asLong());
     long id = res.path("data").path("action").path("id").asLong();
-    var action = actions.findById(id).orElseThrow();
-    action.setExpiresAt(Instant.now().minusSeconds(10));
-    actions.save(action);
+    jdbc.update(
+        "update ai_pending_actions set expires_at = ? where id = ? and department_id = ?",
+        java.sql.Timestamp.from(Instant.now().minusSeconds(10)), id, 1L);
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/confirm", null)
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("ACTION_EXPIRED"));
-    assertThat(actions.findById(id).orElseThrow().getStatus()).isEqualTo("EXPIRED");
+    assertThat(result(request("admin", "GET", "/api/v1/ai-actions/" + id, null), 200)
+            .path("status").asText())
+        .isEqualTo("EXPIRED");
     res = ai("admin", "discharge him", p.get("id").asLong());
     id = res.path("data").path("action").path("id").asLong();
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/cancel", null)
         .andExpect(status().isOk());
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/confirm", null)
         .andExpect(status().isConflict());
-    assertThat(admissions.findByPatientIdAndStatus(p.get("id").asLong(), "ACTIVE")).isPresent();
+    assertThat(hasActiveAdmission(p.get("id").asLong())).isTrue();
   }
 
   @Test
@@ -105,11 +103,11 @@ class HospitalAiTest extends HospitalSupport {
                 + r.get("roomNumber").asText(),
             null);
     assertThat(res.get("responseType").asText()).isEqualTo("CONFIRMATION_CARD");
-    assertThat(admissions.findByPatientIdAndStatus(p.get("id").asLong(), "ACTIVE")).isEmpty();
+    assertThat(hasActiveAdmission(p.get("id").asLong())).isFalse();
     long id = res.path("data").path("action").path("id").asLong();
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/confirm", null)
         .andExpect(status().isOk());
-    assertThat(admissions.findByPatientIdAndStatus(p.get("id").asLong(), "ACTIVE")).isPresent();
+    assertThat(hasActiveAdmission(p.get("id").asLong())).isTrue();
   }
 
   @Test
@@ -131,7 +129,7 @@ class HospitalAiTest extends HospitalSupport {
     request("admin", "POST", "/api/v1/ai-actions/" + id + "/confirm", null)
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("STALE_STATE"));
-    assertThat(assignments.countByRoomIdAndReleasedAtIsNull(dest.get("id").asLong())).isZero();
+    assertThat(activeAssignments(dest.get("id").asLong())).isZero();
   }
 
   @Test
@@ -166,6 +164,15 @@ class HospitalAiTest extends HospitalSupport {
         .andExpect(status().isOk());
     request(name, "POST", "/api/v1/ai-actions/" + id + "/confirm", null)
         .andExpect(status().isForbidden());
-    assertThat(admissions.findByPatientIdAndStatus(p.get("id").asLong(), "ACTIVE")).isPresent();
+    assertThat(hasActiveAdmission(p.get("id").asLong())).isTrue();
+  }
+
+  private boolean hasActiveAdmission(long patientId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "select exists (select 1 from admissions where department_id = ? and patient_id = ? and status = 'ACTIVE')",
+            Boolean.class,
+            1L,
+            patientId));
   }
 }
