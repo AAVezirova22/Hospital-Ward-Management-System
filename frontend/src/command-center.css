@@ -121,6 +121,42 @@
   padding: 28px;
   margin-block: 28px;
 }
+.care-timeline-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 20px;
+  padding-block: 8px 16px;
+}
+.care-timeline-filters label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.care-timeline-filters select,
+.care-timeline-filters input {
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: inherit;
+  background: var(--panel);
+  font: inherit;
+}
+.care-timeline-stay + .care-timeline-stay {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.care-timeline-stay h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.care-timeline-empty {
+  padding-block: 16px;
+  color: var(--muted);
+}
 .care-timeline ol {
   list-style: none;
   padding: 12px 0 0;
