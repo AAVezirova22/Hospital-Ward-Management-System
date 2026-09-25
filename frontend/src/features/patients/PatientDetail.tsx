@@ -24,6 +24,13 @@ export function PatientDetail({ id }: { id: string }) {
   const [edit, setEdit] = useState(false),
     [documentDraft, setDocumentDraft] = useState(false),
     [flow, setFlow] = useState<string | null>(null);
+  const [generatedAt, setGeneratedAt] = useState("");
+  useEffect(() => {
+    const refreshGeneratedAt = () => setGeneratedAt(new Date().toLocaleString());
+    refreshGeneratedAt();
+    window.addEventListener("beforeprint", refreshGeneratedAt);
+    return () => window.removeEventListener("beforeprint", refreshGeneratedAt);
+  }, []);
   const user = useUser();
   if (isLoading)
     return <div className="skeleton">Opening patient dossier…</div>;
@@ -32,7 +39,36 @@ export function PatientDetail({ id }: { id: string }) {
   const p = data.patient,
     active = data.admissions.find((v: Row) => v.admission.status === "ACTIVE");
   return (
-    <>
+    <div className="patient-detail-page">
+      <article className="patient-print-summary" aria-label="Printable patient summary">
+        <header>
+          <p>Patient and discharge summary</p>
+          <h1>{fullName(p)}</h1>
+          <dl className="patient-print-identifiers">
+            <div><dt>Patient ID</dt><dd>{p.patientIdentifier}</dd></div>
+            <div><dt>Date of birth</dt><dd>{p.dateOfBirth || "Not recorded"}</dd></div>
+            <div><dt>Phone</dt><dd>{p.phoneNumber || "Not recorded"}</dd></div>
+            <div><dt>Address</dt><dd>{p.address || "Not recorded"}</dd></div>
+          </dl>
+          <small>Generated {generatedAt}</small>
+        </header>
+        <h2>Admission and room history</h2>
+        {data.admissions.length === 0 ? <p>No hospitalizations recorded.</p> : data.admissions.map((v: Row) => (
+          <section className="patient-print-stay" key={v.admission.id}>
+            <h3>{v.admission.admissionNumber} · {v.admission.status}</h3>
+            <p>{date(v.admission.admissionDateTime)} – {v.admission.dischargeDateTime ? date(v.admission.dischargeDateTime) : "Currently admitted"}</p>
+            <ul>
+              {v.rooms.map((r: Row) => (
+                <li key={r.assignment.id}>Room {r.room.roomNumber}: {date(r.assignment.assignedAt)}{r.assignment.releasedAt ? ` – ${date(r.assignment.releasedAt)}` : " – Current placement"}{r.assignment.reason ? ` · ${r.assignment.reason}` : ""}</li>
+              ))}
+            </ul>
+            <h4>Procedures</h4>
+            {v.procedures.length === 0 ? <p>None recorded.</p> : <ul>{v.procedures.map((r: Row) => (
+              <li key={r.record.id}>{r.procedure.procedureName} · {date(r.record.performedAt)} · Dr. {fullName(r.doctor)}</li>
+            ))}</ul>}
+          </section>
+        ))}
+      </article>
       <Link className="back" to="/app/patients">
         ← Patient directory
       </Link>
@@ -72,7 +108,10 @@ export function PatientDetail({ id }: { id: string }) {
           onClose={() => setDocumentDraft(false)}
         />
       )}
-      <button className="secondary" onClick={() => window.print()}>
+      <button className="secondary" onClick={() => {
+        setGeneratedAt(new Date().toLocaleString());
+        window.requestAnimationFrame(() => window.print());
+      }}>
         Print patient / discharge summary
       </button>
       <div className="detail-banner">
@@ -219,6 +258,6 @@ export function PatientDetail({ id }: { id: string }) {
           onClose={() => setFlow(null)}
         />
       )}
-    </>
+    </div>
   );
 }

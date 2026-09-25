@@ -170,6 +170,59 @@
   cursor: pointer;
   padding: 20px 0;
 }
+.patient-print-summary {
+  display: none;
+}
+@media print {
+  .patient-detail-page > :not(.patient-print-summary) {
+    display: none !important;
+  }
+  .patient-print-summary {
+    display: block !important;
+    color: #111;
+    font: 11pt/1.45 Arial, sans-serif;
+  }
+  .patient-print-summary h1 {
+    margin: 0 0 12pt;
+    font-size: 22pt;
+  }
+  .patient-print-summary h2 {
+    margin: 20pt 0 8pt;
+    border-bottom: 1px solid #777;
+    padding-bottom: 4pt;
+  }
+  .patient-print-summary h3 {
+    margin-bottom: 4pt;
+  }
+  .patient-print-identifiers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4pt 18pt;
+    margin: 10pt 0;
+  }
+  .patient-print-identifiers div {
+    display: grid;
+    grid-template-columns: 90pt 1fr;
+  }
+  .patient-print-identifiers dt {
+    font-weight: 700;
+  }
+  .patient-print-identifiers dd {
+    margin: 0;
+  }
+  .patient-print-stay {
+    break-inside: avoid;
+    border-bottom: 1px solid #bbb;
+    padding: 4pt 0 10pt;
+  }
+  .patient-print-stay p,
+  .patient-print-stay ul {
+    margin: 4pt 0;
+  }
+  .patient-print-stay h4 {
+    margin: 8pt 0 2pt;
+  }
+}
 @media (max-width: 760px) {
   .care-event {
     grid-template-columns: 1fr;
