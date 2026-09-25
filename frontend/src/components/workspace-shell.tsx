@@ -184,6 +184,10 @@ export function Shell({
                   <ShieldCheck size={18} />
                   Team access
                 </NavLink>
+                <NavLink to="/app/patient-account-links">
+                  <Users size={18} />
+                  Patient account links
+                </NavLink>
                 <NavLink to="/app/audit">
                   <History size={18} />
                   Audit history
