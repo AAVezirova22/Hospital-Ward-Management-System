@@ -5,13 +5,16 @@ import com.example.hospital.repository.AppUserRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @Component
 public class Actor {
   private final AppUserRepository users;
+  private final JdbcTemplate jdbc;
 
-  public Actor(AppUserRepository users) {
+  public Actor(AppUserRepository users, JdbcTemplate jdbc) {
     this.users = users;
+    this.jdbc = jdbc;
   }
 
   public AppUser user() {
@@ -43,6 +46,20 @@ public class Actor {
   public void staff() {
     if (!java.util.Set.of("ADMIN", "MEDICAL_STAFF").contains(user().getRole()))
       throw new AccessDeniedException("Staff required");
+  }
+
+  /** A small department membership capability for patient document import and its patient form save. */
+  public boolean canImportPatient() {
+    var current = user();
+    if (java.util.Set.of("ADMIN", "MEDICAL_STAFF").contains(current.getRole())) return true;
+    return current.getRole().equals("DOCTOR") && current.getDoctorId() != null
+        && Boolean.TRUE.equals(jdbc.queryForObject(
+            "select count(*) > 0 from department_memberships where department_id=? and user_id=? and role='DOCTOR' and doctor_id=? and patient_import_enabled=true",
+            Boolean.class, DepartmentContext.id(), current.getId(), current.getDoctorId()));
+  }
+
+  public void requirePatientImport() {
+    if (!canImportPatient()) throw new AccessDeniedException("Patient document import permission required");
   }
 
   public void admin() {

@@ -13,6 +13,10 @@ import { Modal } from "./workspace";
 export function NotificationCenter() {
   const [open, setOpen] = useState(false),
     [notices, setNotices] = useState<string[]>([]);
+  const [openedNotice, setOpenedNotice] = useState<{
+    title: string;
+    detail: string;
+  } | null>(null);
   const rooms = useQuery({
     queryKey: ["/rooms", activeDepartment()],
     queryFn: () => allPages<RoomCapacity>("/rooms"),
@@ -34,6 +38,39 @@ export function NotificationCenter() {
       setNotices((n) => [String((e as CustomEvent).detail), ...n].slice(0, 6));
     window.addEventListener("saved", handler);
     return () => window.removeEventListener("saved", handler);
+  }, []);
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get(
+      "notification",
+    );
+    if (!token) return;
+    let active = true;
+    api<{ notificationId: number }>(
+      `/task-reminders/open-notification/${encodeURIComponent(token)}`,
+    )
+      .then((result) =>
+        api<{ title: string; detail: string }>(
+          `/notifications/${result.notificationId}`,
+        ),
+      )
+      .then((notice) => {
+        if (active) {
+          setOpenedNotice(notice);
+          setOpen(true);
+        }
+      })
+      .catch(() => {
+        if (active)
+          setNotices((current) =>
+            ["This alert is unavailable or has expired.", ...current].slice(
+              0,
+              6,
+            ),
+          );
+      });
+    return () => {
+      active = false;
+    };
   }, []);
   const full = (rooms.data ?? []).filter(
     (r) => r.active && r.availableBeds === 0,
@@ -58,6 +95,12 @@ export function NotificationCenter() {
       </button>
       {open && (
         <Modal title="Operations alerts" onClose={() => setOpen(false)}>
+          {openedNotice && (
+            <section className="capacity-alert">
+              <strong>{openedNotice.title}</strong>
+              <p>{openedNotice.detail}</p>
+            </section>
+          )}
           {(rooms.error || operations.error || reminders.error) && (
             <p role="alert">
               Alerts could not be refreshed. Displayed information may be
@@ -106,7 +149,9 @@ export function NotificationCenter() {
                   : reminder.status === "NO_RECIPIENT"
                     ? "No verified team email is available"
                     : reminder.status === "FAILED"
-                      ? "Delivery failed (" + reminder.attemptCount + " attempts)"
+                      ? "Delivery failed (" +
+                        reminder.attemptCount +
+                        " attempts)"
                       : reminder.status === "CANCELLED"
                         ? "Cancelled because the admission plan changed"
                         : reminder.status === "SENDING"
@@ -129,7 +174,10 @@ export function NotificationCenter() {
           {!full.length &&
             !notices.length &&
             !(reminders.data ?? []).length && (
-              <p>No capacity warnings, discharge reminder outcomes, or recent actions.</p>
+              <p>
+                No capacity warnings, discharge reminder outcomes, or recent
+                actions.
+              </p>
             )}
           <button
             className="text-button"

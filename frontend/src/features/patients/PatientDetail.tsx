@@ -17,9 +17,12 @@ import { Plus, MoveRight, ArrowRight } from "../../icons";
 import { EntityForm } from "../administration/EntityForm";
 import { Workflow } from "../admissions/Workflow";
 import { CareTimeline } from "./CareTimeline";
+import { PatientDocumentDraft } from "./PatientDocumentDraft";
+import { PatientPathways } from "../care-pathways/PatientPathways";
 export function PatientDetail({ id }: { id: string }) {
   const { data, error, isLoading } = useData("/patients/" + id);
   const [edit, setEdit] = useState(false),
+    [documentDraft, setDocumentDraft] = useState(false),
     [flow, setFlow] = useState<string | null>(null);
   const user = useUser();
   if (isLoading)
@@ -43,6 +46,9 @@ export function PatientDetail({ id }: { id: string }) {
           (p.phoneNumber || "No phone recorded")
         }
       >
+        <button className="secondary" onClick={() => setDocumentDraft(true)}>
+          Review document
+        </button>
         {user.role !== "DOCTOR" && (
           <div className="actions">
             <button className="secondary" onClick={() => setEdit(true)}>
@@ -57,6 +63,15 @@ export function PatientDetail({ id }: { id: string }) {
           </div>
         )}
       </Title>
+      <Link className="secondary" to={`/app/care-pathways?patientId=${p.id}`}>
+        Plan follow-up pathway
+      </Link>
+      {documentDraft && (
+        <PatientDocumentDraft
+          initialPatient={p}
+          onClose={() => setDocumentDraft(false)}
+        />
+      )}
       <button className="secondary" onClick={() => window.print()}>
         Print patient / discharge summary
       </button>
@@ -123,6 +138,7 @@ export function PatientDetail({ id }: { id: string }) {
         </section>
       )}
       <CareTimeline admissions={data.admissions} />
+      <PatientPathways patientId={p.id} />
       <details className="care-record-details">
         <summary>Detailed admission records and costs</summary>
         <div className="section-heading">

@@ -106,6 +106,27 @@ Report dates are inclusive and interpreted in UTC. Future or inverted invalid da
 
 Discharge reminder outcomes include the expected date, reminder window, status, recipient count, attempt count, provider message ID and a safe error code. They omit recipient addresses and patient or admission identifiers. `ACCEPTED` means the email provider accepted the request; it does not confirm inbox delivery.
 
+## Clinician task reminders and browser push
+
+These routes require an authenticated department staff member (admin, medical staff, or doctor) and an active department. Browser push is available only when `PUSH_VAPID_PUBLIC_KEY` and `PUSH_VAPID_PRIVATE_KEY` are configured and `TASK_REMINDERS_ENABLED=true`; the scheduler defaults to disabled. The browser must also support service workers, Push API, and notifications, and the site must be served over HTTPS (localhost is allowed by browsers for development).
+
+| Method | Path | Request / result |
+| --- | --- | --- |
+| GET | `/task-reminders/preferences` | Preference fields plus `pushAvailable`, `activeSubscriptions`, and `availableLeadMinutes` |
+| PUT | `/task-reminders/preferences` | `{optedIn,timeZone,minutesBefore,quietHoursStart,quietHoursEnd,operationalAlerts}`; choose `minutesBefore` from the response's `availableLeadMinutes`; quiet hours use local `HH:mm` values or both null |
+| GET | `/task-reminders/vapid-public-key` | `{publicKey}`; null when server push is unavailable |
+| GET | `/task-reminders/subscriptions` | `{subscribed,activeCount,pushAvailable}` |
+| POST | `/task-reminders/subscriptions` | Standard browser subscription `{endpoint,p256dh,auth}` |
+| DELETE | `/task-reminders/subscriptions/{id}` | Revoke one subscription owned by the current account |
+| DELETE | `/task-reminders/subscriptions` | Revoke all subscriptions owned by the current account |
+| GET | `/task-reminders/outcomes?limit=50` | Recent status, attempt time/count, sent time, and safe error code; task or patient details are omitted |
+| GET | `/task-reminders/operational-outcomes?limit=50` | Operational push delivery status, retry count, and safe error code |
+| GET | `/task-reminders/open/{token}` | Resolve opaque notification token to `{taskId,departmentId,dueAt,status}` after authentication and current assignment checks |
+| GET | `/task-reminders/open-notification/{token}` | Resolve an operational push token to its in-app notification after authentication and visibility checks |
+| POST | `/task-reminders/snooze/{token}` | Optional `{minutes}` (5–240; defaults to 15) |
+
+Push titles and bodies are generic for both task reminders and operational notices; links contain only a random UUID token. Task links use `/app/tasks?reminder=…`, and operational links use `/app/dashboard?notification=…`. They include no patient, task, or notice details. The client must call the corresponding authenticated open route after navigation before requesting task or notification details. Push endpoints are limited to known browser push provider hosts. Task reminder schedules and retries are tracked separately for each active browser subscription, so each opted-in device receives its own delivery. Revoked provider subscriptions are marked revoked and excluded from future deliveries; retries use a fixed delay and stop after five attempts. Quiet hours are evaluated in the clinician's configured IANA time zone.
+
 ## Assistant
 
 | Method | Path | Body / result |
@@ -114,10 +135,12 @@ Discharge reminder outcomes include the expected date, reminder window, status, 
 | GET | `/assistant/sessions/{key}` | Owner-only recent metadata, no raw conversations |
 | POST | `/assistant/sessions/{key}/clear` | Clear selected-patient context |
 | GET | `/ai-actions/{id}` | Owner-only proposal |
-| POST | `/ai-actions/{id}/confirm` | No client-supplied mutation payload; uses saved proposal |
+| POST | `/ai-actions/{id}/confirm` | Uses the saved proposal; optionally accepts field decisions for uncertain workflow evidence |
 | POST | `/ai-actions/{id}/cancel` | Owner-only cancellation |
 
-Response types: `TEXT`, `PATIENT_LIST`, `PATIENT_SUMMARY`, `ROOM_LIST`, `REPORT_RESULT`, `NAVIGATION_COMMAND`, `CONFIRMATION_CARD`, `ERROR`. They include `message`, `data`, `sessionId`, `model`. The client validates the response envelope and renders trusted React components.
+Response types: `TEXT`, `PATIENT_LIST`, `PATIENT_SUMMARY`, `ROOM_LIST`, `REPORT_RESULT`, `NAVIGATION_COMMAND`, `CONFIRMATION_CARD`, `WORKFLOW_PROPOSAL`, `ERROR`. They include `message`, `data`, `sessionId`, `model`. Workflow steps may return evidence per field; if a step cites a filename attached to the request, omitted field evidence is returned as `UNRESOLVED`. Exact excerpts are checked against a source attached to the current request and unverifiable citations are marked as such. `verified` means the exact excerpt was found; `location` is a parser-derived PDF page or XLSX sheet when available, otherwise the verified character range. Tika does not expose reliable spreadsheet row or column positions; any model-reported position remains separate in `reportedLocation` and is unverified. Fields marked `requiresDecision` must be explicitly accepted or edited in the confirmation body, for example `{ "fieldDecisions": [{"stepKey":"p1","field":"firstName","decision":"ACCEPTED"}] }` or `{ "fieldDecisions": [{"stepKey":"p1","field":"firstName","decision":"EDITED","value":"Jane"}] }`. Edited values undergo the same schema, role, ownership and current-state checks as the proposed workflow. Evidence metadata never authorizes a write.
+
+Patient document import uses explicit submission: `GET /assistant/provider-disclosure` reports provider handling; `POST /assistant/sources` only extracts locally; `POST /assistant/patient-drafts` with `{ "sourceId": "..." }` submits the selected source and returns an unsaved, source-linked draft; `GET /assistant/patient-drafts/{draftId}` reopens an owner- and department-scoped transient draft; and `PUT /assistant/patient-drafts/{draftId}/patient` with `{ "patientId": 123 }` binds it to the clinician-reviewed patient identity. Deleting or expiring the source makes its draft unavailable. Patient matching only returns candidates; saving or editing a patient remains a separate explicit operation.
 
 Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoomOccupancy`, `getDoctorPatients`, `getAdmission`, `getAdmissions`, `getProcedureStatistics`, `getDashboardSummary`, `listWorkspaces`. Room search accepts comma-separated capability tags and reports excluded rooms with reasons. Admission and transfer proposals apply the saved or requested tags and recheck them on confirmation. Additional tools: `navigate`, `help`, `prepareAdmission`, `prepareTransfer`, `prepareDischarge`. Patient search results include the current hospital/department label. `listWorkspaces` is the only hospital-wide read; it omits join codes.
 

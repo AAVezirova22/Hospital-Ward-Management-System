@@ -143,6 +143,7 @@ private record HospitalMemberBase(
     return Math.min(Math.max(requestedPage, 0), lastPage);
   }
 
+  @Transactional
   public String reveal(boolean hospital, long id) {
     if (hospital) owner(id);
     else departmentAdmin(id);
@@ -656,6 +657,24 @@ private record HospitalMemberBase(
     result.put("role", assigned);
     result.put("doctorId", linked);
     return result;
+  }
+
+  @Transactional
+  public Map<String, Object> setPatientImportPermission(long departmentId, long userId, boolean enabled) {
+    departmentAdmin(departmentId);
+    var memberships = jdbc.queryForList(
+        "select role, doctor_id from department_memberships where department_id=? and user_id=?",
+        departmentId, userId);
+    if (memberships.isEmpty()) throw new ApiException(404, "NOT_FOUND", "Department member not found.");
+    var membership = memberships.getFirst();
+    if (enabled && (!"DOCTOR".equals(membership.get("role")) || membership.get("doctor_id") == null))
+      throw new ApiException(400, "DOCTOR_REQUIRED", "Patient import can only be granted to a clinician linked to a doctor in this department.");
+    jdbc.update("update department_memberships set patient_import_enabled=? where department_id=? and user_id=?",
+        enabled, departmentId, userId);
+    audit.log(enabled ? "PATIENT_IMPORT_PERMISSION_GRANTED" : "PATIENT_IMPORT_PERMISSION_REVOKED",
+        "DepartmentMember", userId, "UI", Map.of("departmentId", departmentId));
+    return Map.of("departmentId", departmentId, "userId", userId,
+        "patientImportEnabled", enabled);
   }
 
   private long doctorInDepartment(long departmentId, long userId, Long doctorId) {

@@ -12,11 +12,33 @@ public class AiController {
   private final AiAssistantService assistant;
   private final AiActionService actions;
   private final AiSourceService sources;
+  private final AiPatientDraftService patientDrafts;
 
-  public AiController(AiAssistantService a, AiActionService b, AiSourceService sources) {
+  public AiController(AiAssistantService a, AiActionService b, AiSourceService sources,
+      AiPatientDraftService patientDrafts) {
     assistant = a;
     actions = b;
     this.sources = sources;
+    this.patientDrafts = patientDrafts;
+  }
+
+  @GetMapping("/assistant/provider-disclosure")
+  public Object providerDisclosure() { return patientDrafts.disclosure(); }
+
+  @PostMapping("/assistant/patient-drafts")
+  public Object patientDraft(@Valid @RequestBody PatientDraftInput input) {
+    return patientDrafts.extract(input.sourceId());
+  }
+
+  @GetMapping("/assistant/patient-drafts/{draftId}")
+  public Object patientDraft(@PathVariable String draftId) {
+    return patientDrafts.getDraft(draftId);
+  }
+
+  @PutMapping("/assistant/patient-drafts/{draftId}/patient")
+  public Object bindPatientDraft(@PathVariable String draftId,
+      @Valid @RequestBody PatientDraftPatientInput input) {
+    return patientDrafts.bindPatient(draftId, input.patientId());
   }
 
   @PostMapping(value = "/assistant/sources", consumes = "multipart/form-data")
@@ -48,8 +70,9 @@ public class AiController {
   }
 
   @PostMapping("/ai-actions/{id}/confirm")
-  public Object confirm(@PathVariable Long id) {
-    return actions.confirm(id);
+  public Object confirm(@PathVariable Long id,
+      @RequestBody(required = false) AiActionService.WorkflowConfirmationInput input) {
+    return actions.confirm(id, input);
   }
 
   @PostMapping("/ai-actions/{id}/cancel")

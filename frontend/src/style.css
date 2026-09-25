@@ -1408,8 +1408,14 @@ footer .live-dot {
   background: transparent;
   text-align: left;
 }
-.assistant-drop-target strong { font-size: 14px; font-weight: 500; }
-.assistant-drop-target span { font-size: 12px; opacity: .75; }
+.assistant-drop-target strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.assistant-drop-target span {
+  font-size: 12px;
+  opacity: 0.75;
+}
 .assistant-sources.is-dragging .assistant-drop-target,
 .assistant-drop-target:hover:not(:disabled) {
   background: color-mix(in srgb, currentColor 7%, transparent);
@@ -1434,4 +1440,48 @@ footer .live-dot {
 .workflow-proposal dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+.workflow-evidence {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.workflow-evidence > small {
+  color: var(--muted);
+  text-transform: capitalize;
+}
+.workflow-citation {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.workflow-citation p {
+  margin: 0 0 6px;
+}
+.workflow-citation small {
+  color: var(--muted);
+}
+.workflow-field-decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workflow-field-decision label {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+.workflow-field-decision input,
+.workflow-field-decision select,
+.workflow-field-decision textarea {
+  width: 100%;
+}
+@media (max-width: 600px) {
+  .workflow-proposal dl > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }

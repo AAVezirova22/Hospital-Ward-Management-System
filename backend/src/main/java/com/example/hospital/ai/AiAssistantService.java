@@ -166,6 +166,11 @@ public class AiAssistantService {
       var sourceData = in.sourceIds() == null || in.sourceIds().isEmpty()
           ? List.<Map<String, String>>of() : sources.context(in.sourceIds());
       var connected = in.connectedFiles() == null ? List.<MessageInput.ConnectedFile>of() : in.connectedFiles();
+      var fileSourceNames = new ArrayList<String>();
+      var attachedSourceIds = new ArrayList<String>();
+      sourceData.stream().map(source -> source.get("id")).filter(Objects::nonNull).forEach(attachedSourceIds::add);
+      sourceData.stream().map(source -> source.get("name")).filter(Objects::nonNull).forEach(fileSourceNames::add);
+      connected.stream().map(MessageInput.ConnectedFile::name).filter(Objects::nonNull).forEach(fileSourceNames::add);
       boolean local = model.identifier().equals("local-command-model");
       AiToolRegistry.Response result;
       if (local && (!sourceData.isEmpty() || !connected.isEmpty())) {
@@ -193,7 +198,10 @@ public class AiAssistantService {
                 Map.of("ids", ids), null, null);
             break;
           }
-          result = local ? tools.execute(call, s.getSelectedPatientId()) : tools.executeAgent(call, s.getSelectedPatientId());
+          result = local ? tools.execute(call, s.getSelectedPatientId())
+              : fileSourceNames.isEmpty()
+                  ? tools.executeAgent(call, s.getSelectedPatientId())
+                  : tools.executeAgent(call, s.getSelectedPatientId(), fileSourceNames, attachedSourceIds);
           if (local || Set.of("TEXT", "ERROR", "CONFIRMATION_CARD", "WORKFLOW_PROPOSAL", "NAVIGATION_COMMAND").contains(result.responseType())) break;
           String data;
           try { data = json.writeValueAsString(result.data()); }

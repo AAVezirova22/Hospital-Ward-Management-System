@@ -2,6 +2,17 @@
 
 Date: 2026-09-19. All bundled sample data is synthetic.
 
+## Care pathway implementation checks (2026-09-25)
+
+| Check | Result |
+| --- | --- |
+| Complete Java 21 backend suite with PostgreSQL 17 Testcontainers | **206 passed, 0 failures, 0 errors** |
+| Frontend unit tests and TypeScript type-check | **51 passed**; type-check passed |
+| Optimized Next.js production build | Passed |
+| Desktop (1440px) and phone (390px) pathway browser checks | Passed with a mocked API: document submission remains explicit, edited pending tasks require a refreshed preview before approval, and no horizontal overflow was observed |
+
+Backend integration tests include real PDF, XLSX, and DOCX parser fixtures, consent version and withdrawal checks, per-subscription reminder behavior, and the synthetic discharge pathway from document submission through review, task creation, portal summary, and cancellation. The browser checks used a mocked API, and no live external AI or push provider was called.
+
 ## Conversion checks executed
 
 | Check | Result |

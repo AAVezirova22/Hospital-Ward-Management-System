@@ -9,36 +9,39 @@ import {
   Empty,
   Title,
 } from "../../components/workspace";
-import type { PatientDirectoryItem, PatientDirectoryPage } from "../../api/contracts";
+import type {
+  PatientDirectoryItem,
+  PatientDirectoryPage,
+} from "../../api/contracts";
 import { Plus, Search, ArrowUpRight } from "../../icons";
 import { EntityForm } from "../administration/EntityForm";
 import { DataTable } from "../../components/data-table/DataTable";
 import { useUrlState } from "../../components/useUrlState";
 import { LoadingState } from "../../components/LoadingState";
+import { PatientDocumentDraft } from "./PatientDocumentDraft";
 export function Patients() {
-const user = useUser();
-const [search, setSearch] = useUrlState("q");
-const [activeAdmission, setActiveAdmission] = useUrlState("activeAdmission");
-const [doctorId, setDoctor] = useUrlState("doctorId");
-const [roomId, setRoom] = useUrlState("roomId");
-const [pageSelection, setPageSelection] = useState({ search: "", page: 0 });
-const page = pageSelection.search === search ? pageSelection.page : 0;
-const [edit, setEdit] = useState<Row | null>(null);
+  const user = useUser();
+  const [search, setSearch] = useUrlState("q");
+  const [activeAdmission, setActiveAdmission] = useUrlState("activeAdmission");
+  const [doctorId, setDoctor] = useUrlState("doctorId");
+  const [roomId, setRoom] = useUrlState("roomId");
+  const [pageSelection, setPageSelection] = useState({ search: "", page: 0 });
+  const page = pageSelection.search === search ? pageSelection.page : 0;
+  const [edit, setEdit] = useState<Row | null>(null);
+  const [documentDraft, setDocumentDraft] = useState(false);
 
-const params = new URLSearchParams();
-if (search) params.set("q", search);
-if (activeAdmission) params.set("activeAdmission", activeAdmission);
-if (doctorId) params.set("doctorId", doctorId);
-if (roomId) params.set("roomId", roomId);
-params.set("page", String(page));
-params.set("size", "20");
+  const params = new URLSearchParams();
+  if (search) params.set("q", search);
+  if (activeAdmission) params.set("activeAdmission", activeAdmission);
+  if (doctorId) params.set("doctorId", doctorId);
+  if (roomId) params.set("roomId", roomId);
+  params.set("page", String(page));
+  params.set("size", "20");
 
-const { data, error, isLoading } = useData(
-  "/patients?" + params.toString(),
-);
-const directory = data as PatientDirectoryPage | undefined;
-const { data: doctors } = useData("/doctors");
-const { data: rooms } = useData("/rooms");
+  const { data, error, isLoading } = useData("/patients?" + params.toString());
+  const directory = data as PatientDirectoryPage | undefined;
+  const { data: doctors } = useData("/doctors");
+  const { data: rooms } = useData("/rooms");
   return (
     <>
       <Title
@@ -46,6 +49,9 @@ const { data: rooms } = useData("/rooms");
         title="People at the center."
         description="Search patient records, manage details and open an operational history."
       >
+        <button className="secondary" onClick={() => setDocumentDraft(true)}>
+          Review document
+        </button>
         {user.role !== "DOCTOR" && (
           <button className="primary" onClick={() => setEdit({})}>
             <Plus size={18} />
@@ -53,6 +59,9 @@ const { data: rooms } = useData("/rooms");
           </button>
         )}
       </Title>
+      {documentDraft && (
+        <PatientDocumentDraft onClose={() => setDocumentDraft(false)} />
+      )}
       <div className="toolbar">
         <Search size={18} />
         <input

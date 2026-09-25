@@ -131,7 +131,9 @@ Page<Patient> findDirectory(
     @Param("scopedDoctorId") Long scopedDoctorId,
     Pageable pageable);
 
-Optional<Patient> findByDepartmentIdAndPatientIdentifier(
+  Optional<Patient> findByDepartmentIdAndPatientIdentifier(
     Long departmentId,
     String patientIdentifier);
+
+  Optional<Patient> findByDepartmentIdAndId(Long departmentId, Long id);
 }

@@ -56,6 +56,9 @@ export function useAssistantSources() {
     });
     update(current.current.filter((s) => s.id !== id));
   }
+  function release(id: string) {
+    update(current.current.filter((source) => source.id !== id));
+  }
   async function disconnect() {
     for (const source of current.current.filter((s) => s.localId))
       await remove(source.id);
@@ -99,6 +102,7 @@ export function useAssistantSources() {
     notice,
     add,
     remove,
+    release,
     disconnect,
     clear,
     useFolder,

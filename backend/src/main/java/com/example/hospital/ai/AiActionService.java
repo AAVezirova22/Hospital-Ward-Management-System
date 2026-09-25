@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AiActionService {
+  public record WorkflowConfirmationInput(List<AiWorkflowService.FieldDecision> fieldDecisions) {}
   private final AiPendingActionRepository actions;
   private final WorkflowLockRepository lock;
   private final Actor actor;
@@ -119,7 +120,16 @@ public class AiActionService {
 
   @Transactional
   public Object prepareWorkflow(String text) {
-    var plan = workflows.parse(text);
+    return prepareWorkflow(text, List.of());
+  }
+
+  @Transactional
+  public Object prepareWorkflow(String text, List<String> fileSourceNames) {
+    return prepareWorkflow(text, fileSourceNames, List.of());
+  }
+
+  public Object prepareWorkflow(String text, List<String> fileSourceNames, List<String> attachedSourceIds) {
+    var plan = workflows.parse(text, fileSourceNames, attachedSourceIds);
     var a = new AiPendingAction();
     a.setUserId(actor.user().getId());
     a.setActionType("WORKFLOW");
@@ -142,13 +152,49 @@ public class AiActionService {
                         "source", step.source(),
                         "fields",
                             json.convertValue(
-                                step.fields(), new TypeReference<Map<String, Object>>() {})))
+                                step.fields(), new TypeReference<Map<String, Object>>() {}),
+                        "evidence", evidenceView(step.evidence())))
             .toList();
     return Map.of("title", plan.title(), "steps", steps);
   }
 
+  private Map<String, Object> evidenceView(Map<String, AiWorkflowService.FieldEvidence> evidence) {
+    var result = new LinkedHashMap<String, Object>();
+    evidence.forEach((field, item) -> {
+      var view = new LinkedHashMap<String, Object>();
+      view.put("status", item.status());
+      view.put("confidence", item.confidence());
+      view.put("requiresDecision", item.requiresDecision());
+      view.put("sources", item.sources().stream().map(this::citationView).toList());
+      view.put("conflicts", item.conflicts().stream().map(this::citationView).toList());
+      result.put(field, view);
+    });
+    return result;
+  }
+
+  private Map<String, Object> citationView(AiWorkflowService.Citation citation) {
+    var view = new LinkedHashMap<String, Object>();
+    if (citation.sourceId() != null) view.put("sourceId", citation.sourceId());
+    view.put("sourceName", citation.sourceName() == null ? "Unverified source" : citation.sourceName());
+    view.put("location", citation.verified()
+        ? citation.verifiedLocation() == null
+            ? "characters " + citation.characterStart() + "-" + citation.characterEnd()
+            : citation.verifiedLocation()
+        : "Unverified location");
+    view.put("reportedLocation", citation.location());
+    view.put("excerpt", citation.excerpt());
+    view.put("verified", citation.verified());
+    if (citation.verified()) {
+      view.put("characterStart", citation.characterStart());
+      view.put("characterEnd", citation.characterEnd());
+    }
+    return view;
+  }
+
+  public Object confirm(Long id) { return confirm(id, null); }
+
   @Transactional(noRollbackFor = ExpiredActionException.class)
-  public Object confirm(Long id) {
+  public Object confirm(Long id, WorkflowConfirmationInput input) {
     lock.acquire();
     actor.staff();
     var a = get(id);
@@ -160,13 +206,18 @@ public class AiActionService {
       throw new ExpiredActionException();
     }
     if (a.getActionType().equals("WORKFLOW")) {
-      var result = workflows.execute(workflows.parse(a.getPayload()));
+      var plan = workflows.parseStored(a.getPayload());
+      var decisions = input == null || input.fieldDecisions() == null ? List.<AiWorkflowService.FieldDecision>of() : input.fieldDecisions();
+      plan = workflows.resolveFieldDecisions(plan, decisions);
+      var result = workflows.execute(plan);
       a.setStatus("EXECUTED");
       a.setConfirmedAt(Instant.now());
       actions.saveAndFlush(a);
       audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.getId(), "AI");
       return result;
     }
+    if (input != null && input.fieldDecisions() != null && !input.fieldDecisions().isEmpty())
+      throw new ApiException(400, "INVALID_WORKFLOW_DECISION", "Field decisions are only accepted for workflow proposals.");
     Payload p;
     try {
       p = json.readValue(a.getPayload(), Payload.class);

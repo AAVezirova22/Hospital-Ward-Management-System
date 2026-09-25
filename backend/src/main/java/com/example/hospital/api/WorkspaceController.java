@@ -30,13 +30,15 @@ public class WorkspaceController {
   public record JoinInput(@NotBlank @Size(max=40) String code) {}
   public record OwnerInput(@NotNull Long userId, @Size(max=300) String reason) {}
   public record RotateInput(Integer expiresInHours, Boolean singleUse) {}
-public record RoleInput(
-    @NotNull Long userId,
-    @NotBlank @Size(max = 30) String role,
-    Long doctorId,
-    @Size(max = 300) String reason) {}
+  public record RoleInput(
+      @NotNull Long userId,
+      @NotBlank @Size(max = 30) String role,
+      Long doctorId,
+      @Size(max = 300) String reason) {}
 
-public record ExpiryInput(java.time.Instant expiresAt) {}
+  public record PatientImportPermissionInput(@NotNull Boolean enabled) {}
+
+  public record ExpiryInput(java.time.Instant expiresAt) {}
 
   @GetMapping
   public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "timeZone", departmentTime.timeZone(), "hospitals", workspaces.list()); }
@@ -118,6 +120,11 @@ public record ExpiryInput(java.time.Instant expiresAt) {}
   @PostMapping("/departments/{id}/roles")
   public Object grantRole(@PathVariable long id, @Valid @RequestBody RoleInput input) {
     return workspaces.grantRole(id, input.userId(), input.role(), input.doctorId(), input.reason());
+  }
+  @PutMapping("/departments/{id}/members/{userId}/patient-import")
+  public Object patientImportPermission(@PathVariable long id, @PathVariable long userId,
+      @Valid @RequestBody PatientImportPermissionInput input) {
+    return workspaces.setPatientImportPermission(id, userId, input.enabled());
   }
 
   private static Integer hours(RotateInput input) {

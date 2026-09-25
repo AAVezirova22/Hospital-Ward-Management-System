@@ -186,7 +186,7 @@ class AdmissionsPaginationIntegrationTest extends HospitalSupport {
 
   private long anotherDoctor(long currentDoctor, long department) throws Exception {
     JsonNode doctors = result(requestAt("admin", "GET", "/api/v1/doctors", null, department), 200);
-    for (JsonNode doctor : doctors) {
+    for (JsonNode doctor : doctors.path("items")) {
       long id = doctor.get("id").asLong();
       if (id != currentDoctor) return id;
     }

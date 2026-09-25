@@ -143,8 +143,16 @@ abstract class HospitalSupport {
   }
 
   JsonNode roomCapacity(long roomId) throws Exception {
-var rooms = result(request("admin", "GET", "/api/v1/rooms?roomId=" + roomId, null), 200);
-for (var room : rooms.get("items")) {
+var page =
+    result(
+        request(
+            "admin",
+            "GET",
+            "/api/v1/rooms?roomId=" + roomId + "&size=1",
+            null),
+        200);
+
+for (var room : page.path("items")) {
   if (room.path("id").asLong() == roomId) {
     return room;
   }

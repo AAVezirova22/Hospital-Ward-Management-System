@@ -54,6 +54,10 @@ server:
   error:
     include-message: never
 app:
+  patient-consent:
+    portal-summary-version: ${PORTAL_SUMMARY_CONSENT_VERSION:1}
+    portal-access-version: ${PORTAL_ACCESS_CONSENT_VERSION:1}
+    communication-version: ${CARE_COMMUNICATION_CONSENT_VERSION:1}
   # development | demo | staging | production. DEMO_MODE requires demo; production forbids demo flags.
   environment: ${APP_ENVIRONMENT:development}
   demo: ${DEMO_MODE:false}
@@ -78,6 +82,13 @@ app:
     sending-lease-ms: ${DISCHARGE_REMINDER_SENDING_LEASE_MS:900000}
     max-attempts: ${DISCHARGE_REMINDER_MAX_ATTEMPTS:5}
     outcomes-limit: ${DISCHARGE_REMINDER_OUTCOMES_LIMIT:50}
+  push:
+    vapid-public-key: ${PUSH_VAPID_PUBLIC_KEY:}
+    vapid-private-key: ${PUSH_VAPID_PRIVATE_KEY:}
+    vapid-subject: ${PUSH_VAPID_SUBJECT:mailto:admin@example.invalid}
+  task-reminders:
+    enabled: ${TASK_REMINDERS_ENABLED:false}
+    poll-interval-ms: ${TASK_REMINDER_POLL_INTERVAL_MS:60000}
   seed: ${DEMO_SEED:true}
   session:
     # Hard limit from sign-in, independent of the idle timeout; users then sign in again.

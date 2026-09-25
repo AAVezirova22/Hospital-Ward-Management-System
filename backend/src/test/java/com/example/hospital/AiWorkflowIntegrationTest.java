@@ -58,8 +58,11 @@ class AiWorkflowIntegrationTest {
     return json.writeValueAsString(Map.of("title", "Build the requested workspace", "steps", steps));
   }
   JsonNode propose(String plan) throws Exception {
+    return propose(plan, List.of());
+  }
+  JsonNode propose(String plan, List<String> sourceIds) throws Exception {
     when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("prepareWorkflow", Map.of("plan", plan)));
-    return body(postJson("admin", "/assistant/messages", Map.of("message", "Build this workflow")));
+    return body(postJson("admin", "/assistant/messages", Map.of("message", "Build this workflow", "sourceIds", sourceIds)));
   }
 
   @Test void uploadedDataBuildsLinkedHospitalWorkflowOnlyAfterConfirmation() throws Exception {
@@ -84,10 +87,20 @@ class AiWorkflowIntegrationTest {
     assertThat(proposal.at("/data/workflow/steps/3/fields/capabilities/0").asText())
         .as("Workflow proposal: %s", proposal.toPrettyString()).isEqualTo("oxygen");
     assertThat(proposal.at("/data/workflow/steps/4/fields/requiredRoomCapabilities/0").asText()).isEqualTo("oxygen");
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/name/status").asText()).isEqualTo("UNRESOLVED");
     long action = proposal.at("/data/action/id").asLong();
     var before = body(mvc.perform(get("/api/v1/workspaces").with(user("admin"))));
     assertThat(before.toString()).doesNotContain("Import " + marker);
-    var result = body(postJson("admin", "/ai-actions/" + action + "/confirm", Map.of()));
+    var fieldDecisions = new ArrayList<Map<String, Object>>();
+    for (JsonNode stepNode : proposal.at("/data/workflow/steps")) {
+      var evidenceFields = stepNode.path("evidence").fields();
+      while (evidenceFields.hasNext()) {
+        var evidence = evidenceFields.next();
+        if (evidence.getValue().path("requiresDecision").asBoolean())
+          fieldDecisions.add(Map.of("stepKey", stepNode.path("key").asText(), "field", evidence.getKey(), "decision", "ACCEPTED"));
+      }
+    }
+    var result = body(postJson("admin", "/ai-actions/" + action + "/confirm", Map.of("fieldDecisions", fieldDecisions)));
     long department = result.get("departmentId").asLong();
     var patients = body(mvc.perform(get("/api/v1/patients").with(user("admin")).header("X-Department-Id", department)));
     assertThat(patients.toString()).contains("P-" + marker);
@@ -110,6 +123,74 @@ assertThat(admissions.get("items").get(0).toString())
     var home = body(mvc.perform(get("/api/v1/patients").with(user("admin")).header("X-Department-Id", "1")));
     assertThat(home.toString()).doesNotContain("P-" + marker);
     postJson("admin", "/ai-actions/" + action + "/confirm", Map.of()).andExpect(status().isConflict());
+  }
+
+  @Test void workflowFieldEvidenceIsVerifiedAndUnresolvedFieldsNeedExplicitReview() throws Exception {
+    String marker = unique();
+    String excerpt = "Patient identifier: SOURCE-" + marker;
+    JsonNode source = upload("admin", "patients.txt", excerpt);
+    String patientIdentifier = "P-" + marker;
+    String inputPlan = json.writeValueAsString(Map.of(
+        "title", "Prepare patient import",
+        "steps", List.of(Map.of(
+            "key", "patient",
+            "operation", "createPatient",
+            "source", "patients.txt",
+            "fields", Map.of("patientIdentifier", patientIdentifier, "firstName", "Original",
+                "lastName", "Patient", "dateOfBirth", "1990-01-01"),
+            "evidence", Map.of(
+                "patientIdentifier", Map.of("status", "UNCERTAIN", "confidence", 0.42,
+                    "sources", List.of(Map.of("sourceId", source.get("id").asText(), "location", "line 1", "excerpt", excerpt)),
+                    "conflicts", List.of()),
+                "firstName", Map.of("status", "SUPPORTED", "confidence", 0.99,
+                    "sources", List.of(Map.of("sourceId", "not-owned", "sourceName", "private.txt",
+                        "location", "row 1", "excerpt", "Original")),
+                    "conflicts", List.of()))))));
+
+    JsonNode proposal = propose(inputPlan, List.of(source.get("id").asText()));
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/verified").asBoolean()).isTrue();
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/sourceName").asText()).isEqualTo("patients.txt");
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/characterStart").asInt()).isZero();
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/requiresDecision").asBoolean()).isTrue();
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/firstName/sources/0/verified").asBoolean()).isFalse();
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/firstName/requiresDecision").asBoolean()).isTrue();
+
+    long action = proposal.at("/data/action/id").asLong();
+    postJson("admin", "/ai-actions/" + action + "/confirm", Map.of())
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("WORKFLOW_REVIEW_REQUIRED"));
+    assertThat(jdbc.queryForObject("select count(*) from patients where patient_identifier=?", Integer.class, patientIdentifier)).isZero();
+
+    var decisions = Map.of("fieldDecisions", List.of(
+        Map.of("stepKey", "patient", "field", "patientIdentifier", "decision", "ACCEPTED"),
+        Map.of("stepKey", "patient", "field", "firstName", "decision", "EDITED", "value", "Clinician"),
+        Map.of("stepKey", "patient", "field", "lastName", "decision", "ACCEPTED"),
+        Map.of("stepKey", "patient", "field", "dateOfBirth", "decision", "ACCEPTED")));
+    postJson("admin", "/ai-actions/" + action + "/confirm", decisions).andExpect(status().isOk());
+    assertThat(jdbc.queryForObject("select first_name from patients where patient_identifier=?", String.class, patientIdentifier))
+        .isEqualTo("Clinician");
+  }
+
+  @Test void workflowCitationMustReferToAFileAttachedToThisRequest() throws Exception {
+    String marker = unique();
+    JsonNode source = upload("admin", "current.txt", "Patient identifier: SOURCE-" + marker);
+    String inputPlan = json.writeValueAsString(Map.of(
+        "title", "Prepare patient import",
+        "steps", List.of(Map.of(
+            "key", "patient",
+            "operation", "createPatient",
+            "source", "current.txt",
+            "fields", Map.of("patientIdentifier", "P-" + marker, "firstName", "Current",
+                "lastName", "Source", "dateOfBirth", "1990-01-01"),
+            "evidence", Map.of("patientIdentifier", Map.of("status", "SUPPORTED", "confidence", 0.99,
+                "sources", List.of(Map.of("sourceId", source.get("id").asText(), "location", "line 1",
+                    "excerpt", "Patient identifier: SOURCE-" + marker)), "conflicts", List.of()))))));
+
+    JsonNode unattached = propose(inputPlan);
+    assertThat(unattached.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/verified").asBoolean()).isFalse();
+    assertThat(unattached.at("/data/workflow/steps/0/evidence/patientIdentifier/requiresDecision").asBoolean()).isTrue();
+
+    JsonNode attached = propose(inputPlan, List.of(source.get("id").asText()));
+    assertThat(attached.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/verified").asBoolean()).isTrue();
   }
 
   @Test void assistantRoomSearchExplainsCapabilityAndAvailabilityExclusions() throws Exception {
@@ -388,7 +469,9 @@ assertThat(admissions.get("items").get(0).toString())
     }
     try (var book = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
          var out = new java.io.ByteArrayOutputStream()) {
-      book.createSheet("Workflow").createRow(0).createCell(0).setCellValue("Excel workflow source");
+      var sheet = book.createSheet("Workflow");
+      sheet.createRow(0).createCell(0).setCellValue("Excel workflow source");
+      sheet.createRow(2).createCell(0).setCellValue("later row marker");
       book.write(out); bytes.add(out.toByteArray());
     }
     try (var pdf = new org.apache.pdfbox.pdmodel.PDDocument();
@@ -413,6 +496,49 @@ assertThat(admissions.get("items").get(0).toString())
       }).when(model).complete(anyString(), any());
       postJson("admin", "/assistant/messages", Map.of("message", "Read", "sourceIds", List.of(source.get("id").asText())))
           .andExpect(status().isOk());
+
+      String expectedLocation = switch (extensions.get(i)) {
+        case "xlsx" -> "spreadsheet sheet 1";
+        case "pdf" -> "PDF page 1";
+        default -> null;
+      };
+      var evidence = new LinkedHashMap<String, Object>();
+      evidence.put("patientIdentifier", Map.of("status", "SUPPORTED", "confidence", 0.99,
+          "sources", List.of(Map.of("sourceId", source.get("id").asText(),
+              "location", "model says page 999", "excerpt", "workflow source")), "conflicts", List.of()));
+      if ("xlsx".equals(extensions.get(i))) evidence.put("firstName", Map.of("status", "SUPPORTED", "confidence", 0.99,
+          "sources", List.of(Map.of("sourceId", source.get("id").asText(), "location", "row 999",
+              "excerpt", "later row marker")), "conflicts", List.of()));
+      var patientStep = new LinkedHashMap<String, Object>();
+      patientStep.put("key", "p"); patientStep.put("operation", "createPatient");
+      patientStep.put("source", "source." + extensions.get(i));
+      patientStep.put("fields", Map.of("patientIdentifier", "workflow source",
+          "firstName", "xlsx".equals(extensions.get(i)) ? "later row marker" : "Workflow",
+          "lastName", "Source", "dateOfBirth", "1990-01-01"));
+      patientStep.put("evidence", evidence);
+      doReturn(new AiModelClient.ToolCall("prepareWorkflow", Map.of("plan", plan(List.of(patientStep)))))
+          .when(model).complete(anyString(), any());
+      var proposal = body(postJson("admin", "/assistant/messages", Map.of("message", "Prepare import",
+          "sourceIds", List.of(source.get("id").asText()))));
+      var citation = proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0");
+      assertThat(citation.path("verified").asBoolean()).isTrue();
+      assertThat(citation.path("reportedLocation").asText()).isEqualTo("model says page 999");
+      if (expectedLocation == null) assertThat(citation.path("location").asText()).startsWith("characters ");
+      else assertThat(citation.path("location").asText()).isEqualTo(expectedLocation);
+      if ("xlsx".equals(extensions.get(i))) {
+        var laterRowCitation = proposal.at("/data/workflow/steps/0/evidence/firstName/sources/0");
+        assertThat(laterRowCitation.path("location").asText()).isEqualTo("spreadsheet sheet 1");
+        assertThat(laterRowCitation.path("location").asText()).doesNotContain("row");
+        assertThat(laterRowCitation.path("reportedLocation").asText()).isEqualTo("row 999");
+      }
     }
+  }
+
+  @Test void parserLocationRequiresEveryCitedCharacterToBeMapped() {
+    var source = new AiSourceService.Source("source", 1, 1, "file.pdf", "first gap third",
+        java.time.Instant.now(), List.of(new AiSourceService.LocationSpan(0, 5, "PDF page 1"),
+            new AiSourceService.LocationSpan(10, 15, "PDF page 2")));
+    assertThat(source.locationFor(0, 5)).isEqualTo("PDF page 1");
+    assertThat(source.locationFor(0, 15)).isNull();
   }
 }

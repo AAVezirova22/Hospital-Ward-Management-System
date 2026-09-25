@@ -50,7 +50,7 @@ public class PatientService {
 
   @Transactional
   public Patient save(Long id, PatientInput in) {
-    actor.staff();
+    actor.requirePatientImport();
     var p = id == null ? new Patient() : hospital.patient(id);
     if (id != null) HospitalService.version(p, in.version());
     p.setPatientIdentifier(in.patientIdentifier().trim());

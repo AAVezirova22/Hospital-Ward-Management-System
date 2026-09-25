@@ -15,10 +15,40 @@ import org.springframework.stereotype.Service;
 /** Validated composition of existing business operations; called inside action transactions. */
 @Service
 public class AiWorkflowService {
-  public record Step(String key, String operation, String source, ObjectNode fields) {}
+  public record Citation(
+      String sourceId,
+      String sourceName,
+      String location,
+      String excerpt,
+      boolean verified,
+      Integer characterStart,
+      Integer characterEnd,
+      String verifiedLocation) {
+    public Citation(String sourceId, String sourceName, String location, String excerpt) {
+      this(sourceId, sourceName, location, excerpt, false, null, null, null);
+    }
+  }
+  public record FieldEvidence(
+      String status,
+      double confidence,
+      List<Citation> sources,
+      List<Citation> conflicts,
+      boolean requiresDecision) {
+    public FieldEvidence(String status, double confidence, List<Citation> sources, List<Citation> conflicts) {
+      this(status, confidence, sources, conflicts, false);
+    }
+  }
+  public record Step(
+      String key, String operation, String source, ObjectNode fields, Map<String, FieldEvidence> evidence) {
+    public Step(String key, String operation, String source, ObjectNode fields) {
+      this(key, operation, source, fields, Map.of());
+    }
+  }
   public record Plan(String title, List<Step> steps) {}
+  public record FieldDecision(String stepKey, String field, String decision, Object value) {}
   private final ObjectMapper json;
   private final Validator validator;
+  private final AiSourceService sources;
   private final HospitalService hospital;
   private final PatientService patients;
   private final CatalogueService catalogue;
@@ -27,17 +57,18 @@ public class AiWorkflowService {
   private final Actor actor;
   private final EntityManager em;
 
-  public AiWorkflowService(ObjectMapper json, Validator validator, HospitalService hospital,
+  public AiWorkflowService(ObjectMapper json, Validator validator, AiSourceService sources, HospitalService hospital,
       PatientService patients, CatalogueService catalogue, StayService stays,
       WorkspaceService workspaces, Actor actor, EntityManager em) {
-    this.json = json; this.validator = validator; this.hospital = hospital;
+    this.json = json; this.validator = validator; this.sources = sources; this.hospital = hospital;
     this.patients = patients; this.catalogue = catalogue; this.stays = stays;
     this.workspaces = workspaces; this.actor = actor; this.em = em;
   }
 
   public static final String DESCRIPTION = """
       Prepare one atomic workflow for human review. plan is a JSON STRING:
-      {"title":"Short goal","steps":[{"key":"p1","operation":"createPatient","source":"filename or user request","fields":{...}}]}.
+      {"title":"Short goal","steps":[{"key":"p1","operation":"createPatient","source":"filename or user request","fields":{...},"evidence":{"firstName":{"status":"SUPPORTED","confidence":0.94,"sources":[{"sourceId":"uploaded source id","location":"row 2, column B","excerpt":"Jane"}],"conflicts":[]}}}]}.
+      For file-derived steps, cite the exact attached filename in source and include evidence keyed by every file-derived field. Each evidence status is SUPPORTED, UNCERTAIN, CONFLICT or UNRESOLVED; confidence is 0..1. Cite only source IDs and exact excerpts from attached files. A citation has sourceId, location and excerpt. Put contradictory citations in conflicts. Do not invent source IDs, locations or excerpts. If evidence is missing, uncertain or conflicting, say so; the reviewer must explicitly accept or edit that field before confirmation. The server marks fields without evidence as UNRESOLVED when the step cites an attached filename.
       Maximum 50 steps. Never invent missing required fields; ask via respond instead.
       Operations and fields (only these fields):
       createHospital: name,departmentName (only first step; subsequent records go in its new department);
@@ -68,10 +99,30 @@ public class AiWorkflowService {
       Map.entry("recordProcedure", Set.of("admissionId", "medicalProcedureId", "doctorId", "performedAt", "note")));
 
   public Plan parse(String text) {
+    return parse(text, List.of(), List.of());
+  }
+
+  public Plan parse(String text, List<String> fileSourceNames) {
+    return parse(text, fileSourceNames, List.of());
+  }
+
+  public Plan parse(String text, List<String> fileSourceNames, List<String> attachedSourceIds) {
     if (text == null || text.length() > 50000) throw invalid();
     try {
-      Plan plan = json.readValue(text, Plan.class);
+      Plan plan = withDefaultEvidence(json.readValue(text, Plan.class));
       validate(plan);
+      return withVerifiedEvidence(withMissingFileEvidence(plan, fileSourceNames), attachedSourceIds);
+    } catch (ApiException | org.springframework.security.access.AccessDeniedException e) { throw e; }
+    catch (Exception e) { throw invalid(); }
+  }
+
+  /** Reads a server-stored proposal; citation verification was computed when it was prepared. */
+  public Plan parseStored(String text) {
+    if (text == null || text.length() > 50000) throw invalid();
+    try {
+      Plan plan = withDefaultEvidence(json.readValue(text, Plan.class));
+      validate(plan);
+      validateStoredEvidence(plan);
       return plan;
     } catch (ApiException | org.springframework.security.access.AccessDeniedException e) { throw e; }
     catch (Exception e) { throw invalid(); }
@@ -96,6 +147,7 @@ public class AiWorkflowService {
           || keys.containsKey(step.key()) || step.operation() == null || !FIELDS.containsKey(step.operation())
           || step.source() == null || step.source().isBlank() || step.source().length() > 300 || step.fields() == null) throw invalid();
       step.fields().fieldNames().forEachRemaining(k -> { if (!FIELDS.get(step.operation()).contains(k)) throw invalid(); });
+      validateEvidenceInput(step);
       if (step.operation().equals("createHospital")) {
         if (!keys.isEmpty()) throw invalid();
         newHospital = true;
@@ -158,6 +210,203 @@ public class AiWorkflowService {
       }
       keys.put(step.key(), step.operation());
     }
+  }
+
+  private static void validateEvidenceInput(Step step) {
+    if (step.evidence() == null) return;
+    if (step.evidence().size() > FIELDS.get(step.operation()).size()) throw invalid();
+    for (var entry : step.evidence().entrySet()) {
+      String field = entry.getKey();
+      FieldEvidence evidence = entry.getValue();
+      if (field == null || !FIELDS.get(step.operation()).contains(field) || !step.fields().has(field)
+          || evidence == null || !Set.of("SUPPORTED", "UNCERTAIN", "CONFLICT", "UNRESOLVED").contains(evidence.status())
+          || !Double.isFinite(evidence.confidence()) || evidence.confidence() < 0 || evidence.confidence() > 1
+          || !validCitations(evidence.sources()) || !validCitations(evidence.conflicts())) throw invalid();
+    }
+  }
+
+  private static Plan withDefaultEvidence(Plan plan) {
+    if (plan == null || plan.steps() == null) return plan;
+    var steps = new ArrayList<Step>();
+    for (Step step : plan.steps()) {
+      if (step != null && step.evidence() == null) {
+        steps.add(new Step(step.key(), step.operation(), step.source(), step.fields(), Map.of()));
+      } else if (step != null) {
+        var evidence = new LinkedHashMap<String, FieldEvidence>();
+        step.evidence().forEach((field, value) -> evidence.put(field, value == null ? null
+            : new FieldEvidence(value.status(), value.confidence(), empty(value.sources()),
+                empty(value.conflicts()), value.requiresDecision())));
+        steps.add(new Step(step.key(), step.operation(), step.source(), step.fields(), evidence));
+      } else steps.add(null);
+    }
+    return new Plan(plan.title(), steps);
+  }
+
+  private static <T> List<T> empty(List<T> values) { return values == null ? List.of() : values; }
+
+  private static boolean validCitations(List<Citation> citations) {
+    if (citations == null) return true;
+    if (citations.size() > 10) return false;
+    for (Citation citation : citations) {
+      if (citation == null || citation.location() == null || citation.location().isBlank() || citation.location().length() > 160
+          || citation.excerpt() == null || citation.excerpt().isBlank() || citation.excerpt().length() > 500
+          || citation.sourceId() != null && citation.sourceId().length() > 64
+          || citation.sourceName() != null && citation.sourceName().length() > 200) return false;
+    }
+    return true;
+  }
+
+  private Plan withVerifiedEvidence(Plan plan, List<String> attachedSourceIds) {
+    Set<String> authorizedSources = attachedSourceIds == null ? Set.of()
+        : attachedSourceIds.stream().filter(Objects::nonNull).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    List<Step> steps = new ArrayList<>();
+    for (Step step : plan.steps()) {
+      var evidence = new LinkedHashMap<String, FieldEvidence>();
+      for (var entry : step.evidence().entrySet()) {
+        FieldEvidence original = entry.getValue();
+        List<Citation> verifiedSources = original.sources().stream().map(c -> verifyCitation(c, authorizedSources)).toList();
+        List<Citation> verifiedConflicts = original.conflicts().stream().map(c -> verifyCitation(c, authorizedSources)).toList();
+        boolean requiresDecision = requiresDecision(original.status(), original.confidence(), verifiedSources, verifiedConflicts);
+        evidence.put(entry.getKey(), new FieldEvidence(original.status(), original.confidence(),
+            verifiedSources, verifiedConflicts, requiresDecision));
+      }
+      steps.add(new Step(step.key(), step.operation(), step.source(), step.fields(), Map.copyOf(evidence)));
+    }
+    return new Plan(plan.title(), List.copyOf(steps));
+  }
+
+  private static Plan withMissingFileEvidence(Plan plan, List<String> fileSourceNames) {
+    List<String> filenames = fileSourceNames == null ? List.of() : fileSourceNames.stream()
+        .filter(Objects::nonNull).map(AiWorkflowService::basename).filter(name -> !name.isBlank()).toList();
+    if (filenames.isEmpty()) return plan;
+    var steps = new ArrayList<Step>();
+    for (Step step : plan.steps()) {
+      if (!citesAttachedFile(step.source(), filenames)) {
+        steps.add(step);
+        continue;
+      }
+      var evidence = new LinkedHashMap<>(step.evidence());
+      var fields = step.fields().fieldNames();
+      while (fields.hasNext()) {
+        String field = fields.next();
+        evidence.putIfAbsent(field, new FieldEvidence("UNRESOLVED", 0, List.of(), List.of()));
+      }
+      steps.add(new Step(step.key(), step.operation(), step.source(), step.fields(), evidence));
+    }
+    return new Plan(plan.title(), List.copyOf(steps));
+  }
+
+  private static boolean citesAttachedFile(String citation, List<String> filenames) {
+    String value = citation.replace('\\', '/').toLowerCase(Locale.ROOT);
+    String base = basename(value).toLowerCase(Locale.ROOT);
+    return filenames.stream().anyMatch(name -> {
+      String candidate = name.toLowerCase(Locale.ROOT);
+      return base.equals(candidate) || value.contains(candidate);
+    });
+  }
+
+  private static String basename(String name) {
+    String normalized = name.replace('\\', '/').strip();
+    return normalized.substring(normalized.lastIndexOf('/') + 1);
+  }
+
+  private Citation verifyCitation(Citation citation, Set<String> authorizedSources) {
+    String sourceName = null;
+    Integer start = null;
+    Integer end = null;
+    boolean verified = false;
+    String verifiedLocation = null;
+    if (citation.sourceId() != null && !citation.sourceId().isBlank()
+        && authorizedSources.contains(citation.sourceId())) {
+      try {
+        AiSourceService.Source source = sources.sourceForExtraction(citation.sourceId());
+        sourceName = source.name();
+        int found = source.text().indexOf(citation.excerpt());
+        if (found >= 0) {
+          start = found;
+          end = found + citation.excerpt().length();
+          verified = true;
+          verifiedLocation = source.locationFor(start, end);
+        }
+      } catch (ApiException unavailable) {
+        // Keep the reported citation visible, but never present it as verified.
+      }
+    }
+    return new Citation(citation.sourceId(), sourceName, citation.location(), citation.excerpt(),
+        verified, start, end, verifiedLocation);
+  }
+
+  private static boolean requiresDecision(String status, double confidence, List<Citation> sources, List<Citation> conflicts) {
+    return !"SUPPORTED".equals(status) || confidence < 0.65 || sources.isEmpty()
+        || !conflicts.isEmpty() || sources.stream().anyMatch(c -> !c.verified())
+        || conflicts.stream().anyMatch(c -> !c.verified());
+  }
+
+  private static void validateStoredEvidence(Plan plan) {
+    for (Step step : plan.steps()) {
+      for (FieldEvidence evidence : step.evidence().values()) {
+        boolean required = requiresDecision(evidence.status(), evidence.confidence(), evidence.sources(), evidence.conflicts());
+        if (evidence.requiresDecision() != required) throw invalid();
+        for (Citation citation : concat(evidence.sources(), evidence.conflicts())) {
+          if (citation.verified() && (citation.sourceName() == null || citation.characterStart() == null
+              || citation.characterEnd() == null || citation.characterStart() < 0
+              || citation.characterEnd() < citation.characterStart()
+              || citation.characterEnd() - citation.characterStart() != citation.excerpt().length())) throw invalid();
+          if (!citation.verified() && (citation.characterStart() != null || citation.characterEnd() != null)) throw invalid();
+        }
+      }
+    }
+  }
+
+  private static List<Citation> concat(List<Citation> first, List<Citation> second) {
+    var all = new ArrayList<Citation>(first);
+    all.addAll(second);
+    return all;
+  }
+
+  public Plan resolveFieldDecisions(Plan plan, List<FieldDecision> decisions) {
+    if (decisions == null || decisions.size() > 300) throw invalidDecision();
+    var supplied = new LinkedHashMap<String, FieldDecision>();
+    for (FieldDecision decision : decisions) {
+      if (decision == null || decision.stepKey() == null || decision.field() == null) throw invalidDecision();
+      String key = decisionKey(decision.stepKey(), decision.field());
+      if (supplied.putIfAbsent(key, decision) != null) throw invalidDecision();
+    }
+    var expected = new HashSet<String>();
+    var result = new ArrayList<Step>();
+    for (Step step : plan.steps()) {
+      ObjectNode fields = step.fields().deepCopy();
+      for (var entry : step.evidence().entrySet()) {
+        if (!entry.getValue().requiresDecision()) continue;
+        String key = decisionKey(step.key(), entry.getKey());
+        expected.add(key);
+        FieldDecision decision = supplied.get(key);
+        if (decision == null) throw reviewRequired();
+        if ("ACCEPTED".equals(decision.decision())) {
+          if (decision.value() != null) throw invalidDecision();
+        } else if ("EDITED".equals(decision.decision())) {
+          if (decision.value() == null) throw invalidDecision();
+          JsonNode edited = json.valueToTree(decision.value());
+          if (edited == null || edited.isNull() || edited.toString().length() > 2000) throw invalidDecision();
+          fields.set(entry.getKey(), edited);
+        } else throw invalidDecision();
+      }
+      result.add(new Step(step.key(), step.operation(), step.source(), fields, step.evidence()));
+    }
+    if (!expected.equals(supplied.keySet())) throw invalidDecision();
+    Plan resolved = new Plan(plan.title(), List.copyOf(result));
+    validate(resolved);
+    return resolved;
+  }
+
+  private static String decisionKey(String stepKey, String field) { return stepKey + "\u0000" + field; }
+
+  private static ApiException reviewRequired() {
+    return ApiException.conflict("WORKFLOW_REVIEW_REQUIRED", "Accept or edit every uncertain, conflicting, or unverified field before confirming this workflow.");
+  }
+
+  private static ApiException invalidDecision() {
+    return new ApiException(400, "INVALID_WORKFLOW_DECISION", "The field decisions do not match the fields that require review.");
   }
 
   private record PlannedRoom(

@@ -6,6 +6,7 @@ import com.example.hospital.api.ProcedureInput;
 import com.example.hospital.api.PagedResult;
 import com.example.hospital.api.RoomInput;
 import com.example.hospital.api.Views;
+import com.example.hospital.domain.BedHold;
 import com.example.hospital.domain.Doctor;
 import com.example.hospital.domain.BedHold;
 import com.example.hospital.repository.BedHoldRepository;
@@ -15,12 +16,16 @@ import java.util.stream.Collectors;
 import com.example.hospital.domain.MedicalProcedure;
 import com.example.hospital.domain.Room;
 import com.example.hospital.repository.AdmissionRepository;
+import com.example.hospital.repository.BedHoldRepository;
 import com.example.hospital.repository.DoctorRepository;
 import com.example.hospital.repository.MedicalProcedureRepository;
 import com.example.hospital.repository.RoomRepository;
 import com.example.hospital.repository.RoomAssignmentRepository;
 import com.example.hospital.repository.WorkflowLockRepository;
 import com.example.hospital.security.Actor;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -40,6 +45,7 @@ public class CatalogueService {
   private final Actor actor;
   private final DoctorRepository doctors;
   private final RoomRepository rooms;
+  private final BedHoldRepository bedHolds;
   private final MedicalProcedureRepository catalogue;
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
@@ -52,6 +58,7 @@ public class CatalogueService {
       Actor actor,
       DoctorRepository doctors,
       RoomRepository rooms,
+      BedHoldRepository bedHolds,
       MedicalProcedureRepository catalogue,
       AdmissionRepository admissions,
       AuditService audit,
@@ -62,6 +69,7 @@ public class CatalogueService {
     this.actor = actor;
     this.doctors = doctors;
     this.rooms = rooms;
+    this.bedHolds = bedHolds;
     this.catalogue = catalogue;
     this.admissions = admissions;
     this.assignments = assignments;
@@ -143,43 +151,62 @@ public class CatalogueService {
         List.copyOf(RoomCapabilityMatcher.normalize(requestedCapabilities));
 
     int size = safeSize(requestedSize);
-    long total =
-        requiredCapabilities.isEmpty()
-            ? rooms.countDirectory(
-                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, now)
-            : rooms.countDirectoryWithCapabilities(
-                hasQuery,
-                query,
-                hasRoomId,
-                roomId,
-                hasActive,
-                activeValue,
-                minFree,
-                now,
-                requiredCapabilities,
-                requiredCapabilities.size());
+Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
 
-    int page = safePage(requestedPage, size, total);
-    Pageable pageable = PageRequest.of(page, size, Sort.by("roomNumber", "id"));
+long total =
+    requiredCapabilities.isEmpty()
+        ? rooms.countDirectory(
+            hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, now)
+        : rooms.countDirectoryWithCapabilities(
+            hasQuery,
+            query,
+            hasRoomId,
+            roomId,
+            hasActive,
+            activeValue,
+            minFree,
+            now,
+            requiredCapabilities,
+            requiredCapabilities.size());
 
-    var selected =
-        requiredCapabilities.isEmpty()
-            ? rooms.searchDirectory(
-                hasQuery, query, hasRoomId, roomId, hasActive, activeValue, minFree, now, pageable)
-            : rooms.searchDirectoryWithCapabilities(
-                hasQuery,
-                query,
-                hasRoomId,
-                roomId,
-                hasActive,
-                activeValue,
-                minFree,
-                now,
-                requiredCapabilities,
-                requiredCapabilities.size(),
-                pageable);
+int page = safePage(requestedPage, size, total);
+Pageable pageable =
+    PageRequest.of(page, size, Sort.by("roomNumber", "id"));
 
-    Map<Long, List<BedHold>> holdsByRoom = Map.of();
+var selected =
+    requiredCapabilities.isEmpty()
+        ? rooms.searchDirectory(
+            hasQuery,
+            query,
+            hasRoomId,
+            roomId,
+            hasActive,
+            activeValue,
+            minFree,
+            now,
+            pageable)
+        : rooms.searchDirectoryWithCapabilities(
+            hasQuery,
+            query,
+            hasRoomId,
+            roomId,
+            hasActive,
+            activeValue,
+            minFree,
+            now,
+            requiredCapabilities,
+            requiredCapabilities.size(),
+            pageable);
+
+Map<Long, List<BedHold>> holdsByRoom =
+    bedHolds.findByCancelledAtIsNullAndEndsAtAfterOrderByStartsAtAsc(now).stream()
+        .collect(java.util.stream.Collectors.groupingBy(BedHold::getRoomId));
+
+return PagedResult.of(
+    roomViews(selected, holdsByRoom, now),
+    page,
+    size,
+    total);
     Map<Long, Long> occupiedByRoom = new HashMap<>();
 
     if (!selected.isEmpty()) {
@@ -198,13 +225,18 @@ public class CatalogueService {
     List<Map<String, Object>> items = new ArrayList<>(selected.size());
     for (Room room : selected) {
       long occupied = occupiedByRoom.getOrDefault(room.getId(), 0L);
+      var holds = holdsByRoom.getOrDefault(room.getId(), List.of());
+
       items.add(
           BedHoldCapacity.roomView(
-              room, occupied, holdsByRoom.getOrDefault(room.getId(), List.of()), now));
-    }
+              room,
+              occupied,
+              holds,
+              now));
+      }
 
-    return PagedResult.of(items, page, size, total);
-  }
+      return items;
+        }
 
   private static String pattern(String q) {
     String escaped = q == null ? "" : q.strip().toLowerCase(Locale.ROOT);

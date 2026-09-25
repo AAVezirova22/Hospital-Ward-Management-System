@@ -128,18 +128,21 @@ public class NotificationService {
   private final NotificationPolicies policies;
   private final AuditService audit;
   private final ApplicationEventPublisher publisher;
+  private final TaskReminderService push;
 
   public NotificationService(
       JdbcTemplate jdbc,
       Actor actor,
       NotificationPolicies policies,
       AuditService audit,
-      ApplicationEventPublisher publisher) {
+      ApplicationEventPublisher publisher,
+      TaskReminderService push) {
     this.jdbc = jdbc;
     this.actor = actor;
     this.policies = policies;
     this.audit = audit;
     this.publisher = publisher;
+    this.push = push;
   }
 
   // ---------------------------------------------------------------- inbox (#303, #304)
@@ -280,13 +283,15 @@ public class NotificationService {
     String subject =
         event.entity() == null ? "" : event.entity() + (event.entityId() == null ? "" : " #" + event.entityId());
     String detail = "AI".equals(event.source()) ? subject + " (confirmed through the assistant)" : subject;
-    jdbc.update(
+    Long noticeId = jdbc.queryForObject(
         "insert into notifications(department_id, recipient_user_id, category, type, severity, source_type,"
             + " source_id, title, detail, status, first_seen_at, last_seen_at, expires_at)"
-            + " values (?, ?, 'ACTIVITY', ?, 'INFO', ?, ?, ?, ?, 'INFO', ?, ?, ?)",
+            + " values (?, ?, 'ACTIVITY', ?, 'INFO', ?, ?, ?, ?, 'INFO', ?, ?, ?) returning id",
+        Long.class,
         event.departmentId(), event.userId(), event.event(), event.entity(), event.entityId(), title,
         detail.isBlank() ? null : detail, Timestamp.from(now), Timestamp.from(now),
         Timestamp.from(now.plus(policy.retentionDays(), ChronoUnit.DAYS)));
+    push.queueOperationalNotice(event.departmentId(), noticeId, event.userId());
   }
 
   /**
@@ -323,13 +328,15 @@ public class NotificationService {
               ? Timestamp.from(now.plus(policy.acknowledgementMinutes(), ChronoUnit.MINUTES))
               : null;
       if (existing == null) {
-        jdbc.update(
+        Long noticeId = jdbc.queryForObject(
             "insert into notifications(department_id, category, type, severity, dedupe_key, source_type,"
                 + " source_id, title, detail, status, first_seen_at, last_seen_at, acknowledgement_due_at)"
-                + " values (?, 'CAPACITY', ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?)",
+                + " values (?, 'CAPACITY', ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?) returning id",
+            Long.class,
             departmentId, candidate.type(), candidate.severity(), candidate.key(), candidate.sourceType(),
             candidate.sourceId(), candidate.title(), candidate.detail(), Timestamp.from(now),
             Timestamp.from(now), due);
+        push.queueOperationalNotice(departmentId, noticeId, null);
         changed = true;
         continue;
       }
@@ -348,6 +355,8 @@ public class NotificationService {
       // A worse condition should be seen again by people who already read the milder one.
       if (rank(candidate.severity()) > rank(existing.severity()))
         jdbc.update("delete from notification_reads where notification_id = ?", existing.id());
+      if (rank(candidate.severity()) > rank(existing.severity()))
+        push.queueOperationalNotice(departmentId, existing.id(), null);
       changed |= different;
     }
     for (var cleared : open.values()) {
@@ -389,6 +398,7 @@ public class NotificationService {
                   + " and escalated_at is null",
               now, policy.escalationRole(), id);
       if (updated != 1) continue;
+      push.queueOperationalNotice(departmentId, id, null);
       jdbc.update("delete from notification_reads where notification_id = ?", id);
       // No signed-in actor here, so the audit row is written directly with a null user and SYSTEM source.
       jdbc.update(
