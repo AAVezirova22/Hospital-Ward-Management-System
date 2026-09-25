@@ -68,6 +68,7 @@ export function CarePathways() {
   const [version, setVersion] = useState<number | null>(null);
   const [preview, setPreview] = useState<CarePreview | null>(null);
   const [previewRevision, setPreviewRevision] = useState<string | null>(null);
+  const [patientTasks, setPatientTasks] = useState<CareTaskDefinition[]>([]);
   const [launchPatientId, setLaunchPatientId] = useState(
     patientId ? String(patientId) : "",
   );
@@ -103,6 +104,11 @@ export function CarePathways() {
     setTriggers(template.draft.triggers);
     setTasks(template.draft.tasks);
     setVersion(template.version);
+    setPatientTasks(
+      template.publishedVersions.find(
+        (published) => published.version === template.published_version,
+      )?.definition.tasks ?? [],
+    );
     setPreview(null);
     setReviewed(false);
   }
@@ -160,12 +166,54 @@ export function CarePathways() {
       action.decision === "REJECTED" ||
       (action.title.trim() && (!action.dueTime || action.dueDate)),
   );
+  const publishedTasks =
+    selected.data?.publishedVersions.find(
+      (published) => published.version === selected.data.published_version,
+    )?.definition.tasks ?? [];
+  const taskOverrides = patientTasks.flatMap((task) => {
+    const original = publishedTasks.find((item) => item.key === task.key);
+    if (!original) return [];
+    const changes: Partial<CareTaskDefinition> & { key: string } = {
+      key: task.key,
+    };
+    if (task.title !== original.title) changes.title = task.title;
+    if (task.description !== original.description)
+      changes.description = task.description;
+    if (task.ownerRole !== original.ownerRole) changes.ownerRole = task.ownerRole;
+    if (task.assignedUserId !== original.assignedUserId)
+      changes.assignedUserId = task.assignedUserId;
+    if (task.dueOffsetMinutes !== original.dueOffsetMinutes)
+      changes.dueOffsetMinutes = task.dueOffsetMinutes;
+    if (JSON.stringify(task.dependsOn) !== JSON.stringify(original.dependsOn))
+      changes.dependsOn = task.dependsOn;
+    return Object.keys(changes).length > 1 ? [changes] : [];
+  });
+  const validPatientTasks =
+    patientTasks.length > 0 &&
+    patientTasks.length === publishedTasks.length &&
+    patientTasks.every(
+    (task) =>
+      !!task.title.trim() &&
+      Number.isInteger(task.dueOffsetMinutes) &&
+      task.dueOffsetMinutes >= 0 &&
+      task.dueOffsetMinutes <= 525600,
+    );
   const reviewRevision = JSON.stringify({
     patientId: launchPatientId,
     workflowVersion: selected.data?.published_version,
+    taskOverrides,
     actions: selectedDocumentActions,
   });
-  const finalPreviewReady = !draftId || previewRevision === reviewRevision;
+  const finalPreviewReady = previewRevision === reviewRevision;
+  function updatePatientTask(index: number, patch: Partial<CareTaskDefinition>) {
+    setPatientTasks((current) =>
+      current.map((task, position) =>
+        position === index ? { ...task, ...patch } : task,
+      ),
+    );
+    setPreviewRevision(null);
+    setReviewed(false);
+  }
   async function saveDraft() {
     if (!canEdit) return;
     await run(async () => {
@@ -194,7 +242,7 @@ export function CarePathways() {
     });
   }
   async function previewForPatient() {
-    if (!selectedId || !launchPatientId || !selected.data?.published_version)
+    if (!selectedId || !launchPatientId || !selected.data?.published_version || !validPatientTasks)
       return;
     await run(async () => {
       const result = await api<CarePreview>(
@@ -204,13 +252,14 @@ export function CarePathways() {
           patientId: Number(launchPatientId),
           trigger: "MANUAL",
           workflowVersion: selected.data.published_version,
+          taskOverrides,
           patientDraftId: draftId && actionsReviewed ? draftId : null,
           reviewedFollowUpActions:
             draftId && actionsReviewed ? selectedDocumentActions : [],
         },
       );
       setPreview(result);
-      setPreviewRevision(!draftId || actionsReviewed ? reviewRevision : null);
+      setPreviewRevision(draftId && !actionsReviewed ? null : reviewRevision);
       setReviewed(false);
       setNotice(
         "Review the full timeline, owners, dependencies and due times before approval.",
@@ -239,6 +288,7 @@ export function CarePathways() {
           documentDraft.data?.source.id ?? (sourceReference.trim() || null),
         patientSummary: summary.trim(),
         patientDraftId: draftId && documentDraft.data ? draftId : null,
+        taskOverrides,
         reviewedFollowUpActions: draftId ? selectedDocumentActions : [],
         approved: true,
       });
@@ -545,10 +595,121 @@ export function CarePathways() {
                   launching its actions.
                 </p>
               )}
+              {patientTasks.length > 0 && (
+                <div className="care-patient-task-editor">
+                  <h3>Tailor the published tasks</h3>
+                  <p>
+                    Changes apply to this patient only. Review the resulting
+                    timeline before launch.
+                  </p>
+                  {patientTasks.map((task, index) => (
+                    <div className="care-task-editor" key={task.key}>
+                      <div className="section-heading">
+                        <strong>Step {index + 1}</strong>
+                        <span className="status">Patient plan</span>
+                      </div>
+                      <div className="care-task-fields">
+                        <label>
+                          Task title
+                          <input
+                            value={task.title}
+                            maxLength={200}
+                            onChange={(event) =>
+                              updatePatientTask(index, { title: event.target.value })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Owner role
+                          <select
+                            value={task.ownerRole}
+                            onChange={(event) =>
+                              updatePatientTask(index, {
+                                ownerRole: event.target.value as CareTaskDefinition["ownerRole"],
+                                assignedUserId: null,
+                              })
+                            }
+                          >
+                            <option value="DOCTOR">Doctor</option>
+                            <option value="MEDICAL_STAFF">Medical staff</option>
+                            <option value="ADMIN">Department admin</option>
+                          </select>
+                        </label>
+                        <label>
+                          Assign to
+                          <select
+                            value={task.assignedUserId ?? ""}
+                            onChange={(event) =>
+                              updatePatientTask(index, {
+                                assignedUserId: event.target.value
+                                  ? Number(event.target.value)
+                                  : null,
+                              })
+                            }
+                          >
+                            <option value="">Unassigned until care team assigns</option>
+                            {(assignees.data ?? [])
+                              .filter((person) => person.role === task.ownerRole)
+                              .map((person) => (
+                                <option key={person.id} value={person.id}>
+                                  {person.displayName}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                        <label>
+                          Due after launch, minutes
+                          <input
+                            type="number"
+                            min="0"
+                            max="525600"
+                            value={task.dueOffsetMinutes}
+                            onChange={(event) =>
+                              updatePatientTask(index, {
+                                dueOffsetMinutes: Number(event.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Depends on
+                          <select
+                            value={task.dependsOn[0] ?? ""}
+                            onChange={(event) =>
+                              updatePatientTask(index, {
+                                dependsOn: event.target.value
+                                  ? [event.target.value]
+                                  : [],
+                              })
+                            }
+                          >
+                            <option value="">No dependency</option>
+                            {patientTasks.slice(0, index).map((preceding, position) => (
+                              <option key={preceding.key} value={preceding.key}>
+                                {preceding.title || `Step ${position + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <label>
+                        Instructions
+                        <textarea
+                          value={task.description}
+                          maxLength={2000}
+                          onChange={(event) =>
+                            updatePatientTask(index, { description: event.target.value })
+                          }
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
               <button
                 className="secondary"
                 disabled={
-                  busy || !launchPatientId || !selected.data?.published_version
+                  busy || !launchPatientId || !selected.data?.published_version || !validPatientTasks
                 }
                 onClick={previewForPatient}
               >
@@ -586,15 +747,15 @@ export function CarePathways() {
                       </li>
                     ))}
                   </ol>
-                  {draftId && actionsReviewed && !finalPreviewReady && (
+                  {!finalPreviewReady && (
                     <button
                       className="secondary"
                       disabled={
-                        busy || !documentPatientMatches || !validDocumentActions
+                        busy || !documentPatientMatches || !validDocumentActions || !validPatientTasks
                       }
                       onClick={previewForPatient}
                     >
-                      Preview reviewed document actions
+                      Refresh patient preview
                     </button>
                   )}
                   <div className="care-editor-fields">
