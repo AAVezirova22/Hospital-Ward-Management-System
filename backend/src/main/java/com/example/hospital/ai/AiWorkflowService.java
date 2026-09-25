@@ -44,7 +44,7 @@ public class AiWorkflowService {
     }
   }
   public record Plan(String title, List<Step> steps) {}
-  public record FieldDecision(String stepKey, String field, String decision, JsonNode value) {}
+  public record FieldDecision(String stepKey, String field, String decision, Object value) {}
   private final ObjectMapper json;
   private final Validator validator;
   private final AiSourceService sources;
@@ -374,8 +374,10 @@ public class AiWorkflowService {
         if ("ACCEPTED".equals(decision.decision())) {
           if (decision.value() != null) throw invalidDecision();
         } else if ("EDITED".equals(decision.decision())) {
-          if (decision.value() == null || decision.value().isNull() || decision.value().toString().length() > 2000) throw invalidDecision();
-          fields.set(entry.getKey(), decision.value().deepCopy());
+          if (decision.value() == null) throw invalidDecision();
+          JsonNode edited = json.valueToTree(decision.value());
+          if (edited == null || edited.isNull() || edited.toString().length() > 2000) throw invalidDecision();
+          fields.set(entry.getKey(), edited);
         } else throw invalidDecision();
       }
       result.add(new Step(step.key(), step.operation(), step.source(), fields, step.evidence()));
