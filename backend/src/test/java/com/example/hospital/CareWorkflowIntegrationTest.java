@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 @SpringBootTest(properties = {"app.seed=true", "app.bootstrap-password=IntegrationPassword123!"})
 @AutoConfigureMockMvc
@@ -33,14 +32,14 @@ class CareWorkflowIntegrationTest {
   @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
   private JsonNode post(String path, Object body) throws Exception {
-    var result = mvc.perform(post("/api/v1" + path).with(user("admin")).with(csrf())
+    var result = mvc.perform(MockMvcRequestBuilders.post("/api/v1" + path).with(user("admin")).with(csrf())
         .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
         .content(json.writeValueAsString(body))).andExpect(status().is2xxSuccessful()).andReturn();
     return json.readTree(result.getResponse().getContentAsString());
   }
 
   private JsonNode patch(String path, Object body) throws Exception {
-    var result = mvc.perform(patch("/api/v1" + path).with(user("admin")).with(csrf())
+    var result = mvc.perform(MockMvcRequestBuilders.patch("/api/v1" + path).with(user("admin")).with(csrf())
         .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
         .content(json.writeValueAsString(body))).andExpect(status().isOk()).andReturn();
     return json.readTree(result.getResponse().getContentAsString());
