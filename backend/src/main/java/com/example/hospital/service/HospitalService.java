@@ -151,6 +151,7 @@ public class HospitalService {
       Instant fromDate,
       Instant toDateExclusive,
       Long doctorId,
+      String query,
       Pageable pageable) {
     var currentActor = actor.user();
     boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
@@ -167,6 +168,8 @@ public class HospitalService {
         toDateExclusive,
         doctorId != null,
         doctorId,
+        query != null,
+        query == null ? null : query.toLowerCase(java.util.Locale.ROOT),
         doctorScoped,
         scopedDoctorId,
         patientScoped,
@@ -175,7 +178,7 @@ public class HospitalService {
   }
 
   public long admissionCount(
-      String status, Instant fromDate, Instant toDateExclusive, Long doctorId) {
+      String status, Instant fromDate, Instant toDateExclusive, Long doctorId, String query) {
     var currentActor = actor.user();
     boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
     Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
@@ -191,6 +194,8 @@ public class HospitalService {
         toDateExclusive,
         doctorId != null,
         doctorId,
+        query != null,
+        query == null ? null : query.toLowerCase(java.util.Locale.ROOT),
         doctorScoped,
         scopedDoctorId,
         patientScoped,

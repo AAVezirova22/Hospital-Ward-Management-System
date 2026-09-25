@@ -14,6 +14,7 @@ import { ArrowUpRight, ClipboardList } from "../../icons";
 export function Admissions() {
   const user = useUser();
   const [status, setStatus] = useState("ACTIVE");
+  const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [doctorId, setDoctorId] = useState("");
@@ -21,6 +22,7 @@ export function Admissions() {
   const { data: doctors } = useData("/doctors");
   const params = new URLSearchParams({ page: String(page), size: "20" });
   if (status) params.set("status", status);
+  if (search.trim()) params.set("q", search.trim());
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   if (doctorId) params.set("doctorId", doctorId);
@@ -37,6 +39,17 @@ export function Admissions() {
         title="Every stay, connected."
         description="Follow admissions from placement through transfer and discharge."
       />
+      <div className="toolbar">
+        <label>
+          Search admissions
+          <input
+            aria-label="Search admissions"
+            placeholder="Patient name, identifier or admission number"
+            value={search}
+            onChange={(e) => updateFilter(setSearch)(e.target.value)}
+          />
+        </label>
+      </div>
       <div className="report-filters admission-filters">
         <label>
           Status
@@ -87,6 +100,21 @@ export function Admissions() {
             </select>
           </label>
         )}
+        <button
+          className="secondary"
+          type="button"
+          disabled={!status && !search && !from && !to && !doctorId}
+          onClick={() => {
+            setStatus("");
+            setSearch("");
+            setFrom("");
+            setTo("");
+            setDoctorId("");
+            setPage(0);
+          }}
+        >
+          Clear filters
+        </button>
       </div>
       <ErrorBox error={error} />
       <div className="panel table-panel">

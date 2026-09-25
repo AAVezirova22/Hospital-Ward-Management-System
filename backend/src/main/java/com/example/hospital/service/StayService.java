@@ -81,7 +81,7 @@ public class StayService {
   }
 
   public Page<Admission> list(
-      int page, int size, String status, LocalDate from, LocalDate to, Long doctorId) {
+      int page, int size, String status, LocalDate from, LocalDate to, Long doctorId, String query) {
     if (page < 0 || size < 1 || (doctorId != null && doctorId < 1))
       throw new ApiException(
           400, "VALIDATION_ERROR", "Check the admission filters and page values.");
@@ -105,6 +105,9 @@ public class StayService {
     }
 
     int pageSize = Math.min(size, MAX_PAGE_SIZE);
+    String normalizedQuery = query == null || query.isBlank() ? null : query.trim();
+    if (normalizedQuery != null && normalizedQuery.length() > 120)
+      throw new ApiException(400, "VALIDATION_ERROR", "Search text must be at most 120 characters.");
     Sort sort =
         Sort.by(Sort.Order.desc("admissionDateTime")).and(Sort.by(Sort.Order.desc("id")));
     return page(
@@ -114,7 +117,8 @@ public class StayService {
         normalizedStatus,
         fromDate,
         toDateExclusive,
-        doctorId);
+        doctorId,
+        normalizedQuery);
   }
 
   private Page<Admission> page(
@@ -124,13 +128,14 @@ public class StayService {
       String status,
       Instant fromDate,
       Instant toDateExclusive,
-      Long doctorId) {
-    long totalElements = hospital.admissionCount(status, fromDate, toDateExclusive, doctorId);
+      Long doctorId,
+      String query) {
+    long totalElements = hospital.admissionCount(status, fromDate, toDateExclusive, doctorId, query);
     long lastPageNumber = totalElements == 0 ? 0 : (totalElements - 1) / size;
     int effectivePage = (int) Math.min(page, Math.min(lastPageNumber, Integer.MAX_VALUE));
     Pageable pageable = PageRequest.of(effectivePage, size, sort);
     List<Admission> content =
-        hospital.admissions(status, fromDate, toDateExclusive, doctorId, pageable);
+        hospital.admissions(status, fromDate, toDateExclusive, doctorId, query, pageable);
     return new PageImpl<>(content, pageable, totalElements);
   }
 

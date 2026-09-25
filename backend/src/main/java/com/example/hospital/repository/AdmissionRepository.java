@@ -24,6 +24,11 @@ public interface AdmissionRepository extends JpaRepository<Admission, Long> {
             and (:hasFromDate = false or a.admissionDateTime >= :fromDate)
             and (:hasToDate = false or a.admissionDateTime < :toDateExclusive)
             and (:hasDoctorId = false or a.attendingDoctorId = :doctorId)
+            and (:hasQuery = false or locate(:query, lower(a.admissionNumber)) > 0 or exists (
+              select p.id from Patient p where p.id = a.patientId and p.departmentId = a.departmentId
+                and (locate(:query, lower(p.patientIdentifier)) > 0 or locate(:query, lower(p.firstName)) > 0 or locate(:query, lower(p.lastName)) > 0
+                  or locate(:query, lower(concat(concat(p.firstName, ' '), p.lastName))) > 0)
+            ))
             and (:doctorScoped = false or a.attendingDoctorId = :scopedDoctorId)
             and (:patientScoped = false or a.patientId = :scopedPatientId)
           """)
@@ -37,6 +42,8 @@ public interface AdmissionRepository extends JpaRepository<Admission, Long> {
       @Param("toDateExclusive") Instant toDateExclusive,
       @Param("hasDoctorId") boolean hasDoctorId,
       @Param("doctorId") Long doctorId,
+      @Param("hasQuery") boolean hasQuery,
+      @Param("query") String query,
       @Param("doctorScoped") boolean doctorScoped,
       @Param("scopedDoctorId") Long scopedDoctorId,
       @Param("patientScoped") boolean patientScoped,
@@ -50,6 +57,11 @@ public interface AdmissionRepository extends JpaRepository<Admission, Long> {
             and (:hasFromDate = false or a.admissionDateTime >= :fromDate)
             and (:hasToDate = false or a.admissionDateTime < :toDateExclusive)
             and (:hasDoctorId = false or a.attendingDoctorId = :doctorId)
+            and (:hasQuery = false or locate(:query, lower(a.admissionNumber)) > 0 or exists (
+              select p.id from Patient p where p.id = a.patientId and p.departmentId = a.departmentId
+                and (locate(:query, lower(p.patientIdentifier)) > 0 or locate(:query, lower(p.firstName)) > 0 or locate(:query, lower(p.lastName)) > 0
+                  or locate(:query, lower(concat(concat(p.firstName, ' '), p.lastName))) > 0)
+            ))
             and (:doctorScoped = false or a.attendingDoctorId = :scopedDoctorId)
             and (:patientScoped = false or a.patientId = :scopedPatientId)
           """)
@@ -63,6 +75,8 @@ public interface AdmissionRepository extends JpaRepository<Admission, Long> {
       @Param("toDateExclusive") Instant toDateExclusive,
       @Param("hasDoctorId") boolean hasDoctorId,
       @Param("doctorId") Long doctorId,
+      @Param("hasQuery") boolean hasQuery,
+      @Param("query") String query,
       @Param("doctorScoped") boolean doctorScoped,
       @Param("scopedDoctorId") Long scopedDoctorId,
       @Param("patientScoped") boolean patientScoped,
