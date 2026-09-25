@@ -67,7 +67,7 @@ public class AiWorkflowService {
   public static final String DESCRIPTION = """
       Prepare one atomic workflow for human review. plan is a JSON STRING:
       {"title":"Short goal","steps":[{"key":"p1","operation":"createPatient","source":"filename or user request","fields":{...},"evidence":{"firstName":{"status":"SUPPORTED","confidence":0.94,"sources":[{"sourceId":"uploaded source id","location":"row 2, column B","excerpt":"Jane"}],"conflicts":[]}}}]}.
-      For file-derived fields, include evidence keyed by field name. Each evidence status is SUPPORTED, UNCERTAIN, CONFLICT or UNRESOLVED; confidence is 0..1. Cite only source IDs and exact excerpts from attached files. A citation has sourceId, location and excerpt. Put contradictory citations in conflicts. Do not invent source IDs, locations or excerpts. If evidence is missing, uncertain or conflicting, say so; the reviewer must explicitly accept or edit that field before confirmation.
+      For file-derived steps, cite the exact attached filename in source and include evidence keyed by every file-derived field. Each evidence status is SUPPORTED, UNCERTAIN, CONFLICT or UNRESOLVED; confidence is 0..1. Cite only source IDs and exact excerpts from attached files. A citation has sourceId, location and excerpt. Put contradictory citations in conflicts. Do not invent source IDs, locations or excerpts. If evidence is missing, uncertain or conflicting, say so; the reviewer must explicitly accept or edit that field before confirmation. The server marks fields without evidence as UNRESOLVED when the step cites an attached filename.
       Maximum 50 steps. Never invent missing required fields; ask via respond instead.
       Operations and fields (only these fields):
       createHospital: name,departmentName (only first step; subsequent records go in its new department);
@@ -98,11 +98,15 @@ public class AiWorkflowService {
       Map.entry("recordProcedure", Set.of("admissionId", "medicalProcedureId", "doctorId", "performedAt", "note")));
 
   public Plan parse(String text) {
+    return parse(text, List.of());
+  }
+
+  public Plan parse(String text, List<String> fileSourceNames) {
     if (text == null || text.length() > 50000) throw invalid();
     try {
       Plan plan = withDefaultEvidence(json.readValue(text, Plan.class));
       validate(plan);
-      return withVerifiedEvidence(plan);
+      return withVerifiedEvidence(withMissingFileEvidence(plan, fileSourceNames));
     } catch (ApiException | org.springframework.security.access.AccessDeniedException e) { throw e; }
     catch (Exception e) { throw invalid(); }
   }
@@ -262,6 +266,41 @@ public class AiWorkflowService {
       steps.add(new Step(step.key(), step.operation(), step.source(), step.fields(), Map.copyOf(evidence)));
     }
     return new Plan(plan.title(), List.copyOf(steps));
+  }
+
+  private static Plan withMissingFileEvidence(Plan plan, List<String> fileSourceNames) {
+    List<String> filenames = fileSourceNames == null ? List.of() : fileSourceNames.stream()
+        .filter(Objects::nonNull).map(AiWorkflowService::basename).filter(name -> !name.isBlank()).toList();
+    if (filenames.isEmpty()) return plan;
+    var steps = new ArrayList<Step>();
+    for (Step step : plan.steps()) {
+      if (!citesAttachedFile(step.source(), filenames)) {
+        steps.add(step);
+        continue;
+      }
+      var evidence = new LinkedHashMap<>(step.evidence());
+      var fields = step.fields().fieldNames();
+      while (fields.hasNext()) {
+        String field = fields.next();
+        evidence.putIfAbsent(field, new FieldEvidence("UNRESOLVED", 0, List.of(), List.of()));
+      }
+      steps.add(new Step(step.key(), step.operation(), step.source(), step.fields(), evidence));
+    }
+    return new Plan(plan.title(), List.copyOf(steps));
+  }
+
+  private static boolean citesAttachedFile(String citation, List<String> filenames) {
+    String value = citation.replace('\\', '/').toLowerCase(Locale.ROOT);
+    String base = basename(value).toLowerCase(Locale.ROOT);
+    return filenames.stream().anyMatch(name -> {
+      String candidate = name.toLowerCase(Locale.ROOT);
+      return base.equals(candidate) || value.contains(candidate);
+    });
+  }
+
+  private static String basename(String name) {
+    String normalized = name.replace('\\', '/').strip();
+    return normalized.substring(normalized.lastIndexOf('/') + 1);
   }
 
   private Citation verifyCitation(Citation citation) {

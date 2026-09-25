@@ -53,9 +53,14 @@ public class AiToolRegistry {
   }
 
   public Response executeAgent(AiModelClient.ToolCall call, Long selected) {
+    return executeAgent(call, selected, List.of());
+  }
+
+  public Response executeAgent(AiModelClient.ToolCall call, Long selected, List<String> fileSourceNames) {
     if (call.name().equals("prepareWorkflow")) {
       requireArgument(call, "plan", 50000);
-      return response("WORKFLOW_PROPOSAL", "Review every step and its source. Confirm to apply the complete workflow.", actions.prepareWorkflow(call.arguments().get("plan")));
+      return response("WORKFLOW_PROPOSAL", "Review every step, field evidence and source. Resolve uncertain evidence, then confirm to apply the complete workflow.",
+          actions.prepareWorkflow(call.arguments().get("plan"), fileSourceNames));
     }
     if (call.name().equals("respond")) {
       requireArgument(call, "message", 4000);

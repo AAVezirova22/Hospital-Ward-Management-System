@@ -84,10 +84,20 @@ class AiWorkflowIntegrationTest {
     assertThat(proposal.at("/data/workflow/steps/3/fields/capabilities/0").asText())
         .as("Workflow proposal: %s", proposal.toPrettyString()).isEqualTo("oxygen");
     assertThat(proposal.at("/data/workflow/steps/4/fields/requiredRoomCapabilities/0").asText()).isEqualTo("oxygen");
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/name/status").asText()).isEqualTo("UNRESOLVED");
     long action = proposal.at("/data/action/id").asLong();
     var before = body(mvc.perform(get("/api/v1/workspaces").with(user("admin"))));
     assertThat(before.toString()).doesNotContain("Import " + marker);
-    var result = body(postJson("admin", "/ai-actions/" + action + "/confirm", Map.of()));
+    var fieldDecisions = new ArrayList<Map<String, Object>>();
+    for (JsonNode stepNode : proposal.at("/data/workflow/steps")) {
+      var evidenceFields = stepNode.path("evidence").fields();
+      while (evidenceFields.hasNext()) {
+        var evidence = evidenceFields.next();
+        if (evidence.getValue().path("requiresDecision").asBoolean())
+          fieldDecisions.add(Map.of("stepKey", stepNode.path("key").asText(), "field", evidence.getKey(), "decision", "ACCEPTED"));
+      }
+    }
+    var result = body(postJson("admin", "/ai-actions/" + action + "/confirm", Map.of("fieldDecisions", fieldDecisions)));
     long department = result.get("departmentId").asLong();
     var patients = body(mvc.perform(get("/api/v1/patients").with(user("admin")).header("X-Department-Id", department)));
     assertThat(patients.toString()).contains("P-" + marker);
