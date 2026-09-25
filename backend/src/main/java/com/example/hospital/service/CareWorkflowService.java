@@ -846,7 +846,8 @@ public class CareWorkflowService {
           t.reviewed_by as reviewedBy, t.reviewed_at as reviewedAt,
           t.status, t.dependency_state as dependencyState, t.version, t.created_at as createdAt, t.updated_at as updatedAt,
           t.department_id as departmentId
-        from care_tasks t join care_workflow_runs r on r.department_id=t.department_id and r.id=t.workflow_run_id """ + where, (rs, n) -> mapTask(rs), args);
+        from care_tasks t join care_workflow_runs r on r.department_id=t.department_id and r.id=t.workflow_run_id
+        """ + where, (rs, n) -> mapTask(rs), args);
     for (var row : rows) {
       long id = ((Number) row.get("id")).longValue();
       row.put("dependsOn", jdbc.queryForList("""
