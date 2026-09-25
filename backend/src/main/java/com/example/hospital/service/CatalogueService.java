@@ -94,21 +94,26 @@ public class CatalogueService {
   }
 
   public PagedResult<Map<String, Object>> doctorPage(
-      String q, int requestedPage, int requestedSize, Boolean active) {
+      String q, int requestedPage, int requestedSize, Boolean active, String specialty) {
     boolean hasQuery = q != null && !q.isBlank();
     String query = pattern(q);
     boolean hasActive = active != null;
     boolean activeValue = Boolean.TRUE.equals(active);
     int size = safeSize(requestedSize);
-    long total = doctors.countDirectory(hasQuery, query, hasActive, activeValue);
+    String specialtyFilter = specialty == null ? "" : specialty.strip();
+    long total = doctors.countDirectory(hasQuery, query, hasActive, activeValue, specialtyFilter);
     int page = safePage(requestedPage, size, total);
     Pageable pageable =
         PageRequest.of(page, size, Sort.by("lastName", "firstName", "doctorIdentifier", "id"));
     List<Map<String, Object>> items =
-        doctors.searchDirectory(hasQuery, query, hasActive, activeValue, pageable).stream()
+        doctors.searchDirectory(hasQuery, query, hasActive, activeValue, specialtyFilter, pageable).stream()
             .map(Views::doctor)
             .toList();
     return PagedResult.of(items, page, size, total);
+  }
+
+  public List<String> doctorSpecialties() {
+    return doctors.findDistinctSpecialties();
   }
 
   public PagedResult<Map<String, Object>> procedurePage(

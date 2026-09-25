@@ -22,8 +22,14 @@ public class CatalogueController {
       @RequestParam(defaultValue = "") String q,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size,
-      @RequestParam(required = false) Boolean active) {
-    return catalogue.doctorPage(q, page, size, active);
+      @RequestParam(required = false) Boolean active,
+      @RequestParam(defaultValue = "") String specialty) {
+    return catalogue.doctorPage(q, page, size, active, specialty);
+  }
+
+  @GetMapping("/doctors/specialties")
+  public Object doctorSpecialties() {
+    return catalogue.doctorSpecialties();
   }
 
   @PostMapping("/doctors")

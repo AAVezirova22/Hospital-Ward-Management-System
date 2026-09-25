@@ -19,9 +19,14 @@ export function Catalogue({ kind }: { kind: string }) {
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useUrlState("q");
   const [pageText, setPageText] = useUrlState("page", "0");
+  const [activeFilter, setActiveFilter] = useUrlState("active");
+  const [specialty, setSpecialty] = useUrlState("specialty");
   const page = Math.max(0, Number.parseInt(pageText, 10) || 0);
   const params = new URLSearchParams({ q: search, page: String(page) });
+  if (activeFilter) params.set("active", activeFilter);
+  if (kind === "doctors" && specialty) params.set("specialty", specialty);
   const { data, error, isLoading } = useData(`/${kind}?${params}`);
+  const { data: specialties } = useData("/doctors/specialties");
   const user = useUser();
   const columns =
     kind === "doctors"
@@ -57,6 +62,51 @@ export function Catalogue({ kind }: { kind: string }) {
             placeholder="Search records"
           />
         </label>
+        <label className="toolbar">
+          Status
+          <select
+            value={activeFilter}
+            onChange={(e) => {
+              setPageText("0");
+              setActiveFilter(e.target.value);
+            }}
+          >
+            <option value="">All statuses</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+        </label>
+        {kind === "doctors" && (
+          <label className="toolbar">
+            Specialty
+            <select
+              value={specialty}
+              onChange={(e) => {
+                setPageText("0");
+                setSpecialty(e.target.value);
+              }}
+            >
+              <option value="">All specialties</option>
+              {Array.isArray(specialties) && specialties.map((option: string) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {(search || activeFilter || specialty) && (
+          <button
+            className="text-button"
+            onClick={() => {
+              setPageText("0");
+              setSearch("");
+              setActiveFilter("");
+              setSpecialty("");
+            }}
+          >
+            Reset filters
+          </button>
+        )}
+        {data && <p role="status">{data.totalElements} matching records</p>}
         <table>
           <thead>
             <tr>
@@ -129,8 +179,7 @@ export function Catalogue({ kind }: { kind: string }) {
               Previous
             </button>
             <span>
-              Page {data.page + 1} of {data.totalPages} · {data.totalElements}{" "}
-              records
+              Page {data.page + 1} of {data.totalPages}
             </span>
             <button
               className="secondary"
