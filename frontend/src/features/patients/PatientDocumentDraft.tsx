@@ -347,7 +347,7 @@ export function PatientDocumentDraft({
               Referral, registration form, or discharge document
               <input
                 type="file"
-                accept=".pdf,.txt,.csv,.doc,.docx,.xls,.xlsx"
+                accept=".txt,.md,.csv,.tsv,.json,.pdf,.docx,.xlsx,.pptx,.odt,.ods,.rtf"
                 disabled={busy || !!draft}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
