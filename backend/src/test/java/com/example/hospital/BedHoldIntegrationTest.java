@@ -36,19 +36,14 @@ class BedHoldIntegrationTest extends HospitalSupport {
             201);
 
     assertThat(hold.get("reason").asText()).isEqualTo("Electrical inspection");
-    var rooms = result(request("admin", "GET", "/api/v1/rooms", null), 200);
-    var matching = java.util.stream.StreamSupport.stream(rooms.spliterator(), false)
-        .filter(row -> row.get("id").asLong() == room.get("id").asLong())
-        .findFirst().orElseThrow();
+    var matching = roomView(room.get("id").asLong(), 0).path("items").get(0);
     assertThat(matching.get("heldBeds").asInt()).isEqualTo(1);
     assertThat(matching.get("activeHeldBeds").asInt()).isZero();
     assertThat(matching.get("availableBeds").asInt()).isEqualTo(1);
     var dashboard = result(request("admin", "GET", "/api/v1/reports/dashboard", null), 200);
     assertThat(dashboard.get("heldBeds").asLong()).isGreaterThanOrEqualTo(1);
-    var minFree = result(request("admin", "GET", "/api/v1/rooms?minFree=2", null), 200);
-    assertThat(java.util.stream.StreamSupport.stream(minFree.spliterator(), false)
-            .anyMatch(row -> row.get("id").asLong() == room.get("id").asLong()))
-        .isFalse();
+    var minFree = roomView(room.get("id").asLong(), 2);
+    assertThat(minFree.path("totalElements").asLong()).isZero();
 
     admit(createPatient(), room);
     var simulation = result(request("admin", "GET", "/api/v1/planner/simulate?arrivals=100", null), 200);
@@ -73,10 +68,8 @@ class BedHoldIntegrationTest extends HospitalSupport {
             "/api/v1/rooms/" + room.get("id").asLong() + "/holds/" + hold.get("id").asLong(),
             null)
         .andExpect(status().isNoContent());
-    var afterRelease = result(request("admin", "GET", "/api/v1/rooms", null), 200);
-    var available = java.util.stream.StreamSupport.stream(afterRelease.spliterator(), false)
-        .filter(row -> row.get("id").asLong() == room.get("id").asLong())
-        .findFirst().orElseThrow().get("availableBeds").asInt();
+    var afterRelease = roomView(room.get("id").asLong(), 0);
+    var available = afterRelease.path("items").get(0).get("availableBeds").asInt();
     assertThat(available).isEqualTo(1);
     admit(createPatient(), room);
   }
@@ -178,10 +171,7 @@ class BedHoldIntegrationTest extends HospitalSupport {
                 "startsAt", middle.toString(),
                 "endsAt", end.toString()))
         .andExpect(status().isCreated());
-    var rooms = result(request("admin", "GET", "/api/v1/rooms", null), 200);
-    var held = java.util.stream.StreamSupport.stream(rooms.spliterator(), false)
-        .filter(row -> row.get("id").asLong() == room.get("id").asLong())
-        .findFirst().orElseThrow().get("heldBeds").asInt();
+    var held = roomView(room.get("id").asLong(), 0).path("items").get(0).get("heldBeds").asInt();
     assertThat(held).isEqualTo(2);
   }
 
@@ -224,10 +214,7 @@ class BedHoldIntegrationTest extends HospitalSupport {
         java.sql.Timestamp.from(now.minusSeconds(30)),
         hold.get("id").asLong());
 
-    var rooms = result(request("admin", "GET", "/api/v1/rooms", null), 200);
-    var matching = java.util.stream.StreamSupport.stream(rooms.spliterator(), false)
-        .filter(row -> row.get("id").asLong() == room.get("id").asLong())
-        .findFirst().orElseThrow();
+    var matching = roomView(room.get("id").asLong(), 0).path("items").get(0);
     assertThat(matching.get("heldBeds").asInt()).isZero();
     assertThat(matching.get("activeHeldBeds").asInt()).isZero();
     assertThat(matching.get("availableBeds").asInt()).isEqualTo(1);
@@ -258,5 +245,9 @@ class BedHoldIntegrationTest extends HospitalSupport {
                 "endsAt", now.plusSeconds(600).toString()))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("ROOM_INACTIVE"));
+  }
+
+  private com.fasterxml.jackson.databind.JsonNode roomView(long roomId, int minFree) throws Exception {
+    return result(request("admin", "GET", "/api/v1/rooms?roomId=" + roomId + "&minFree=" + minFree, null), 200);
   }
 }

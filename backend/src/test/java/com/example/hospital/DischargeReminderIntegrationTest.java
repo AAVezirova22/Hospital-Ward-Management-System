@@ -16,6 +16,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.hospital.service.ConfirmationEmailService;
 import com.example.hospital.service.DischargeReminderService;
 import java.sql.Date;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -161,7 +163,7 @@ class DischargeReminderIntegrationTest extends HospitalSupport {
   void retriesProviderFailuresOnlyUntilTheConfiguredAttemptLimit() {
     createRecipients();
     var today = LocalDate.now(ZoneOffset.UTC);
-    admission("retry-limit", doctorOne, today.plusDays(1));
+    long admissionId = admission("retry-limit", doctorOne, today.plusDays(1));
     var calls = new AtomicInteger();
     doAnswer(invocation -> {
       if (calls.incrementAndGet() <= 2) {
@@ -173,9 +175,9 @@ class DischargeReminderIntegrationTest extends HospitalSupport {
 
     assertThat(reminders.processDueReminders(today)).isEqualTo(1);
     assertThat(reminders.processDueReminders(today)).isZero();
-    jdbc.update("update discharge_reminders set next_attempt_at=now()-interval '1 second'");
+    makeRetryDue(admissionId);
     assertThat(reminders.processDueReminders(today)).isEqualTo(1);
-    jdbc.update("update discharge_reminders set next_attempt_at=now()-interval '1 second'");
+    makeRetryDue(admissionId);
     assertThat(reminders.processDueReminders(today)).isZero();
 
     assertThat(calls).hasValue(2);
@@ -215,6 +217,11 @@ class DischargeReminderIntegrationTest extends HospitalSupport {
     createUser("doctor2", "DOCTOR", doctorTwo, "doctor2", true, true, 1);
     createUser("unverified", "MEDICAL_STAFF", null, "unverified", false, true, 1);
     createUser("disabled", "MEDICAL_STAFF", null, "disabled", true, false, 1);
+  }
+
+  private void makeRetryDue(long admissionId) {
+    assertThat(jdbc.update("update discharge_reminders set next_attempt_at=? where admission_id=?",
+        Timestamp.from(Instant.now().minusSeconds(60)), admissionId)).isEqualTo(1);
   }
 
   private void createUser(
