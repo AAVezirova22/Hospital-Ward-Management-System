@@ -68,8 +68,9 @@ public ReportController(
       @RequestParam LocalDate from,
       @RequestParam LocalDate to,
       @RequestParam(required = false) Long patientId,
-      @RequestParam(required = false) Long doctorId) {
-    return reports.procedures(from, to, patientId, doctorId);
+      @RequestParam(required = false) Long doctorId,
+      @RequestParam(required = false) Long medicalProcedureId) {
+    return reports.procedures(from, to, patientId, doctorId, medicalProcedureId);
   }
 
   @GetMapping(value = "/procedures.csv", produces = "text/csv")
@@ -77,8 +78,9 @@ public ReportController(
       @RequestParam LocalDate from,
       @RequestParam LocalDate to,
       @RequestParam(required = false) Long patientId,
-      @RequestParam(required = false) Long doctorId) {
-    var report = reports.procedures(from, to, patientId, doctorId);
+      @RequestParam(required = false) Long doctorId,
+      @RequestParam(required = false) Long medicalProcedureId) {
+    var report = reports.procedures(from, to, patientId, doctorId, medicalProcedureId);
     long departmentId = com.example.hospital.security.DepartmentContext.id();
     var rows = (List<?>) report.get("rows");
     var out = new StringBuilder(
@@ -112,6 +114,7 @@ public ReportController(
     filters.put("to", to);
     filters.put("patientId", patientId);
     filters.put("doctorId", doctorId);
+    filters.put("medicalProcedureId", medicalProcedureId);
     filters.put("rows", ((List<?>) report.get("rows")).size());
     audit.log("DATA_EXPORTED", "Report", null, "UI", filters);
     return ResponseEntity.ok()

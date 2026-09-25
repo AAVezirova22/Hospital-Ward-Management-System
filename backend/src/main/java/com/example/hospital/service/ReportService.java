@@ -126,6 +126,11 @@ public class ReportService {
   }
 
   public Map<String, Object> procedures(LocalDate from, LocalDate to, Long patientId, Long doctorId) {
+    return procedures(from, to, patientId, doctorId, null);
+  }
+
+  public Map<String, Object> procedures(
+      LocalDate from, LocalDate to, Long patientId, Long doctorId, Long medicalProcedureId) {
     if (from.isAfter(to))
       throw new ApiException(400, "INVALID_PERIOD", "Start date must be before end date.");
     if (patientId != null) hospital.accessible(patientId);
@@ -160,6 +165,10 @@ public class ReportService {
     if (doctorId != null) {
       sql.append(" and pp.performed_by_doctor_id=?");
       args.add(doctorId);
+    }
+    if (medicalProcedureId != null) {
+      sql.append(" and pp.medical_procedure_id=?");
+      args.add(medicalProcedureId);
     }
     if (actor.doctor()) {
       sql.append(" and a.attending_doctor_id=?");

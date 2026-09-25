@@ -48,6 +48,7 @@ export function Reports() {
     [to, setTo] = useUrlState("to", today),
     [patientId, setPatient] = useUrlState("patientId"),
     [doctorId, setDoctor] = useUrlState("doctorId"),
+    [procedureId, setProcedure] = useUrlState("procedureId"),
     [roomId, setRoom] = useUrlState("roomId"),
     [mode, setMode] = useUrlState("mode", "procedures"),
     [bucket, setBucket] = useUrlState("bucket", "day");
@@ -76,12 +77,14 @@ export function Reports() {
     selectedPatient ?? selectedPatientQuery.data?.patient;
 
   const { data: doctors } = useAllPages<Row>("/doctors"),
-    { data: rooms } = useAllPages<Row>("/rooms");
+    { data: rooms } = useAllPages<Row>("/rooms"),
+    { data: procedures } = useAllPages<Row>("/procedures");
   const params = new URLSearchParams({
     from,
     to,
     ...(patientId ? { patientId } : {}),
     ...(doctorId ? { doctorId } : {}),
+    ...(procedureId ? { medicalProcedureId: procedureId } : {}),
   });
   const roomUtilizationParams = new URLSearchParams({
     from,
@@ -270,6 +273,41 @@ export function Reports() {
                 ))}
             </select>
           </label>
+        )}
+        {mode === "procedures" && (
+          <>
+            <label>
+              Procedure
+              <select
+                value={procedureId}
+                onChange={(e) => setProcedure(e.target.value)}
+              >
+                <option value="">All procedures</option>
+                {procedureId &&
+                  !Array.isArray(procedures) && (
+                    <option value={procedureId}>Selected procedure</option>
+                  )}
+                {Array.isArray(procedures) &&
+                  procedures.map((procedure: Row) => (
+                    <option value={procedure.id} key={procedure.id}>
+                      {procedure.procedureName} ({procedure.procedureCode})
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                setPatient("");
+                setDoctor("");
+                setProcedure("");
+              }}
+              disabled={!patientId && !doctorId && !procedureId}
+            >
+              Clear filters
+            </button>
+          </>
         )}
         {mode === "census" && (
           <label>
