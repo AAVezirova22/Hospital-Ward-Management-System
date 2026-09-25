@@ -98,10 +98,10 @@ Push titles and bodies are generic for both task reminders and operational notic
 | GET | `/assistant/sessions/{key}` | Owner-only recent metadata, no raw conversations |
 | POST | `/assistant/sessions/{key}/clear` | Clear selected-patient context |
 | GET | `/ai-actions/{id}` | Owner-only proposal |
-| POST | `/ai-actions/{id}/confirm` | No client-supplied mutation payload; uses saved proposal |
+| POST | `/ai-actions/{id}/confirm` | Uses the saved proposal; optionally accepts field decisions for uncertain workflow evidence |
 | POST | `/ai-actions/{id}/cancel` | Owner-only cancellation |
 
-Response types: `TEXT`, `PATIENT_LIST`, `PATIENT_SUMMARY`, `ROOM_LIST`, `REPORT_RESULT`, `NAVIGATION_COMMAND`, `CONFIRMATION_CARD`, `ERROR`. They include `message`, `data`, `sessionId`, `model`. The client validates the response envelope and renders trusted React components.
+Response types: `TEXT`, `PATIENT_LIST`, `PATIENT_SUMMARY`, `ROOM_LIST`, `REPORT_RESULT`, `NAVIGATION_COMMAND`, `CONFIRMATION_CARD`, `WORKFLOW_PROPOSAL`, `ERROR`. They include `message`, `data`, `sessionId`, `model`. Workflow steps may return evidence per field; exact excerpts are checked against owned uploaded sources and unverifiable citations are marked as such. `verified` means the exact excerpt was found in an owned source; `location` is the computed character range and `reportedLocation` is the model's row/page description. Fields marked `requiresDecision` must be explicitly accepted or edited in the confirmation body, for example `{ "fieldDecisions": [{"stepKey":"p1","field":"firstName","decision":"ACCEPTED"}] }` or `{ "stepKey":"p1","field":"firstName","decision":"EDITED","value":"Jane" }`. Edited values undergo the same schema, role, ownership and current-state checks as the proposed workflow. Evidence metadata never authorizes a write.
 
 Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoomOccupancy`, `getDoctorPatients`, `getAdmission`, `getAdmissions`, `getProcedureStatistics`, `getDashboardSummary`, `listWorkspaces`. Room search accepts comma-separated capability tags and reports excluded rooms with reasons. Admission and transfer proposals apply the saved or requested tags and recheck them on confirmation. Additional tools: `navigate`, `help`, `prepareAdmission`, `prepareTransfer`, `prepareDischarge`. Patient search results include the current hospital/department label. `listWorkspaces` is the only hospital-wide read; it omits join codes.
 

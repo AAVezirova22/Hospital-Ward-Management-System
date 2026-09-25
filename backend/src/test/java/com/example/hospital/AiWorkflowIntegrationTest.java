@@ -112,6 +112,49 @@ assertThat(admissions.get("items").get(0).toString())
     postJson("admin", "/ai-actions/" + action + "/confirm", Map.of()).andExpect(status().isConflict());
   }
 
+  @Test void workflowFieldEvidenceIsVerifiedAndUnresolvedFieldsNeedExplicitReview() throws Exception {
+    String marker = unique();
+    String excerpt = "Patient identifier: SOURCE-" + marker;
+    JsonNode source = upload("admin", "patients.txt", excerpt);
+    String patientIdentifier = "P-" + marker;
+    String inputPlan = json.writeValueAsString(Map.of(
+        "title", "Prepare patient import",
+        "steps", List.of(Map.of(
+            "key", "patient",
+            "operation", "createPatient",
+            "source", "patients.txt",
+            "fields", Map.of("patientIdentifier", patientIdentifier, "firstName", "Original",
+                "lastName", "Patient", "dateOfBirth", "1990-01-01"),
+            "evidence", Map.of(
+                "patientIdentifier", Map.of("status", "UNCERTAIN", "confidence", 0.42,
+                    "sources", List.of(Map.of("sourceId", source.get("id").asText(), "location", "line 1", "excerpt", excerpt)),
+                    "conflicts", List.of()),
+                "firstName", Map.of("status", "SUPPORTED", "confidence", 0.99,
+                    "sources", List.of(Map.of("sourceId", "not-owned", "sourceName", "private.txt",
+                        "location", "row 1", "excerpt", "Original")),
+                    "conflicts", List.of()))))));
+
+    JsonNode proposal = propose(inputPlan);
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/verified").asBoolean()).isTrue();
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/sourceName").asText()).isEqualTo("patients.txt");
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/characterStart").asInt()).isZero();
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/requiresDecision").asBoolean()).isTrue();
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/firstName/sources/0/verified").asBoolean()).isFalse();
+    assertThat(proposal.at("/data/workflow/steps/0/evidence/firstName/requiresDecision").asBoolean()).isTrue();
+
+    long action = proposal.at("/data/action/id").asLong();
+    postJson("admin", "/ai-actions/" + action + "/confirm", Map.of())
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("WORKFLOW_REVIEW_REQUIRED"));
+    assertThat(jdbc.queryForObject("select count(*) from patients where patient_identifier=?", Integer.class, patientIdentifier)).isZero();
+
+    var decisions = Map.of("fieldDecisions", List.of(
+        Map.of("stepKey", "patient", "field", "patientIdentifier", "decision", "ACCEPTED"),
+        Map.of("stepKey", "patient", "field", "firstName", "decision", "EDITED", "value", "Clinician")));
+    postJson("admin", "/ai-actions/" + action + "/confirm", decisions).andExpect(status().isOk());
+    assertThat(jdbc.queryForObject("select first_name from patients where patient_identifier=?", String.class, patientIdentifier))
+        .isEqualTo("Clinician");
+  }
+
   @Test void assistantRoomSearchExplainsCapabilityAndAvailabilityExclusions() throws Exception {
     when(model.identifier()).thenReturn("local-command-model");
     String compatibleNumber = "R-" + unique();

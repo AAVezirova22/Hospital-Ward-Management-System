@@ -70,8 +70,9 @@ public class AiController {
   }
 
   @PostMapping("/ai-actions/{id}/confirm")
-  public Object confirm(@PathVariable Long id) {
-    return actions.confirm(id);
+  public Object confirm(@PathVariable Long id,
+      @RequestBody(required = false) AiActionService.WorkflowConfirmationInput input) {
+    return actions.confirm(id, input);
   }
 
   @PostMapping("/ai-actions/{id}/cancel")
