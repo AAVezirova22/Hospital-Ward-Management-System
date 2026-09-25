@@ -66,6 +66,7 @@ export function CarePathways() {
   >(["MANUAL"]);
   const [tasks, setTasks] = useState<CareTaskDefinition[]>([blankTask()]);
   const [version, setVersion] = useState<number | null>(null);
+  const [savedDraftFingerprint, setSavedDraftFingerprint] = useState<string | null>(null);
   const [preview, setPreview] = useState<CarePreview | null>(null);
   const [previewRevision, setPreviewRevision] = useState<string | null>(null);
   const [patientTasks, setPatientTasks] = useState<CareTaskDefinition[]>([]);
@@ -104,6 +105,12 @@ export function CarePathways() {
     setTriggers(template.draft.triggers);
     setTasks(template.draft.tasks);
     setVersion(template.version);
+    setSavedDraftFingerprint(JSON.stringify({
+      name: template.name,
+      description: template.description,
+      triggers: template.draft.triggers,
+      tasks: template.draft.tasks,
+    }));
     setPatientTasks(
       template.publishedVersions.find(
         (published) => published.version === template.published_version,
@@ -150,6 +157,12 @@ export function CarePathways() {
         Number.isFinite(task.dueOffsetMinutes),
     );
   const canEdit = !!name.trim() && validTasks;
+  const draftDirty = savedDraftFingerprint !== JSON.stringify({
+    name,
+    description,
+    triggers,
+    tasks,
+  });
   const documentPatientMatches =
     !draftId ||
     (!!documentDraft.data &&
@@ -321,6 +334,7 @@ export function CarePathways() {
                 setTriggers(["MANUAL"]);
                 setTasks([blankTask()]);
                 setVersion(null);
+                setSavedDraftFingerprint(null);
                 setPreview(null);
               }}
             >
@@ -534,12 +548,15 @@ export function CarePathways() {
               </button>
               <button
                 className="primary"
-                disabled={busy || !selectedId || version === null}
+                disabled={busy || !selectedId || version === null || draftDirty}
                 onClick={publish}
               >
                 Publish reviewed version
               </button>
             </div>
+            {selectedId && draftDirty && (
+              <p>Save the draft changes before publishing this version.</p>
+            )}
           </section>
           {selectedId && (
             <section className="panel care-launch">
