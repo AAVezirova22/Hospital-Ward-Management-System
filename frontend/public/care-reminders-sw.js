@@ -37,7 +37,7 @@ self.addEventListener("push", (event) => {
           : token
             ? `care-task-${token}`
             : "care-task",
-      data: { path },
+        data: { path },
       },
     ),
   );

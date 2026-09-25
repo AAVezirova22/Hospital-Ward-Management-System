@@ -2,7 +2,7 @@ import { z } from "zod";
 export const safeRoute = z
   .string()
   .regex(
-    /^\/app\/(dashboard|patients(?:\/[\w-]+)?|rooms|admissions|doctors|procedures|reports|users|planner|audit|presentation)$/,
+    /^\/app\/(dashboard|patients(?:\/[\w-]+)?|rooms|admissions|doctors|procedures|reports|users|planner|audit|presentation|care-pathways|tasks)$/,
   );
 const patient = z
   .object({
@@ -104,14 +104,18 @@ export const aiResponse = z.discriminatedUnion("responseType", [
     data: z.object({
       rooms: z.array(room),
       requiredCapabilities: z.array(z.string()).default([]),
-      excludedRooms: z.array(
-        z.object({
-          id: z.number().int().positive(),
-          roomNumber: z.string(),
-          missingCapabilities: z.array(z.string()),
-          reason: z.string(),
-        }).passthrough(),
-      ).default([]),
+      excludedRooms: z
+        .array(
+          z
+            .object({
+              id: z.number().int().positive(),
+              roomNumber: z.string(),
+              missingCapabilities: z.array(z.string()),
+              reason: z.string(),
+            })
+            .passthrough(),
+        )
+        .default([]),
     }),
   }),
   z.object({
@@ -135,8 +139,8 @@ export const aiResponse = z.discriminatedUnion("responseType", [
             actionType: z.enum(["ADMISSION", "TRANSFER", "DISCHARGE"]),
             expiresAt: z.string().datetime(),
             status: z.literal("PENDING"),
-        })
-        .passthrough(),
+          })
+          .passthrough(),
         patient,
         requiredRoomCapabilities: z.array(z.string()).default([]),
       })
