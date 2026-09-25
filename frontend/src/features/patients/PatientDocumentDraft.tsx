@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api, patientHref } from "../../api";
+import { activeDepartment, api, patientHref } from "../../api";
 import type { Patient, PatientDirectoryPage } from "../../api/contracts";
 import { ErrorBox } from "../../components/workspace";
 import { useAssistantSources } from "../assistant/AssistantSources";
@@ -98,8 +98,10 @@ export function PatientDocumentDraft({
     initialPatient?.id ?? null,
   );
   const [identitySearch, setIdentitySearch] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const identityResults = useQuery({
-    queryKey: ["patient-draft-identity-search", identitySearch],
+    queryKey: ["patient-draft-identity-search", activeDepartment(), identitySearch],
     queryFn: () =>
       api<PatientDirectoryPage>(
         `/patients?q=${encodeURIComponent(identitySearch)}&page=0&size=10`,
@@ -141,6 +143,15 @@ export function PatientDocumentDraft({
       setTarget(
         initialPatient?.id ?? (result.matchCandidates.length ? null : "new"),
       );
+    });
+  }
+
+  function attachFile(file: File) {
+    void run(async () => {
+      await sources.clear();
+      await sources.add(file);
+      setDraft(null);
+      setAccepted([]);
     });
   }
 
@@ -305,7 +316,33 @@ export function PatientDocumentDraft({
         </div>
       ) : (
         <>
-          <div className="pathway-import-upload">
+          <div
+            className={`pathway-import-upload${dragging ? " is-dragging" : ""}`}
+            onDragEnter={(event) => {
+              if (!event.dataTransfer.types.includes("Files")) return;
+              event.preventDefault();
+              dragDepth.current++;
+              if (!busy && !draft) setDragging(true);
+            }}
+            onDragOver={(event) => {
+              if (!event.dataTransfer.types.includes("Files")) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = busy || draft ? "none" : "copy";
+            }}
+            onDragLeave={() => {
+              dragDepth.current = Math.max(0, dragDepth.current - 1);
+              if (dragDepth.current === 0) setDragging(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              dragDepth.current = 0;
+              setDragging(false);
+              if (busy || draft) return;
+              const file = event.dataTransfer.files[0];
+              if (file) attachFile(file);
+            }}
+          >
+            <p>Drop a supported document here, or choose a file below.</p>
             <label>
               Referral, registration form, or discharge document
               <input
@@ -315,12 +352,7 @@ export function PatientDocumentDraft({
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   event.target.value = "";
-                  if (file)
-                    void run(async () => {
-                      await sources.clear();
-                      await sources.add(file);
-                      setDraft(null);
-                    });
+                  if (file) attachFile(file);
                 }}
               />
             </label>
