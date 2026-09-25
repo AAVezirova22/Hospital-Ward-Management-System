@@ -14,12 +14,33 @@ type AuditPage = {
 export function Audit() {
   const [page, setPage] = useState(0);
   const [eventType, setEventType] = useState("");
+  const [actorId, setActorId] = useState("");
+  const [entityType, setEntityType] = useState("");
+  const [entityId, setEntityId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const filters = { eventType, actorId, entityType, entityId, from, to };
+  const hasFilters = Object.values(filters).some(Boolean);
+  const query = new URLSearchParams({ page: String(page), size: "50" });
+  if (eventType.trim()) query.set("eventType", eventType.trim());
+  if (actorId) query.set("actorId", actorId);
+  if (entityType.trim()) query.set("entityType", entityType.trim());
+  if (entityId) query.set("entityId", entityId);
+  if (from) query.set("from", from);
+  if (to) query.set("to", to);
   const { data, error, isLoading } = useQuery({
-    queryKey: ["/audit", activeDepartment(), page, eventType],
-    queryFn: () =>
-      api<AuditPage>(
-        `/audit?page=${page}&size=50${eventType ? `&eventType=${encodeURIComponent(eventType)}` : ""}`,
-      ),
+    queryKey: [
+      "/audit",
+      activeDepartment(),
+      page,
+      eventType,
+      actorId,
+      entityType,
+      entityId,
+      from,
+      to,
+    ],
+    queryFn: () => api<AuditPage>(`/audit?${query.toString()}`),
   });
   const events = data?.events ?? [];
   return (
@@ -30,15 +51,94 @@ export function Audit() {
         description="Paged audit events for this department. Patient notes and passwords are excluded."
       />
       <div className="toolbar">
-        <input
-          aria-label="Filter by event type"
-          placeholder="Event type"
-          value={eventType}
-          onChange={(e) => {
-            setEventType(e.target.value);
-            setPage(0);
-          }}
-        />
+        <label>
+          Event type
+          <input
+            value={eventType}
+            onChange={(e) => {
+              setEventType(e.target.value);
+              setPage(0);
+            }}
+          />
+        </label>
+        <label>
+          Actor user ID
+          <input
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            value={actorId}
+            onChange={(e) => {
+              setActorId(e.target.value);
+              setPage(0);
+            }}
+          />
+        </label>
+        <label>
+          Entity type
+          <input
+            value={entityType}
+            onChange={(e) => {
+              setEntityType(e.target.value);
+              setPage(0);
+            }}
+          />
+        </label>
+        <label>
+          Entity ID
+          <input
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            value={entityId}
+            onChange={(e) => {
+              setEntityId(e.target.value);
+              setPage(0);
+            }}
+          />
+        </label>
+        <label>
+          From date
+          <input
+            type="date"
+            max={to || undefined}
+            value={from}
+            onChange={(e) => {
+              setFrom(e.target.value);
+              setPage(0);
+            }}
+          />
+        </label>
+        <label>
+          To date
+          <input
+            type="date"
+            min={from || undefined}
+            value={to}
+            onChange={(e) => {
+              setTo(e.target.value);
+              setPage(0);
+            }}
+          />
+        </label>
+        {hasFilters && (
+          <button
+            className="secondary"
+            onClick={() => {
+              setEventType("");
+              setActorId("");
+              setEntityType("");
+              setEntityId("");
+              setFrom("");
+              setTo("");
+              setPage(0);
+            }}
+          >
+            Clear all filters
+          </button>
+        )}
         <span>{data?.total ?? 0} events</span>
       </div>
       <ErrorBox error={error} />
