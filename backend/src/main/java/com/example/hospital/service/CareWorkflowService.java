@@ -4,6 +4,7 @@ import com.example.hospital.api.ApiException;
 import com.example.hospital.api.CareWorkflowInput;
 import com.example.hospital.api.CareWorkflowInput.Task;
 import com.example.hospital.ai.AiSourceService;
+import com.example.hospital.ai.AiPatientDraftService;
 import com.example.hospital.security.Actor;
 import com.example.hospital.security.DepartmentContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -12,6 +13,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,6 +40,8 @@ public class CareWorkflowService {
   private final ObjectMapper mapper;
   private final ApplicationEventPublisher publisher;
   private final AiSourceService sources;
+  private final AiPatientDraftService patientDrafts;
+  private final DepartmentTimeService departmentTime;
   private final String summaryConsentVersion;
   private final String portalConsentVersion;
   private final String communicationConsentVersion;
@@ -47,14 +53,40 @@ public class CareWorkflowService {
       String idempotencyKey,
       @jakarta.validation.constraints.Size(max = 200) String sourceReference,
       @jakarta.validation.constraints.Size(max = 2000) String patientSummary,
+      @jakarta.validation.constraints.Size(max = 100) List<@jakarta.validation.Valid TaskOverride> taskOverrides,
+      @jakarta.validation.constraints.Size(max = 50) List<@jakarta.validation.Valid ReviewedAction> reviewedFollowUpActions,
+      @jakarta.validation.constraints.Size(max = 64) String patientDraftId,
       @jakarta.validation.constraints.AssertTrue boolean approved) {}
 
-  public record PreviewInput(Long patientId, Long admissionId, String trigger, Long workflowVersion) {}
+  public record PreviewInput(Long patientId, Long admissionId, String trigger, Long workflowVersion,
+      @jakarta.validation.constraints.Size(max = 100) List<@jakarta.validation.Valid TaskOverride> taskOverrides,
+      @jakarta.validation.constraints.Size(max = 50) List<@jakarta.validation.Valid ReviewedAction> reviewedFollowUpActions,
+      @jakarta.validation.constraints.Size(max = 64) String patientDraftId) {}
   public record CancelInput(@jakarta.validation.constraints.NotNull Long version) {}
   public record ApprovalInput(
       @jakarta.validation.constraints.AssertTrue boolean approved,
       @jakarta.validation.constraints.Size(max = 200) String sourceReference,
-      @jakarta.validation.constraints.Size(max = 2000) String patientSummary) {}
+      @jakarta.validation.constraints.Size(max = 2000) String patientSummary,
+      @jakarta.validation.constraints.Size(max = 100) List<@jakarta.validation.Valid TaskOverride> taskOverrides,
+      @jakarta.validation.constraints.Size(max = 50) List<@jakarta.validation.Valid ReviewedAction> reviewedFollowUpActions,
+      @jakarta.validation.constraints.Size(max = 64) String patientDraftId) {}
+  public record TaskOverride(
+      @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=80) String key,
+      @jakarta.validation.constraints.Size(max=200) String title,
+      @jakarta.validation.constraints.Size(max=2000) String description,
+      @jakarta.validation.constraints.Pattern(regexp="ADMIN|MEDICAL_STAFF|DOCTOR") String ownerRole,
+      Long assignedUserId,
+      @jakarta.validation.constraints.Min(0) @jakarta.validation.constraints.Max(525600) Long dueOffsetMinutes,
+      @jakarta.validation.constraints.Size(max=100) List<String> dependsOn) {}
+  public record ReviewedAction(
+      @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=64) String actionId,
+      @jakarta.validation.constraints.Size(max=200) String title,
+      LocalDate dueDate,
+      LocalTime dueTime,
+      @jakarta.validation.constraints.Pattern(regexp="ACCEPTED|EDITED|REJECTED") String decision,
+      @jakarta.validation.constraints.Pattern(regexp="ADMIN|MEDICAL_STAFF|DOCTOR") String ownerRole,
+      Long assignedUserId,
+      @jakarta.validation.constraints.Size(max=100) List<String> dependsOn) {}
   public record TaskUpdate(
       @jakarta.validation.constraints.NotBlank String status,
       Long assignedUserId,
@@ -66,6 +98,8 @@ public class CareWorkflowService {
 
   public CareWorkflowService(JdbcTemplate jdbc, Actor actor, AuditService audit,
       ObjectMapper mapper, ApplicationEventPublisher publisher, AiSourceService sources,
+      AiPatientDraftService patientDrafts,
+      DepartmentTimeService departmentTime,
       @org.springframework.beans.factory.annotation.Value("${app.patient-consent.portal-summary-version:1}") String summaryConsentVersion,
       @org.springframework.beans.factory.annotation.Value("${app.patient-consent.portal-access-version:1}") String portalConsentVersion,
       @org.springframework.beans.factory.annotation.Value("${app.patient-consent.communication-version:1}") String communicationConsentVersion) {
@@ -75,6 +109,8 @@ public class CareWorkflowService {
     this.mapper = mapper;
     this.publisher = publisher;
     this.sources = sources;
+    this.patientDrafts = patientDrafts;
+    this.departmentTime = departmentTime;
     this.summaryConsentVersion = summaryConsentVersion;
     this.portalConsentVersion = portalConsentVersion;
     this.communicationConsentVersion = communicationConsentVersion;
@@ -159,7 +195,7 @@ public class CareWorkflowService {
     Target target = target(in.patientId(), in.admissionId(), false);
     String trigger = normalizeTrigger(in.trigger() == null ? "MANUAL" : in.trigger());
     requireTrigger(definition, trigger);
-    return previewView(id, null, target, trigger, definition, Instant.now());
+    return previewView(id, null, target, trigger, withReviewedTasks(definition, in, target.patientId()), Instant.now());
   }
 
   @Transactional
@@ -191,7 +227,7 @@ public class CareWorkflowService {
     Target target = target(in.patientId(), in.admissionId(), false);
     String trigger = normalizeTrigger(in.trigger() == null ? "MANUAL" : in.trigger());
     requireTrigger(definition, trigger);
-    return previewView(id, versionNumber, target, trigger, definition, Instant.now());
+    return previewView(id, versionNumber, target, trigger, withReviewedTasks(definition, in, target.patientId()), Instant.now());
   }
 
   @Transactional
@@ -207,9 +243,13 @@ public class CareWorkflowService {
     Target target = target(in.patientId(), in.admissionId(), true);
     if (in.patientSummary() != null && !in.patientSummary().isBlank()) requirePortalSummaryConsent(target.patientId());
     String sourceReference = validateSourceReference(in.sourceReference());
+    List<AiPatientDraftService.ValidatedFollowUpAction> reviewedActions = validateReviewedActions(
+        in.patientDraftId(), target.patientId(), in.reviewedFollowUpActions());
+    sourceReference = reviewedSourceReference(sourceReference, reviewedActions);
     return launchDefinition(templateId, ((Number) version.get("id")).longValue(),
         ((Number) version.get("version_number")).intValue(), definition, target, "MANUAL", sourceKey,
-        sourceReference, in.patientSummary(), actor.user().getId());
+        sourceReference, in.patientSummary(), actor.user().getId(), in.taskOverrides(),
+        in.reviewedFollowUpActions(), reviewedActions);
   }
 
   @Transactional
@@ -226,6 +266,9 @@ public class CareWorkflowService {
         current.get("admissionId") == null ? null : ((Number) current.get("admissionId")).longValue(), true);
     if (in.patientSummary() != null && !in.patientSummary().isBlank()) requirePortalSummaryConsent(target.patientId());
     String sourceReference = validateSourceReference(in.sourceReference());
+    List<AiPatientDraftService.ValidatedFollowUpAction> reviewedActions = validateReviewedActions(
+        in.patientDraftId(), target.patientId(), in.reviewedFollowUpActions());
+    sourceReference = reviewedSourceReference(sourceReference, reviewedActions);
     long departmentId = department();
     long expected = ((Number) current.get("version")).longValue();
     int changed = jdbc.update("""
@@ -234,7 +277,8 @@ public class CareWorkflowService {
          where department_id=? and id=? and status='PENDING_REVIEW' and version=?
         """, sourceReference, clean(in.patientSummary()), actor.user().getId(), actor.user().getId(), departmentId, runId, expected);
     if (changed != 1) throw ApiException.conflict("STALE_STATE", "This review changed. Refresh before approving.");
-    createTasks(runId, ((Number) version.get("version_number")).intValue(), definition, "REVIEW_APPROVED");
+    createTasks(runId, ((Number) version.get("version_number")).intValue(), definition, "REVIEW_APPROVED",
+        in.taskOverrides(), in.reviewedFollowUpActions(), reviewedActions);
     audit.log("CARE_WORKFLOW_TRIGGER_APPROVED", "CareWorkflowRun", runId, "UI",
         Map.of("templateId", templateId, "workflowVersion", version.get("version_number")));
     return run(runId);
@@ -477,7 +521,8 @@ public class CareWorkflowService {
 
   private Map<String, Object> launchDefinition(long templateId, long versionId, int versionNumber,
       Map<String, Object> definition, Target target, String trigger, String sourceKey,
-      String sourceReference, String summary, long reviewerId) {
+      String sourceReference, String summary, long reviewerId, List<TaskOverride> overrides,
+      List<ReviewedAction> reviewedSelections, List<AiPatientDraftService.ValidatedFollowUpAction> reviewedActions) {
     long departmentId = department();
     Instant now = Instant.now();
     Long runId = jdbc.query("""
@@ -497,29 +542,43 @@ public class CareWorkflowService {
     }
     audit.log("CARE_WORKFLOW_LAUNCHED", "CareWorkflowRun", runId, "UI",
         Map.of("templateId", templateId, "workflowVersion", versionNumber, "trigger", trigger));
-    createTasks(runId, versionNumber, definition, trigger);
+    createTasks(runId, versionNumber, definition, trigger, overrides, reviewedSelections, reviewedActions);
     return run(runId);
   }
 
   private void createTasks(long runId, int versionNumber, Map<String, Object> definition, String trigger) {
+    createTasks(runId, versionNumber, definition, trigger, null, null, List.of());
+  }
+
+  private void createTasks(long runId, int versionNumber, Map<String, Object> definition, String trigger,
+      List<TaskOverride> overrides, List<ReviewedAction> reviewedSelections,
+      List<AiPatientDraftService.ValidatedFollowUpAction> reviewedActions) {
     long departmentId = department();
     Instant now = Instant.now();
-    List<Map<String, Object>> tasks = (List<Map<String, Object>>) definition.get("tasks");
+    List<Map<String, Object>> tasks = reviewedTaskDefinition(definition, overrides, reviewedSelections, reviewedActions);
     Map<String, Long> taskIds = new HashMap<>();
     Map<String, List<String>> deps = new HashMap<>();
     for (Map<String, Object> item : tasks) {
       String key = (String) item.get("key");
-      long dueOffset = ((Number) item.get("dueOffsetMinutes")).longValue();
-      Timestamp dueAt = Timestamp.from(now.plusSeconds(Math.multiplyExact(dueOffset, 60)));
+      long dueOffset = ((Number) item.getOrDefault("dueOffsetMinutes", 0L)).longValue();
+      Timestamp dueAt;
+      if (item.get("dueAt") instanceof Instant explicitDue) dueAt = Timestamp.from(explicitDue);
+      else if ("DOCUMENT".equals(item.get("taskOrigin")) || item.get("dueOn") != null) dueAt = null;
+      else dueAt = Timestamp.from(now.plusSeconds(Math.multiplyExact(dueOffset, 60)));
       String ownerRole = (String) item.get("ownerRole");
       Long assigned = item.get("assignedUserId") == null ? null : ((Number) item.get("assignedUserId")).longValue();
       if (assigned != null) validateAssignee(ownerRole, assigned);
       long taskId = jdbc.queryForObject("""
           insert into care_tasks(department_id,workflow_run_id,template_task_key,title,description,owner_role,
-            assigned_user_id,due_at,dependency_state)
-          values (?,?,?,?,?,?,?,?,?) returning id
+            assigned_user_id,due_at,due_on,due_time,task_origin,source_reference,source_name,source_excerpt,
+            source_location,source_confidence,review_decision,source_edited,reviewed_by,reviewed_at,dependency_state)
+          values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) returning id
           """, Long.class, departmentId, runId, key, item.get("title"), item.get("description"), ownerRole,
-          assigned, dueAt, listStrings(item.get("dependsOn")).isEmpty() ? "READY" : "BLOCKED");
+          assigned, dueAt, item.get("dueOn"), item.get("dueTime"), item.getOrDefault("taskOrigin", "TEMPLATE"),
+          item.get("sourceReference"), item.get("sourceName"), item.get("sourceExcerpt"), item.get("sourceLocation"),
+          item.get("sourceConfidence"), item.get("reviewDecision"), item.getOrDefault("sourceEdited", false),
+          actor.user().getId(), Timestamp.from(now),
+          listStrings(item.get("dependsOn")).isEmpty() ? "READY" : "BLOCKED");
       taskIds.put(key, taskId);
       deps.put(key, listStrings(item.get("dependsOn")));
     }
@@ -527,11 +586,133 @@ public class CareWorkflowService {
         "insert into care_task_dependencies(department_id,task_id,depends_on_task_id) values (?,?,?)",
         departmentId, taskIds.get(entry.getKey()), taskIds.get(dependency));
     audit.log("CARE_WORKFLOW_TASKS_CREATED", "CareWorkflowRun", runId, "UI",
-        Map.of("workflowVersion", versionNumber, "trigger", trigger, "taskCount", tasks.size()));
+        Map.of("workflowVersion", versionNumber, "trigger", trigger, "taskCount", tasks.size(),
+            "overriddenTaskKeys", tasks.stream().filter(t -> "OVERRIDDEN".equals(t.get("taskOrigin"))).map(t -> t.get("key")).toList(),
+            "documentActions", reviewedActions.stream().map(a -> Map.of("actionId", a.actionId(), "decision", a.decision())).toList()));
     for (var task : taskRows("where t.department_id=? and t.workflow_run_id=? order by t.id", departmentId, runId)) {
       publisher.publishEvent(new CareTaskChanged(departmentId, ((Number) task.get("id")).longValue(),
           (Long) task.get("assignedUserId"), (Instant) task.get("dueAt"), (String) task.get("status")));
     }
+  }
+
+  private List<AiPatientDraftService.ValidatedFollowUpAction> validateReviewedActions(String draftId,
+      Long patientId, List<ReviewedAction> selections) {
+    if (selections == null) selections = List.of();
+    if (selections == null || selections.isEmpty()) {
+      if (draftId == null || draftId.isBlank()) return List.of();
+    }
+    if (draftId == null || draftId.isBlank()) throw invalid("A patient document draft is required for follow-up actions.");
+    var selectionsForDraft = selections.stream().map(s -> new AiPatientDraftService.ReviewedFollowUpAction(
+        s.actionId(), s.title(), s.dueDate(), s.dueTime(), s.decision())).toList();
+    return patientDrafts.validateReviewedFollowUpActions(draftId, patientId, selectionsForDraft);
+  }
+
+  private Map<String, Object> withReviewedTasks(Map<String, Object> definition, PreviewInput in, Long patientId) {
+    var actions = validateReviewedActions(in.patientDraftId(), patientId, in.reviewedFollowUpActions());
+    var copy = new LinkedHashMap<String, Object>(definition);
+    copy.put("tasks", reviewedTaskDefinition(definition, in.taskOverrides(), in.reviewedFollowUpActions(), actions));
+    return copy;
+  }
+
+  private String reviewedSourceReference(String supplied,
+      List<AiPatientDraftService.ValidatedFollowUpAction> actions) {
+    if (actions.isEmpty()) return supplied;
+    String sourceId = actions.getFirst().sourceId();
+    if (actions.stream().anyMatch(action -> !sourceId.equals(action.sourceId())))
+      throw invalid("Reviewed actions must come from the same patient document.");
+    if (supplied != null && !supplied.equals(sourceId))
+      throw invalid("The workflow source must match the reviewed patient document.");
+    return sourceId;
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> reviewedTaskDefinition(Map<String, Object> definition,
+      List<TaskOverride> overrides, List<ReviewedAction> reviewedSelections,
+      List<AiPatientDraftService.ValidatedFollowUpAction> validatedActions) {
+    var result = new ArrayList<Map<String, Object>>();
+    var byKey = new LinkedHashMap<String, Map<String, Object>>();
+    for (Map<String, Object> original : (List<Map<String, Object>>) definition.get("tasks")) {
+      var task = new LinkedHashMap<String, Object>(original);
+      task.put("taskOrigin", "TEMPLATE");
+      byKey.put((String) task.get("key"), task);
+      result.add(task);
+    }
+    var overrideKeys = new HashSet<String>();
+    if (overrides != null) for (TaskOverride override : overrides) {
+      if (override == null || !overrideKeys.add(override.key())) throw invalid("Task overrides must have unique keys.");
+      var task = byKey.get(override.key());
+      if (task == null) throw invalid("An override must refer to a task in the selected workflow version.");
+      boolean changed = false;
+      if (override.title() != null) { if (override.title().isBlank()) throw invalid("Task title cannot be blank."); task.put("title", override.title().strip()); changed = true; }
+      if (override.description() != null) { task.put("description", override.description().strip()); changed = true; }
+      if (override.ownerRole() != null) { task.put("ownerRole", override.ownerRole()); changed = true; }
+      if (override.assignedUserId() != null) { task.put("assignedUserId", override.assignedUserId()); changed = true; }
+      if (override.dueOffsetMinutes() != null) { task.put("dueOffsetMinutes", override.dueOffsetMinutes()); changed = true; }
+      if (override.dependsOn() != null) { task.put("dependsOn", override.dependsOn()); changed = true; }
+      if (changed) task.put("taskOrigin", "OVERRIDDEN");
+      if (task.get("assignedUserId") instanceof Number assignee) validateAssignee((String) task.get("ownerRole"), assignee.longValue());
+    }
+    if (reviewedSelections == null) reviewedSelections = List.of();
+    if (reviewedSelections.size() != validatedActions.size()) throw invalid("Reviewed document actions could not be validated.");
+    var selectionsById = new HashMap<String, ReviewedAction>();
+    for (ReviewedAction selection : reviewedSelections) {
+      if (selection == null || selectionsById.putIfAbsent(selection.actionId(), selection) != null) throw invalid("Document actions must be unique.");
+    }
+    var zone = departmentTime.zoneId();
+    for (var action : validatedActions) {
+      ReviewedAction selection = selectionsById.remove(action.actionId());
+      if (selection == null) throw invalid("A reviewed document action is missing its assignment.");
+      if ("REJECTED".equals(action.decision())) continue;
+      if (!Set.of("ADMIN", "MEDICAL_STAFF", "DOCTOR").contains(selection.ownerRole())) throw invalid("Choose a valid task owner role.");
+      String safeId = action.actionId().replaceAll("[^A-Za-z0-9_-]", "_");
+      String key = "doc-" + safeId;
+      if (key.length() > 80) key = key.substring(0, 80);
+      if (byKey.containsKey(key)) throw invalid("A document action key conflicts with a workflow task.");
+      Long assignee = selection.assignedUserId();
+      if (assignee != null) validateAssignee(selection.ownerRole(), assignee);
+      var deps = selection.dependsOn() == null ? List.<String>of() : List.copyOf(selection.dependsOn());
+      var task = new LinkedHashMap<String, Object>();
+      task.put("key", key); task.put("title", action.title()); task.put("description", null);
+      task.put("ownerRole", selection.ownerRole()); task.put("assignedUserId", assignee);
+      task.put("dueOffsetMinutes", 0L); task.put("dependsOn", deps); task.put("taskOrigin", "DOCUMENT");
+      task.put("dueOn", action.dueDate()); task.put("dueTime", action.dueTime());
+      task.put("sourceReference", action.sourceId()); task.put("sourceExcerpt", action.sourceExcerpt());
+      task.put("sourceLocation", action.sourceLocation());
+      task.put("sourceName", action.sourceName()); task.put("sourceConfidence", action.confidence());
+      task.put("reviewDecision", action.decision()); task.put("sourceEdited", action.edited());
+      if (action.dueDate() != null && action.dueTime() != null)
+        task.put("dueAt", action.dueDate().atTime(action.dueTime()).atZone(zone).toInstant());
+      byKey.put(key, task); result.add(task);
+    }
+    if (!selectionsById.isEmpty()) throw invalid("A document action was submitted without a validated source action.");
+    var keys = byKey.keySet();
+    for (var task : result) for (String dependency : listStrings(task.get("dependsOn")))
+      if (!keys.contains(dependency) || dependency.equals(task.get("key"))) throw invalid("Task dependencies must refer to another task in this run.");
+    ensureAcyclic(result);
+    return result;
+  }
+
+  private void ensureAcyclic(List<Map<String, Object>> tasks) {
+    var remaining = new HashMap<String, Integer>();
+    var dependents = new HashMap<String, List<String>>();
+    for (var task : tasks) {
+      String key = (String) task.get("key");
+      var deps = listStrings(task.get("dependsOn"));
+      if (new HashSet<>(deps).size() != deps.size()) throw invalid("Task dependencies must be unique.");
+      remaining.put(key, deps.size());
+      for (String dependency : deps) dependents.computeIfAbsent(dependency, ignored -> new ArrayList<>()).add(key);
+    }
+    var ready = new ArrayList<String>();
+    remaining.forEach((key, count) -> { if (count == 0) ready.add(key); });
+    int visited = 0;
+    for (int index = 0; index < ready.size(); index++) {
+      String key = ready.get(index); visited++;
+      for (String dependent : dependents.getOrDefault(key, List.of())) {
+        int count = remaining.compute(dependent, (ignored, current) -> current - 1);
+        if (count == 0) ready.add(dependent);
+      }
+    }
+    if (visited != tasks.size()) throw invalid("Task dependencies cannot contain a cycle.");
   }
 
   private Map<String, Object> previewView(long templateId, Long version, Target target, String trigger,
@@ -540,7 +721,8 @@ public class CareWorkflowService {
     for (Map<String, Object> task : (List<Map<String, Object>>) definition.get("tasks")) {
       long offset = ((Number) task.get("dueOffsetMinutes")).longValue();
       var row = new LinkedHashMap<String, Object>(task);
-      row.put("dueAt", base.plusSeconds(offset * 60));
+      row.put("dueAt", task.get("dueAt") instanceof Instant explicitDue ? explicitDue
+          : "DOCUMENT".equals(task.get("taskOrigin")) ? null : base.plusSeconds(offset * 60));
       row.put("dependencyState", listStrings(task.get("dependsOn")).isEmpty() ? "READY" : "BLOCKED");
       items.add(row);
     }
@@ -548,6 +730,7 @@ public class CareWorkflowService {
     result.put("templateId", templateId); result.put("workflowVersion", version);
     result.put("patientId", target.patientId()); result.put("admissionId", target.admissionId());
     result.put("trigger", trigger); result.put("baseTime", base); result.put("tasks", items);
+    result.put("portalSummaryConsentActive", hasPortalSummaryConsent(target.patientId()));
     return result;
   }
 
@@ -584,9 +767,12 @@ public class CareWorkflowService {
     if (!Boolean.TRUE.equals(valid)) throw invalid("The task owner must be an active department member with the selected role.");
   }
 
+  private boolean hasPortalSummaryConsent(long patientId) {
+    return Boolean.TRUE.equals(jdbc.queryForObject("select count(*)>0 from patient_consents where department_id=? and patient_id=? and consent_type='PORTAL_FOLLOW_UP_SUMMARY' and consent_version=? and withdrawn_at is null", Boolean.class, department(), patientId, summaryConsentVersion));
+  }
+
   private void requirePortalSummaryConsent(long patientId) {
-    Boolean consented = jdbc.queryForObject("select count(*)>0 from patient_consents where department_id=? and patient_id=? and consent_type='PORTAL_FOLLOW_UP_SUMMARY' and withdrawn_at is null", Boolean.class, department(), patientId);
-    if (!Boolean.TRUE.equals(consented)) throw new ApiException(403, "PORTAL_CONSENT_REQUIRED", "Active patient consent is required before publishing a follow-up summary.");
+    if (!hasPortalSummaryConsent(patientId)) throw new ApiException(403, "PORTAL_CONSENT_REQUIRED", "Active patient consent is required before publishing a follow-up summary.");
   }
 
   private String validateSourceReference(String supplied) {
@@ -637,6 +823,11 @@ public class CareWorkflowService {
         select t.id, t.workflow_run_id as workflowRunId, t.template_task_key as taskKey, t.title,
           r.patient_id as patientId,
           t.description, t.owner_role as ownerRole, t.assigned_user_id as assignedUserId, t.due_at as dueAt,
+          t.due_on as dueOn, t.due_time as dueTime, t.task_origin as taskOrigin,
+          t.source_reference as sourceReference, t.source_name as sourceName, t.source_excerpt as sourceExcerpt,
+          t.source_location as sourceLocation, t.source_confidence as sourceConfidence,
+          t.review_decision as reviewDecision, t.source_edited as sourceEdited,
+          t.reviewed_by as reviewedBy, t.reviewed_at as reviewedAt,
           t.status, t.dependency_state as dependencyState, t.version, t.created_at as createdAt, t.updated_at as updatedAt,
           t.department_id as departmentId
         from care_tasks t join care_workflow_runs r on r.department_id=t.department_id and r.id=t.workflow_run_id """ + where, (rs, n) -> mapTask(rs), args);
@@ -659,6 +850,15 @@ public class CareWorkflowService {
     row.put("description", rs.getString("description")); row.put("ownerRole", rs.getString("ownerRole"));
     long assignee = rs.getLong("assignedUserId"); row.put("assignedUserId", rs.wasNull() ? null : assignee);
     Timestamp due = rs.getTimestamp("dueAt"); row.put("dueAt", due == null ? null : due.toInstant());
+    var dueOn = rs.getDate("dueOn"); row.put("dueOn", dueOn == null ? null : dueOn.toLocalDate());
+    var dueTime = rs.getTime("dueTime"); row.put("dueTime", dueTime == null ? null : dueTime.toLocalTime());
+    row.put("taskOrigin", rs.getString("taskOrigin")); row.put("sourceReference", rs.getString("sourceReference"));
+    row.put("sourceName", rs.getString("sourceName")); row.put("sourceExcerpt", rs.getString("sourceExcerpt"));
+    row.put("sourceLocation", rs.getString("sourceLocation"));
+    row.put("sourceConfidence", rs.getObject("sourceConfidence"));
+    row.put("reviewDecision", rs.getString("reviewDecision")); row.put("sourceEdited", rs.getBoolean("sourceEdited"));
+    long reviewer = rs.getLong("reviewedBy"); row.put("reviewedBy", rs.wasNull() ? null : reviewer);
+    Timestamp reviewed = rs.getTimestamp("reviewedAt"); row.put("reviewedAt", reviewed == null ? null : reviewed.toInstant());
     row.put("status", rs.getString("status")); row.put("dependencyState", rs.getString("dependencyState"));
     row.put("version", rs.getLong("version")); row.put("createdAt", rs.getTimestamp("createdAt").toInstant());
     row.put("updatedAt", rs.getTimestamp("updatedAt").toInstant());
