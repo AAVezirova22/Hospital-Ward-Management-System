@@ -280,8 +280,12 @@ public class CareWorkflowService {
     if (changed != 1) throw ApiException.conflict("STALE_STATE", "This review changed. Refresh before approving.");
     createTasks(runId, ((Number) version.get("version_number")).intValue(), definition, "REVIEW_APPROVED",
         in.taskOverrides(), in.reviewedFollowUpActions(), reviewedActions);
-    audit.log("CARE_WORKFLOW_TRIGGER_APPROVED", "CareWorkflowRun", runId, "UI",
-        Map.of("templateId", templateId, "workflowVersion", version.get("version_number")));
+    var approvalAudit = new LinkedHashMap<String, Object>();
+    approvalAudit.put("templateId", templateId);
+    approvalAudit.put("workflowVersion", version.get("version_number"));
+    approvalAudit.put("sourceReference", sourceReference);
+    approvalAudit.put("patientSummaryApproved", clean(in.patientSummary()) != null);
+    audit.log("CARE_WORKFLOW_TRIGGER_APPROVED", "CareWorkflowRun", runId, "UI", approvalAudit);
     return run(runId);
   }
 
@@ -319,7 +323,7 @@ public class CareWorkflowService {
     if (!expectedVersion.equals(in.consentVersion().trim())) throw ApiException.conflict("CONSENT_VERSION_STALE", "Review the current consent wording before recording a choice.");
     long patientId = portalPatient();
     long departmentId = department();
-    Boolean active = jdbc.queryForObject("select count(*)>0 from patient_consents where department_id=? and patient_id=? and consent_type=? and withdrawn_at is null", Boolean.class, departmentId, patientId, type);
+    Boolean active = jdbc.queryForObject("select count(*)>0 from patient_consents where department_id=? and patient_id=? and consent_type=? and consent_version=? and withdrawn_at is null", Boolean.class, departmentId, patientId, type, expectedVersion);
     if (Boolean.TRUE.equals(active)) throw ApiException.conflict("CONSENT_ALREADY_ACTIVE", "This consent is already active.");
     Long id = jdbc.queryForObject("""
         insert into patient_consents(department_id,patient_id,consent_type,consent_version,recorded_by)
@@ -343,7 +347,7 @@ public class CareWorkflowService {
   public List<Map<String, Object>> patientSummaries() {
     clinicianOrPatient();
     long patientId = portalPatient(); long departmentId = department();
-    Boolean activeConsent = jdbc.queryForObject("select count(*)>0 from patient_consents where department_id=? and patient_id=? and consent_type='PORTAL_FOLLOW_UP_SUMMARY' and withdrawn_at is null", Boolean.class, departmentId, patientId);
+    Boolean activeConsent = jdbc.queryForObject("select count(*)>0 from patient_consents where department_id=? and patient_id=? and consent_type='PORTAL_FOLLOW_UP_SUMMARY' and consent_version=? and withdrawn_at is null", Boolean.class, departmentId, patientId, summaryConsentVersion);
     if (!Boolean.TRUE.equals(activeConsent)) return List.of();
     return jdbc.queryForList("""
         select r.id, r.patient_summary as summary, r.launched_at as approvedAt, r.reviewed_at as reviewedAt
@@ -369,9 +373,14 @@ public class CareWorkflowService {
       throw ApiException.conflict("RUN_CLOSED", "This workflow has already ended.");
     }
     jdbc.update("update care_tasks set status='CANCELLED', version=version+1, updated_at=now() where department_id=? and workflow_run_id=? and status in ('OPEN','IN_PROGRESS')", departmentId, runId);
-    for (var task : taskRows("where t.department_id=? and t.workflow_run_id=? and t.status='CANCELLED'", departmentId, runId))
-      publisher.publishEvent(new CareTaskChanged(departmentId, ((Number) task.get("id")).longValue(),
+    var cancelledTasks = taskRows("where t.department_id=? and t.workflow_run_id=? and t.status='CANCELLED'", departmentId, runId);
+    for (var task : cancelledTasks) {
+      long taskId = ((Number) task.get("id")).longValue();
+      audit.log("CARE_TASK_CANCELLED", "CareTask", taskId, "UI",
+          Map.of("workflowRunId", runId, "taskKey", task.get("key"), "status", "CANCELLED"));
+      publisher.publishEvent(new CareTaskChanged(departmentId, taskId,
           (Long) task.get("assignedUserId"), (Instant) task.get("dueAt"), "CANCELLED"));
+    }
     audit.log("CARE_WORKFLOW_CANCELLED", "CareWorkflowRun", runId, "UI");
     return run(runId);
   }
@@ -486,23 +495,47 @@ public class CareWorkflowService {
         rs -> rs.next() ? rs.getLong(1) : null, departmentId, admissionId);
     if (patientId == null) return;
     String triggerFinal = trigger;
-    var versions = jdbc.query("""
-        select v.id, v.template_id, v.version_number, v.definition from care_workflow_versions v
-        join care_workflow_templates t on t.id=v.template_id and t.department_id=v.department_id
-        where v.department_id=? and t.published_version=v.version_number order by t.id
-        """, (rs, n) -> new Object[]{rs.getLong(1), rs.getLong(2), rs.getInt(3), rs.getString(4)}, departmentId);
-    for (Object[] row : versions) {
-      Map<String, Object> definition = definition((String) row[3]);
+    var templateIds = jdbc.queryForList("""
+        select id from care_workflow_templates where department_id=? and published_version is not null order by id
+        """, Long.class, departmentId);
+    for (Long templateId : templateIds) {
+      // Serialize trigger retries with publication and other trigger deliveries for this template.
+      jdbc.queryForObject("select id from care_workflow_templates where department_id=? and id=? for update",
+          Long.class, departmentId, templateId);
+      var publishedRows = jdbc.queryForList("""
+          select v.id, v.version_number, v.definition
+            from care_workflow_templates t join care_workflow_versions v
+              on v.department_id=t.department_id and v.template_id=t.id and v.version_number=t.published_version
+           where t.department_id=? and t.id=?
+          """, departmentId, templateId);
+      if (publishedRows.isEmpty()) continue;
+      var published = publishedRows.getFirst();
+      long versionId = ((Number) published.get("id")).longValue();
+      int versionNumber = ((Number) published.get("version_number")).intValue();
+      Map<String, Object> definition = definition((String) published.get("definition"));
       if (!listStrings(definition.get("triggers")).contains(triggerFinal)) continue;
       Target target = target(patientId, admissionId, false);
-      createPendingReview((Long) row[1], (Long) row[0], (Integer) row[2], target,
-          triggerFinal, "admission:" + admissionId);
+      createPendingReview(templateId, versionId, versionNumber, target, triggerFinal, "admission:" + admissionId);
     }
   }
 
   private Map<String, Object> createPendingReview(long templateId, long versionId, int versionNumber,
       Target target, String trigger, String sourceKey) {
     long departmentId = department();
+    var existingRuns = jdbc.queryForList("""
+        select id, patient_id as "patientId", admission_id as "admissionId"
+          from care_workflow_runs
+         where department_id=? and template_id=? and trigger_type=? and trigger_source_id=?
+         order by id limit 1
+        """, departmentId, templateId, trigger, sourceKey);
+    if (!existingRuns.isEmpty()) {
+      var existing = existingRuns.getFirst();
+      Long existingAdmissionId = existing.get("admissionId") == null ? null : ((Number) existing.get("admissionId")).longValue();
+      if (((Number) existing.get("patientId")).longValue() != target.patientId()
+          || !java.util.Objects.equals(existingAdmissionId, target.admissionId()))
+        throw ApiException.conflict("TRIGGER_SOURCE_REUSED", "This trigger source is already attached to another patient or admission.");
+      return run(((Number) existing.get("id")).longValue());
+    }
     Long id = jdbc.query("""
         insert into care_workflow_runs(department_id,template_id,workflow_version_id,patient_id,admission_id,
           trigger_type,trigger_source_id,status,triggered_by)
@@ -516,7 +549,8 @@ public class CareWorkflowService {
       return run(id);
     }
     audit.log("CARE_WORKFLOW_TRIGGER_PENDING_REVIEW", "CareWorkflowRun", id, "UI",
-        Map.of("templateId", templateId, "workflowVersion", versionNumber, "trigger", trigger));
+        Map.of("templateId", templateId, "workflowVersion", versionNumber, "trigger", trigger,
+            "triggerSource", sourceKey, "patientId", target.patientId()));
     return run(id);
   }
 
@@ -528,11 +562,11 @@ public class CareWorkflowService {
     Instant now = Instant.now();
     Long runId = jdbc.query("""
           insert into care_workflow_runs(department_id,template_id,workflow_version_id,patient_id,admission_id,
-            trigger_type,trigger_source_id,source_reference,patient_summary,reviewed_by,launched_by)
-          values (?,?,?,?,?,?,?,?,?,?,?) on conflict(department_id,template_id,workflow_version_id,trigger_type,trigger_source_id)
+            trigger_type,trigger_source_id,source_reference,patient_summary,reviewed_by,reviewed_at,launched_by,launched_at)
+          values (?,?,?,?,?,?,?,?,?,?,?,?,?) on conflict(department_id,template_id,workflow_version_id,trigger_type,trigger_source_id)
           do nothing returning id
           """, rs -> rs.next() ? rs.getLong(1) : null, departmentId, templateId, versionId, target.patientId(), target.admissionId(), trigger,
-          sourceKey, clean(sourceReference), clean(summary), reviewerId, actor.user().getId());
+          sourceKey, clean(sourceReference), clean(summary), reviewerId, Timestamp.from(now), actor.user().getId(), Timestamp.from(now));
     if (runId == null) {
       var existing = jdbc.queryForObject("select id from care_workflow_runs where department_id=? and template_id=? and workflow_version_id=? and trigger_type=? and trigger_source_id=?", Long.class, departmentId, templateId, versionId, trigger, sourceKey);
       var existingRun = run(existing);
@@ -541,8 +575,11 @@ public class CareWorkflowService {
         throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "This launch key was already used for another patient or admission.");
       return existingRun;
     }
-    audit.log("CARE_WORKFLOW_LAUNCHED", "CareWorkflowRun", runId, "UI",
-        Map.of("templateId", templateId, "workflowVersion", versionNumber, "trigger", trigger));
+    var launchAudit = new LinkedHashMap<String, Object>();
+    launchAudit.put("templateId", templateId); launchAudit.put("workflowVersion", versionNumber);
+    launchAudit.put("trigger", trigger); launchAudit.put("sourceReference", sourceReference);
+    launchAudit.put("patientSummaryApproved", clean(summary) != null);
+    audit.log("CARE_WORKFLOW_LAUNCHED", "CareWorkflowRun", runId, "UI", launchAudit);
     createTasks(runId, versionNumber, definition, trigger, overrides, reviewedSelections, reviewedActions);
     return run(runId);
   }
@@ -582,6 +619,21 @@ public class CareWorkflowService {
           listStrings(item.get("dependsOn")).isEmpty() ? "READY" : "BLOCKED");
       taskIds.put(key, taskId);
       deps.put(key, listStrings(item.get("dependsOn")));
+      var taskAudit = new LinkedHashMap<String, Object>();
+      taskAudit.put("workflowRunId", runId); taskAudit.put("workflowVersion", versionNumber);
+      taskAudit.put("taskKey", key); taskAudit.put("title", item.get("title"));
+      taskAudit.put("taskOrigin", item.getOrDefault("taskOrigin", "TEMPLATE"));
+      taskAudit.put("ownerRole", ownerRole); taskAudit.put("assignedUserId", assigned);
+      taskAudit.put("dueAt", dueAt == null ? null : dueAt.toInstant());
+      taskAudit.put("dueOn", item.get("dueOn")); taskAudit.put("dueTime", item.get("dueTime"));
+      taskAudit.put("dependencyCount", listStrings(item.get("dependsOn")).size());
+      audit.log("CARE_TASK_CREATED", "CareTask", taskId, "UI", taskAudit);
+      if (item.get("sourceReference") instanceof String sourceId) {
+        audit.log("CARE_TASK_SOURCE_REVIEWED", "CareTask", taskId, "UI",
+            Map.of("workflowRunId", runId, "sourceReference", sourceId,
+                "reviewDecision", item.get("reviewDecision"), "sourceConfidence", item.get("sourceConfidence"),
+                "sourceEdited", item.get("sourceEdited")));
+      }
     }
     for (var entry : deps.entrySet()) for (String dependency : entry.getValue()) jdbc.update(
         "insert into care_task_dependencies(department_id,task_id,depends_on_task_id) values (?,?,?)",
