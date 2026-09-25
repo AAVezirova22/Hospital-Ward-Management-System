@@ -94,7 +94,9 @@ class PatientDocumentDraftIntegrationTest {
         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("sourceId", sourceId))))
         .andExpect(status().isForbidden());
     mvc.perform(post("/api/v1/patients").with(user("doctor")).with(csrf()).header("X-Department-Id", "1")
-        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+            "patientIdentifier", "P-DENIED-428", "firstName", "Denied", "lastName", "Example",
+            "dateOfBirth", "1981-04-03"))))
         .andExpect(status().isForbidden());
     mvc.perform(put("/api/v1/workspaces/departments/1/members/" + doctorUserId() + "/patient-import")
         .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)

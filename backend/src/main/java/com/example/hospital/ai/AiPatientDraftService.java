@@ -279,7 +279,7 @@ public class AiPatientDraftService {
   private Map<String, Object> candidateView(FollowUpCandidate candidate) {
     var result = new LinkedHashMap<String, Object>();
     result.put("title", candidate.title()); result.put("dueDate", candidate.dueDate());
-    result.put("dueTime", candidate.dueTime()); result.put("confidence", candidate.confidence());
+    result.put("dueTime", timeValue(candidate.dueTime())); result.put("confidence", candidate.confidence());
     result.put("source", candidateSourceView(candidate));
     return result;
   }
@@ -287,7 +287,7 @@ public class AiPatientDraftService {
   private Map<String, Object> followUpActionView(String actionId, FollowUpRecord action) {
     var result = new LinkedHashMap<String, Object>();
     result.put("actionId", actionId); result.put("title", action.primary().title());
-    result.put("dueDate", action.primary().dueDate()); result.put("dueTime", action.primary().dueTime());
+    result.put("dueDate", action.primary().dueDate()); result.put("dueTime", timeValue(action.primary().dueTime()));
     result.put("confidence", action.primary().confidence()); result.put("status", action.status());
     boolean conflict = "CONFLICT".equals(action.status());
     boolean uncertain = "UNCERTAIN".equals(action.status());
@@ -306,6 +306,10 @@ public class AiPatientDraftService {
     result.put("conflicts", action.conflicts().stream().map(this::candidateView).toList());
     result.put("requiresResolution", !"SUGGESTED".equals(action.status()));
     return result;
+  }
+
+  private static String timeValue(LocalTime time) {
+    return time == null ? null : String.format(Locale.ROOT, "%02d:%02d", time.getHour(), time.getMinute());
   }
 
   private static List<FollowUpCandidate> allCandidates(FollowUpRecord action) {
