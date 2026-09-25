@@ -61,6 +61,9 @@ export type CarePreview = {
     dueOn?: string | null;
     dueTime?: string | null;
     taskOrigin?: string;
+    sourceName?: string | null;
+    sourceExcerpt?: string | null;
+    sourceLocation?: string | null;
     dependencyState: string;
   })[];
 };

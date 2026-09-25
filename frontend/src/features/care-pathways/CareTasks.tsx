@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { api, activeDepartment, patientHref } from "../../api";
+import type { WorkspaceList } from "../../api/contracts";
 import { ErrorBox, Link, Title, useUser } from "../../components/workspace";
 import type { CareTask } from "./types";
 import { ReminderSettings } from "./ReminderSettings";
@@ -17,6 +18,11 @@ export function CareTasks() {
   const reminder = params.get("reminder");
   const department = activeDepartment();
   const client = useQueryClient();
+  const workspaces = useQuery({
+    queryKey: ["/workspaces", department],
+    queryFn: () => api<WorkspaceList>("/workspaces"),
+  });
+  const timeZone = workspaces.data?.timeZone ?? "UTC";
   const tasks = useQuery({
     queryKey: ["care-tasks", department],
     queryFn: () => api<CareTask[]>("/care-tasks"),
@@ -124,7 +130,7 @@ export function CareTasks() {
           {snoozeNotice && <p role="status">{snoozeNotice}</p>}
         </div>
       )}
-      <ErrorBox error={tasks.error || openError || error} />
+      <ErrorBox error={tasks.error || workspaces.error || openError || error} />
       {tasks.isLoading && <p>Loading care tasks…</p>}
       {!tasks.isLoading && !sorted.length && (
         <div className="panel care-empty">
@@ -144,7 +150,7 @@ export function CareTasks() {
                 <span className="status">
                   {task.status.replaceAll("_", " ")}
                 </span>
-                {isOverdue(task) &&
+                {isOverdue(task, timeZone) &&
                   task.status !== "COMPLETED" &&
                   task.status !== "CANCELLED" && (
                     <span className="care-overdue">Overdue</span>
@@ -153,7 +159,7 @@ export function CareTasks() {
               <h2>{task.title}</h2>
               <p>{task.description}</p>
               <small>
-                Due {formatDue(task)} · {task.ownerRole.replaceAll("_", " ")} ·{" "}
+                Due {formatDue(task, timeZone)} · {task.ownerRole.replaceAll("_", " ")} ·{" "}
                 {task.dependencyState}
               </small>
               {task.taskOrigin === "DOCUMENT" && task.sourceExcerpt && (

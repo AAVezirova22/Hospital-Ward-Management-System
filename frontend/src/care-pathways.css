@@ -22,6 +22,16 @@
   display: grid;
   gap: 14px;
   max-width: 68ch;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+}
+.pathway-import-upload.is-dragging {
+  background: var(--accent-soft);
+  border-color: var(--mint);
+}
+.pathway-import-upload > p:first-child {
+  margin: 0;
 }
 .pathway-import-upload label,
 .pathway-field label {
@@ -183,11 +193,15 @@
 .care-editor input,
 .care-editor select,
 .care-editor textarea,
+.care-task-editor input,
+.care-task-editor select,
+.care-task-editor textarea,
 .care-launch input,
 .care-launch textarea {
   width: 100%;
 }
 .care-editor textarea,
+.care-task-editor textarea,
 .care-launch textarea {
   min-height: 90px;
   resize: vertical;
@@ -240,6 +254,24 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.care-preview-timeline {
+  width: 100%;
+  min-width: 0;
+}
+.care-preview-zone {
+  margin: 8px 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.care-timeline-day {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.care-timeline-day h4 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 16px;
+}
 .care-preview-list {
   width: 100%;
   padding-left: 24px;
@@ -250,6 +282,29 @@
 }
 .care-preview-list li p {
   margin: 4px 0;
+}
+.care-preview-list li small {
+  display: block;
+  margin-top: 4px;
+}
+.care-dependency-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 14px 0;
+  padding: 0;
+  border: 0;
+}
+.care-dependency-choices legend {
+  margin-bottom: 8px;
+}
+.care-dependency-choices label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.care-dependency-choices input {
+  width: auto;
 }
 .care-notice {
   padding: 14px 16px;
