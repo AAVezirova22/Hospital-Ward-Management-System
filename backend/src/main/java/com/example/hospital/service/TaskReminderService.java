@@ -135,6 +135,7 @@ public class TaskReminderService {
         on conflict (user_id, endpoint) do update set p256dh_key = excluded.p256dh_key,
           auth_secret = excluded.auth_secret, revoked_at = null
         """, user.getId(), endpoint.toString(), input.p256dh(), input.auth());
+    reconcileForUser(user.getId());
     return subscriptionStatus(user.getId());
   }
 
@@ -144,7 +145,11 @@ public class TaskReminderService {
     jdbc.update("update push_subscriptions set revoked_at = now() where id = ? and user_id = ? and revoked_at is null",
         subscriptionId, user.getId());
     jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
-        + " where subscription_id = ? and status in ('PENDING', 'FAILED')", subscriptionId);
+        + " where subscription_id = ? and recipient_user_id = ? and status in ('PENDING', 'FAILED')",
+        subscriptionId, user.getId());
+    jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
+        + " where subscription_id = ? and recipient_user_id = ? and status in ('PENDING', 'FAILED')",
+        subscriptionId, user.getId());
     return subscriptionStatus(user.getId());
   }
 
@@ -153,6 +158,8 @@ public class TaskReminderService {
     var user = requireStaff();
     jdbc.update("update push_subscriptions set revoked_at = now() where user_id = ? and revoked_at is null", user.getId());
     jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'SUBSCRIPTIONS_REVOKED', updated_at = now()"
+        + " where recipient_user_id = ? and status in ('PENDING', 'FAILED')", user.getId());
+    jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'SUBSCRIPTIONS_REVOKED', updated_at = now()"
         + " where recipient_user_id = ? and status in ('PENDING', 'FAILED')", user.getId());
     return subscriptionStatus(user.getId());
   }
@@ -232,27 +239,35 @@ public class TaskReminderService {
       return;
     }
     Timestamp scheduled = Timestamp.from(dueAt.minusSeconds(pref.minutesBefore() * 60L));
+    var subscriptions = jdbc.queryForList(
+        "select id from push_subscriptions where user_id = ? and revoked_at is null order by id", Long.class,
+        assignedUserId);
+    jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'NO_ACTIVE_SUBSCRIPTION', updated_at = now()"
+        + " where task_id = ? and recipient_user_id = ? and subscription_id is null"
+        + " and status in ('PENDING', 'FAILED')", taskId, assignedUserId);
     jdbc.update("""
         update task_reminders set status = 'CANCELLED', error_code = 'TASK_RESCHEDULED', updated_at = now()
          where task_id = ? and status in ('PENDING', 'FAILED') and due_at <> ?
         """, taskId, Timestamp.from(dueAt));
     jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'TASK_REASSIGNED', updated_at = now()"
         + " where task_id = ? and recipient_user_id <> ? and status in ('PENDING', 'FAILED')", taskId, assignedUserId);
-    jdbc.update("""
-        insert into task_reminders(department_id, task_id, recipient_user_id, due_at, scheduled_at,
-          action_token, status, next_attempt_at)
-        values (?, ?, ?, ?, ?, ?, 'PENDING', ?)
-        on conflict (task_id, recipient_user_id, due_at) do update set
-          department_id = excluded.department_id,
-          scheduled_at = case when task_reminders.snoozed_until > now()
-                              then task_reminders.snoozed_until else excluded.scheduled_at end,
-          next_attempt_at = case when task_reminders.snoozed_until > now()
-                                 then task_reminders.snoozed_until else excluded.next_attempt_at end,
-          status = case when task_reminders.status = 'CANCELLED' then 'PENDING'
-                        else task_reminders.status end,
-          error_code = null, updated_at = now()
-        """, departmentId, taskId, assignedUserId, Timestamp.from(dueAt), scheduled,
-        UUID.randomUUID(), scheduled);
+    for (long subscriptionId : subscriptions) {
+      jdbc.update("""
+          insert into task_reminders(department_id, task_id, recipient_user_id, subscription_id,
+            due_at, scheduled_at, action_token, status, next_attempt_at)
+          values (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+          on conflict (task_id, recipient_user_id, due_at, subscription_id) do update set
+            department_id = excluded.department_id,
+            scheduled_at = case when task_reminders.snoozed_until > now()
+                                then task_reminders.snoozed_until else excluded.scheduled_at end,
+            next_attempt_at = case when task_reminders.snoozed_until > now()
+                                   then task_reminders.snoozed_until else excluded.next_attempt_at end,
+            status = case when task_reminders.status = 'CANCELLED' then 'PENDING'
+                          else task_reminders.status end,
+            error_code = null, updated_at = now()
+          """, departmentId, taskId, assignedUserId, subscriptionId, Timestamp.from(dueAt), scheduled,
+          UUID.randomUUID(), scheduled);
+    }
   }
 
   @Transactional
@@ -266,12 +281,20 @@ public class TaskReminderService {
     int updated = jdbc.update("""
         update task_reminders r set status = 'PENDING', scheduled_at = ?, snoozed_until = ?, next_attempt_at = ?,
           error_code = null, updated_at = now()
-         where r.action_token = ? and r.recipient_user_id = ?
-           and exists (select 1 from care_tasks t where t.id = r.task_id
-             and t.department_id = r.department_id and t.assigned_user_id = r.recipient_user_id
-             and t.status in ('OPEN', 'IN_PROGRESS') and t.dependency_state = 'READY')
-        """, Timestamp.from(until), Timestamp.from(until), Timestamp.from(until), actionToken, user.getId());
-    if (updated != 1) throw ApiException.missing();
+         where r.recipient_user_id = ? and r.status <> 'CANCELLED'
+           and exists (select 1 from push_subscriptions s where s.id = r.subscription_id
+             and s.user_id = r.recipient_user_id and s.revoked_at is null)
+           and exists (select 1 from task_reminders token_row
+             join push_subscriptions token_subscription on token_subscription.id = token_row.subscription_id
+               and token_subscription.user_id = token_row.recipient_user_id and token_subscription.revoked_at is null
+             join care_tasks t on t.id = token_row.task_id and t.department_id = token_row.department_id
+               and t.assigned_user_id = token_row.recipient_user_id and t.due_at = token_row.due_at
+               and t.status in ('OPEN', 'IN_PROGRESS') and t.dependency_state = 'READY'
+            where token_row.action_token = ? and token_row.recipient_user_id = ?
+              and token_row.task_id = r.task_id and token_row.due_at = r.due_at)
+        """, Timestamp.from(until), Timestamp.from(until), Timestamp.from(until), user.getId(),
+        actionToken, user.getId());
+    if (updated == 0) throw ApiException.missing();
     return new SnoozeResult(until);
   }
 
@@ -282,8 +305,11 @@ public class TaskReminderService {
     var rows = jdbc.query("""
         select r.task_id, r.department_id, r.due_at, t.status
           from task_reminders r join care_tasks t on t.id = r.task_id and t.department_id = r.department_id
+          join push_subscriptions s on s.id = r.subscription_id and s.user_id = r.recipient_user_id
+            and s.revoked_at is null
          where r.action_token = ? and r.recipient_user_id = ? and r.department_id = ?
            and t.assigned_user_id = ? and t.status in ('OPEN', 'IN_PROGRESS')
+           and t.due_at = r.due_at
            and t.dependency_state = 'READY'
         """, (rs, n) -> new OpenReminder(rs.getLong("task_id"), rs.getLong("department_id"),
             instant(rs, "due_at"), rs.getString("status")), actionToken, user.getId(), departmentId, user.getId());
@@ -335,9 +361,11 @@ public class TaskReminderService {
                p.time_zone, p.quiet_hours_start, p.quiet_hours_end, r.attempt_count
           from task_reminders r
           join task_reminder_preferences p on p.user_id = r.recipient_user_id and p.opted_in = true
-          join push_subscriptions s on s.user_id = r.recipient_user_id and s.revoked_at is null
+          join push_subscriptions s on s.id = r.subscription_id and s.user_id = r.recipient_user_id
+            and s.revoked_at is null
           join care_tasks t on t.id = r.task_id and t.department_id = r.department_id
             and t.assigned_user_id = r.recipient_user_id and t.status in ('OPEN', 'IN_PROGRESS')
+            and t.due_at = r.due_at
             and t.dependency_state = 'READY'
          where r.status in ('PENDING', 'FAILED') and (r.status <> 'FAILED' or r.attempt_count < ?)
            and r.scheduled_at <= ? and r.next_attempt_at <= ?
@@ -367,8 +395,10 @@ public class TaskReminderService {
       } catch (PushFailure failure) {
         if (failure.gone()) {
           jdbc.update("update push_subscriptions set revoked_at = now() where id = ?", row.subscriptionId());
-          jdbc.update("update task_reminders set status = 'PENDING', next_attempt_at = ?, error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
-              + " where id = ? and status = 'SENDING'", Timestamp.from(Instant.now()), row.id());
+          jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
+              + " where subscription_id = ? and status in ('PENDING', 'FAILED', 'SENDING')", row.subscriptionId());
+          jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
+              + " where subscription_id = ? and status in ('PENDING', 'FAILED', 'SENDING')", row.subscriptionId());
         } else {
           int attempts = row.attemptCount() + 1;
           String state = attempts >= MAX_ATTEMPTS ? "FAILED" : "PENDING";
@@ -430,6 +460,8 @@ public class TaskReminderService {
         if (failure.gone()) {
           jdbc.update("update push_subscriptions set revoked_at = now() where id = ?", row.subscriptionId());
           jdbc.update("update operational_push_deliveries set status = 'CANCELLED', error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
+              + " where subscription_id = ? and status in ('PENDING', 'FAILED', 'SENDING')", row.subscriptionId());
+          jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
               + " where subscription_id = ? and status in ('PENDING', 'FAILED', 'SENDING')", row.subscriptionId());
         } else {
           int attempts = row.attemptCount() + 1;
