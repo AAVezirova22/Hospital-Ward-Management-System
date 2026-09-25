@@ -125,7 +125,11 @@ public class AiActionService {
 
   @Transactional
   public Object prepareWorkflow(String text, List<String> fileSourceNames) {
-    var plan = workflows.parse(text, fileSourceNames);
+    return prepareWorkflow(text, fileSourceNames, List.of());
+  }
+
+  public Object prepareWorkflow(String text, List<String> fileSourceNames, List<String> attachedSourceIds) {
+    var plan = workflows.parse(text, fileSourceNames, attachedSourceIds);
     var a = new AiPendingAction();
     a.setUserId(actor.user().getId());
     a.setActionType("WORKFLOW");

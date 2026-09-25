@@ -8,6 +8,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 import com.example.hospital.ai.AiModelClient;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -51,6 +52,9 @@ class PatientDocumentDraftIntegrationTest {
   }
 
   @Test void explicitlySubmittedSourceReturnsReviewOnlyEvidenceAndDepartmentMatches() throws Exception {
+    mvc.perform(get("/api/v1/assistant/provider-disclosure").with(user("admin")).header("X-Department-Id", "1"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.sendsDocumentsToExternalProvider").value(true))
+        .andExpect(jsonPath("$.disclosure").value(org.hamcrest.Matchers.containsString("filename and extracted text")));
     mvc.perform(post("/api/v1/patients").with(user("admin")).with(csrf()).header("X-Department-Id", "1")
         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
             "patientIdentifier", "P-DRAFT-427", "firstName", "Alice", "lastName", "Example", "dateOfBirth", "1981-04-03"))))
@@ -70,6 +74,7 @@ class PatientDocumentDraftIntegrationTest {
     assertThat(draft.at("/fields/firstName/status").asText()).isEqualTo("SUGGESTED");
     assertThat(draft.at("/fields/address/status").asText()).isEqualTo("MISSING");
     assertThat(draft.at("/fields/firstName/sources/0/excerpt").asText()).isEqualTo("Alice Example");
+    assertThat(draft.at("/fields/firstName/sources/0/value").asText()).isEqualTo("Alice");
     assertThat(draft.at("/fields/firstName/sources/0/characterStart").asInt()).isEqualTo(TEXT.indexOf("Alice Example"));
     assertThat(draft.path("matchCandidates").size()).isEqualTo(1);
     assertThat(draft.at("/followUpActions/0/title").asText()).isEqualTo("Follow up with cardiology");
@@ -126,6 +131,28 @@ class PatientDocumentDraftIntegrationTest {
     assertThat(draft.at("/followUpActions/0/fieldStatuses/dueDate").asText()).isEqualTo("CONFLICT");
     assertThat(draft.at("/followUpActions/0/requiresResolution").asBoolean()).isTrue();
     assertThat(draft.at("/followUpActions/0/conflicts/0/source/excerpt").asText()).isEqualTo("other form says by 2026-10-13 at 10:00");
+  }
+
+  @Test void proposedValuesMustBeSupportedByTheirOwnExcerpt() throws Exception {
+    var source = mvc.perform(multipart("/api/v1/assistant/sources")
+        .file(new MockMultipartFile("file", "referral.txt", "text/plain", TEXT.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1"))
+        .andExpect(status().isOk()).andReturn();
+    String sourceId = json.readTree(source.getResponse().getContentAsString()).path("id").asText();
+
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
+        {"patientIdentifier":[{"value":"P-SPOOFED","confidence":0.99,"excerpt":"Alice Example"}],"followUpActions":[]}
+        """)));
+    mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf()).header("X-Department-Id", "1")
+        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .andExpect(status().isServiceUnavailable());
+
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
+        {"followUpActions":[{"title":"Follow up with cardiology","dueDate":"2030-01-01","dueTime":null,"confidence":0.99,"excerpt":"Follow up with cardiology"}]}
+        """)));
+    mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf()).header("X-Department-Id", "1")
+        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .andExpect(status().isServiceUnavailable());
   }
 
   private long doctorUserId() {

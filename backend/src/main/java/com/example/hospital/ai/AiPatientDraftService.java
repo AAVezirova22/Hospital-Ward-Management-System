@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Instant;
+import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -59,7 +60,7 @@ public class AiPatientDraftService {
   public Map<String, Object> disclosure() {
     boolean external = "external".equals(mode);
     String description = external
-        ? "Submitting a document sends its extracted text to the configured external AI provider."
+        ? "Submitting a document sends its filename and extracted text to the configured external AI provider."
         : "Submitting a document does not send text to an external provider; patient draft extraction requires external AI to be configured.";
     return Map.of("mode", mode, "model", model.identifier(), "sendsDocumentsToExternalProvider", external,
         "disclosure", description);
@@ -117,6 +118,7 @@ public class AiPatientDraftService {
         double confidence = candidate.path("confidence").asDouble();
         if (value.isBlank() || value.length() > maxLength(field) || excerpt.isBlank()
             || excerpt.length() > 500 || !source.text().contains(excerpt)
+            || !excerptSupports(field, value, excerpt)
             || confidence < 0 || confidence > 1) throw invalidDraft();
         validateField(field, value);
         int offset = source.text().indexOf(excerpt);
@@ -139,6 +141,7 @@ public class AiPatientDraftService {
       List<Map<String, Object>> evidence = candidates.stream().map(candidate -> {
         @SuppressWarnings("unchecked") Map<String, Object> sourceView = (Map<String, Object>) candidate.get("source");
         var item = new LinkedHashMap<String, Object>(sourceView);
+        item.put("value", candidate.get("value"));
         item.put("confidence", candidate.get("confidence"));
         return (Map<String, Object>) item;
       }).toList();
@@ -329,6 +332,7 @@ public class AiPatientDraftService {
       String excerpt = action.path("excerpt").asText().strip();
       double confidence = action.path("confidence").asDouble();
       if (title.isBlank() || title.length() > 200 || !validExcerpt(source, excerpt)
+          || !excerptSupports("title", title, excerpt)
           || confidence < 0 || confidence > 1) throw invalidDraft();
       FollowUpCandidate primary = candidate(action, source, title, excerpt, confidence);
       JsonNode conflicts = action.path("conflicts");
@@ -343,6 +347,7 @@ public class AiPatientDraftService {
         String otherExcerpt = conflict.path("excerpt").asText().strip();
         double otherConfidence = conflict.path("confidence").asDouble();
         if (otherTitle.isBlank() || otherTitle.length() > 200 || !validExcerpt(source, otherExcerpt)
+            || !otherTitle.equals(title) && !excerptSupports("title", otherTitle, otherExcerpt)
             || otherConfidence < 0 || otherConfidence > 1) throw invalidDraft();
         conflictCandidates.add(candidate(conflict, source, otherTitle, otherExcerpt, otherConfidence));
       }
@@ -361,7 +366,9 @@ public class AiPatientDraftService {
       String title, String excerpt, double confidence) {
     LocalDate date = optionalDate(data.path("dueDate"));
     LocalTime time = optionalTime(data.path("dueTime"));
-    if (time != null && date == null) throw invalidDraft();
+    if (time != null && date == null
+        || date != null && !excerptSupports("date", date.toString(), excerpt)
+        || time != null && !excerptSupports("time", timeValue(time), excerpt)) throw invalidDraft();
     String reportedLocation = data.path("location").isTextual() ? data.path("location").asText().strip() : "";
     if (reportedLocation.length() > 100) throw invalidDraft();
     int start = source.text().indexOf(excerpt);
@@ -379,6 +386,39 @@ public class AiPatientDraftService {
   }
   private static boolean validExcerpt(AiSourceService.Source source, String excerpt) {
     return excerpt != null && !excerpt.isBlank() && excerpt.length() <= 500 && source.text().contains(excerpt);
+  }
+
+  /** A citation must support the value attached to it, not merely occur somewhere in the file. */
+  private static boolean excerptSupports(String field, String value, String excerpt) {
+    if (value == null || excerpt == null) return false;
+    if ("phoneNumber".equals(field)) {
+      String digits = value.replaceAll("\\D", "");
+      return !digits.isEmpty() && digits.equals(excerpt.replaceAll("\\D", ""));
+    }
+    if ("time".equals(field)) {
+      try {
+        LocalTime expected = LocalTime.parse(value);
+        var matcher = java.util.regex.Pattern.compile("(?i)(?<!\\d)(\\d{1,2}):(\\d{2})(?:\\s*(am|pm))?(?!\\d)")
+            .matcher(excerpt);
+        while (matcher.find()) {
+          int hour = Integer.parseInt(matcher.group(1));
+          int minute = Integer.parseInt(matcher.group(2));
+          String meridiem = matcher.group(3);
+          if (minute > 59 || hour > (meridiem == null ? 23 : 12) || hour < (meridiem == null ? 0 : 1)) continue;
+          if (meridiem != null) hour = hour % 12 + ("pm".equalsIgnoreCase(meridiem) ? 12 : 0);
+          if (expected.equals(LocalTime.of(hour, minute))) return true;
+        }
+        return false;
+      } catch (RuntimeException invalid) { return false; }
+    }
+    String normalizedValue = evidenceForm(value);
+    String normalizedExcerpt = evidenceForm(excerpt);
+    return !normalizedValue.isBlank() && (" " + normalizedExcerpt + " ").contains(" " + normalizedValue + " ");
+  }
+
+  private static String evidenceForm(String value) {
+    return Normalizer.normalize(value, Normalizer.Form.NFKC).toLowerCase(Locale.ROOT)
+        .replaceAll("[^\\p{L}\\p{N}]+", " ").strip().replaceAll("\\s+", " ");
   }
 
   private static void requireKeys(JsonNode value, Set<String> allowed) {

@@ -58,8 +58,11 @@ class AiWorkflowIntegrationTest {
     return json.writeValueAsString(Map.of("title", "Build the requested workspace", "steps", steps));
   }
   JsonNode propose(String plan) throws Exception {
+    return propose(plan, List.of());
+  }
+  JsonNode propose(String plan, List<String> sourceIds) throws Exception {
     when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("prepareWorkflow", Map.of("plan", plan)));
-    return body(postJson("admin", "/assistant/messages", Map.of("message", "Build this workflow")));
+    return body(postJson("admin", "/assistant/messages", Map.of("message", "Build this workflow", "sourceIds", sourceIds)));
   }
 
   @Test void uploadedDataBuildsLinkedHospitalWorkflowOnlyAfterConfirmation() throws Exception {
@@ -144,7 +147,7 @@ assertThat(admissions.get("items").get(0).toString())
                         "location", "row 1", "excerpt", "Original")),
                     "conflicts", List.of()))))));
 
-    JsonNode proposal = propose(inputPlan);
+    JsonNode proposal = propose(inputPlan, List.of(source.get("id").asText()));
     assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/verified").asBoolean()).isTrue();
     assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/sourceName").asText()).isEqualTo("patients.txt");
     assertThat(proposal.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/characterStart").asInt()).isZero();
@@ -159,10 +162,35 @@ assertThat(admissions.get("items").get(0).toString())
 
     var decisions = Map.of("fieldDecisions", List.of(
         Map.of("stepKey", "patient", "field", "patientIdentifier", "decision", "ACCEPTED"),
-        Map.of("stepKey", "patient", "field", "firstName", "decision", "EDITED", "value", "Clinician")));
+        Map.of("stepKey", "patient", "field", "firstName", "decision", "EDITED", "value", "Clinician"),
+        Map.of("stepKey", "patient", "field", "lastName", "decision", "ACCEPTED"),
+        Map.of("stepKey", "patient", "field", "dateOfBirth", "decision", "ACCEPTED")));
     postJson("admin", "/ai-actions/" + action + "/confirm", decisions).andExpect(status().isOk());
     assertThat(jdbc.queryForObject("select first_name from patients where patient_identifier=?", String.class, patientIdentifier))
         .isEqualTo("Clinician");
+  }
+
+  @Test void workflowCitationMustReferToAFileAttachedToThisRequest() throws Exception {
+    String marker = unique();
+    JsonNode source = upload("admin", "current.txt", "Patient identifier: SOURCE-" + marker);
+    String inputPlan = json.writeValueAsString(Map.of(
+        "title", "Prepare patient import",
+        "steps", List.of(Map.of(
+            "key", "patient",
+            "operation", "createPatient",
+            "source", "current.txt",
+            "fields", Map.of("patientIdentifier", "P-" + marker, "firstName", "Current",
+                "lastName", "Source", "dateOfBirth", "1990-01-01"),
+            "evidence", Map.of("patientIdentifier", Map.of("status", "SUPPORTED", "confidence", 0.99,
+                "sources", List.of(Map.of("sourceId", source.get("id").asText(), "location", "line 1",
+                    "excerpt", "Patient identifier: SOURCE-" + marker)), "conflicts", List.of()))))));
+
+    JsonNode unattached = propose(inputPlan);
+    assertThat(unattached.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/verified").asBoolean()).isFalse();
+    assertThat(unattached.at("/data/workflow/steps/0/evidence/patientIdentifier/requiresDecision").asBoolean()).isTrue();
+
+    JsonNode attached = propose(inputPlan, List.of(source.get("id").asText()));
+    assertThat(attached.at("/data/workflow/steps/0/evidence/patientIdentifier/sources/0/verified").asBoolean()).isTrue();
   }
 
   @Test void assistantRoomSearchExplainsCapabilityAndAvailabilityExclusions() throws Exception {

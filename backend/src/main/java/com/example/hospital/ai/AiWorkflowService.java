@@ -98,15 +98,19 @@ public class AiWorkflowService {
       Map.entry("recordProcedure", Set.of("admissionId", "medicalProcedureId", "doctorId", "performedAt", "note")));
 
   public Plan parse(String text) {
-    return parse(text, List.of());
+    return parse(text, List.of(), List.of());
   }
 
   public Plan parse(String text, List<String> fileSourceNames) {
+    return parse(text, fileSourceNames, List.of());
+  }
+
+  public Plan parse(String text, List<String> fileSourceNames, List<String> attachedSourceIds) {
     if (text == null || text.length() > 50000) throw invalid();
     try {
       Plan plan = withDefaultEvidence(json.readValue(text, Plan.class));
       validate(plan);
-      return withVerifiedEvidence(withMissingFileEvidence(plan, fileSourceNames));
+      return withVerifiedEvidence(withMissingFileEvidence(plan, fileSourceNames), attachedSourceIds);
     } catch (ApiException | org.springframework.security.access.AccessDeniedException e) { throw e; }
     catch (Exception e) { throw invalid(); }
   }
@@ -251,14 +255,16 @@ public class AiWorkflowService {
     return true;
   }
 
-  private Plan withVerifiedEvidence(Plan plan) {
+  private Plan withVerifiedEvidence(Plan plan, List<String> attachedSourceIds) {
+    Set<String> authorizedSources = attachedSourceIds == null ? Set.of()
+        : attachedSourceIds.stream().filter(Objects::nonNull).collect(java.util.stream.Collectors.toUnmodifiableSet());
     List<Step> steps = new ArrayList<>();
     for (Step step : plan.steps()) {
       var evidence = new LinkedHashMap<String, FieldEvidence>();
       for (var entry : step.evidence().entrySet()) {
         FieldEvidence original = entry.getValue();
-        List<Citation> verifiedSources = original.sources().stream().map(this::verifyCitation).toList();
-        List<Citation> verifiedConflicts = original.conflicts().stream().map(this::verifyCitation).toList();
+        List<Citation> verifiedSources = original.sources().stream().map(c -> verifyCitation(c, authorizedSources)).toList();
+        List<Citation> verifiedConflicts = original.conflicts().stream().map(c -> verifyCitation(c, authorizedSources)).toList();
         boolean requiresDecision = requiresDecision(original.status(), original.confidence(), verifiedSources, verifiedConflicts);
         evidence.put(entry.getKey(), new FieldEvidence(original.status(), original.confidence(),
             verifiedSources, verifiedConflicts, requiresDecision));
@@ -303,12 +309,13 @@ public class AiWorkflowService {
     return normalized.substring(normalized.lastIndexOf('/') + 1);
   }
 
-  private Citation verifyCitation(Citation citation) {
+  private Citation verifyCitation(Citation citation, Set<String> authorizedSources) {
     String sourceName = null;
     Integer start = null;
     Integer end = null;
     boolean verified = false;
-    if (citation.sourceId() != null && !citation.sourceId().isBlank()) {
+    if (citation.sourceId() != null && !citation.sourceId().isBlank()
+        && authorizedSources.contains(citation.sourceId())) {
       try {
         AiSourceService.Source source = sources.sourceForExtraction(citation.sourceId());
         sourceName = source.name();
