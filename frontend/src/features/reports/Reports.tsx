@@ -33,6 +33,25 @@ import type {
 } from "../../api/contracts";
 import { dateInTimeZone } from "../../date-time";
 
+function calendarDate(year: number, month: number, day: number) {
+  return new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
+}
+
+function datePresetRange(preset: string, today: string) {
+  const [year, month, day] = today.split("-").map(Number);
+  if (preset === "this-month") {
+    return { from: calendarDate(year, month - 1, 1), to: today };
+  }
+  if (preset === "previous-month") {
+    return {
+      from: calendarDate(year, month - 2, 1),
+      to: calendarDate(year, month - 1, 0),
+    };
+  }
+  const days = preset === "last-7-days" ? 7 : 30;
+  return { from: calendarDate(year, month - 1, day - days + 1), to: today };
+}
+
 export function Reports() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<unknown>(null);
@@ -54,6 +73,15 @@ export function Reports() {
     [bucket, setBucket] = useUrlState("bucket", "day");
   const [patientSearch, setPatientSearch] = useState("");
   const [patientPage, setPatientPage] = useState(0);
+
+  const applyDatePreset = (preset: string) => {
+    const range = datePresetRange(preset, today);
+    const url = new URL(window.location.href);
+    url.searchParams.set("from", range.from);
+    url.searchParams.set("to", range.to);
+    window.history.replaceState(null, "", url);
+    window.dispatchEvent(new Event("medcore-url"));
+  };
 
   const patientDirectoryQuery = useData(
     `/patients?q=${encodeURIComponent(patientSearch)}&page=${patientPage}&size=20`,
@@ -175,6 +203,22 @@ export function Reports() {
           mode === "doctor-workload" ||
           mode === "room-utilization") && (
           <>
+            <div className="tabs" role="group" aria-label="Date range presets">
+              {[
+                ["this-month", "This month"],
+                ["previous-month", "Previous month"],
+                ["last-7-days", "Last 7 days"],
+                ["last-30-days", "Last 30 days"],
+              ].map(([preset, label]) => (
+                <button
+                  type="button"
+                  key={preset}
+                  onClick={() => applyDatePreset(preset)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <label>
               From
               <input
