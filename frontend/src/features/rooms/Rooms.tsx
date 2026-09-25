@@ -8,10 +8,12 @@ import { Plus, BedDouble } from "../../icons";
 import { RoomCard } from "./RoomCard";
 import { BedHoldManager } from "./BedHoldManager";
 import { EntityForm } from "../administration/EntityForm";
+import { CsvImport } from "../administration/CsvImport";
 import { useUrlState } from "../../components/useUrlState";
 
 export function Rooms() {
 const [edit, setEdit] = useState<Row | null>(null);
+const [importing, setImporting] = useState(false);
 const [holdRoom, setHoldRoom] = useState<Row | null>(null);
 const [free, setFree] = useState(false);
 
@@ -45,10 +47,13 @@ const selectedHoldRoom =
         description="Live bed availability includes current and upcoming maintenance holds. Capacity is checked again at admission and transfer."
       >
         {user.role === "ADMIN" && (
-          <button className="primary" onClick={() => setEdit({})}>
-            <Plus size={18} />
-            Add room
-          </button>
+          <>
+            <button className="secondary" onClick={() => setImporting(true)}>Import CSV</button>
+            <button className="primary" onClick={() => setEdit({})}>
+              <Plus size={18} />
+              Add room
+            </button>
+          </>
         )}
       </Title>
       <div className="toolbar">
@@ -138,6 +143,7 @@ const selectedHoldRoom =
       {edit && (
         <EntityForm kind="rooms" record={edit} onClose={() => setEdit(null)} />
       )}
+      {importing && <CsvImport kind="rooms" onClose={() => setImporting(false)} />}
       {selectedHoldRoom && (
         <BedHoldManager
           room={selectedHoldRoom as RoomCapacity}

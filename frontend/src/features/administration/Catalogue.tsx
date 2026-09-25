@@ -12,9 +12,11 @@ import {
 import { Plus, ArrowUpRight } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { EntityForm, configs } from "./EntityForm";
+import { CsvImport } from "./CsvImport";
 export function Catalogue({ kind }: { kind: string }) {
   const cfg = configs[kind];
   const [edit, setEdit] = useState<Row | null>(null);
+  const [importing, setImporting] = useState(false);
   const [search, setSearch] = useUrlState("q");
   const [pageText, setPageText] = useUrlState("page", "0");
   const page = Math.max(0, Number.parseInt(pageText, 10) || 0);
@@ -33,10 +35,13 @@ export function Catalogue({ kind }: { kind: string }) {
         description={cfg.description}
       >
         {user.role === "ADMIN" && (
-          <button className="primary" onClick={() => setEdit({})}>
-            <Plus size={18} />
-            Add {cfg.singular}
-          </button>
+          <>
+            <button className="secondary" onClick={() => setImporting(true)}>Import CSV</button>
+            <button className="primary" onClick={() => setEdit({})}>
+              <Plus size={18} />
+              Add {cfg.singular}
+            </button>
+          </>
         )}
       </Title>
       <ErrorBox error={error} />
@@ -140,6 +145,7 @@ export function Catalogue({ kind }: { kind: string }) {
       {edit && (
         <EntityForm kind={kind} record={edit} onClose={() => setEdit(null)} />
       )}
+      {importing && <CsvImport kind={kind as "doctors" | "procedures"} onClose={() => setImporting(false)} />}
     </>
   );
 }

@@ -20,6 +20,7 @@ import { useUrlState } from "../../components/useUrlState";
 import { LoadingState } from "../../components/LoadingState";
 import { PatientDocumentDraft } from "./PatientDocumentDraft";
 import { PatientCorrectionQueue } from "./PatientCorrectionQueue";
+import { CsvImport } from "../administration/CsvImport";
 export function Patients() {
   const user = useUser();
   const [search, setSearch] = useUrlState("q");
@@ -30,6 +31,7 @@ export function Patients() {
   const page = pageSelection.search === search ? pageSelection.page : 0;
   const [edit, setEdit] = useState<Row | null>(null);
   const [documentDraft, setDocumentDraft] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const params = new URLSearchParams();
   if (search) params.set("q", search);
@@ -54,10 +56,13 @@ export function Patients() {
           Review document
         </button>
         {user.role !== "DOCTOR" && (
-          <button className="primary" onClick={() => setEdit({})}>
-            <Plus size={18} />
-            New patient
-          </button>
+          <>
+            <button className="secondary" onClick={() => setImporting(true)}>Import CSV</button>
+            <button className="primary" onClick={() => setEdit({})}>
+              <Plus size={18} />
+              New patient
+            </button>
+          </>
         )}
       </Title>
       {documentDraft && (
@@ -188,6 +193,7 @@ export function Patients() {
           onClose={() => setEdit(null)}
         />
       )}
+      {importing && <CsvImport kind="patients" onClose={() => setImporting(false)} />}
     </>
   );
 }
