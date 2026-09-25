@@ -11,8 +11,32 @@ type AuditPage = {
   events: Row[];
 };
 
+function normalizeMetadata(raw: string): { entries: [string, string][]; json: string; legacy: boolean } {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const fields = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? Object.entries(parsed as Record<string, unknown>).map(([key, value]) => [key, typeof value === "string" ? value : JSON.stringify(value)] as [string, string])
+      : [["value", JSON.stringify(parsed)] as [string, string]];
+    return { entries: fields, json: JSON.stringify(parsed, null, 2), legacy: false };
+  } catch {
+    const body = raw.startsWith("{") && raw.endsWith("}") ? raw.slice(1, -1) : raw;
+    const entries: Record<string, string> = {};
+    for (const part of body.split(/,\s*(?=[A-Za-z0-9_.-]+=)/)) {
+      const separator = part.indexOf("=");
+      if (separator > 0) entries[part.slice(0, separator).trim()] = part.slice(separator + 1).trim();
+    }
+    return {
+      entries: Object.keys(entries).length ? Object.entries(entries) : [["Legacy metadata (unparsed)", raw]],
+      json: JSON.stringify({ format: "legacy-map-string", entries, raw }, null, 2),
+      legacy: true,
+    };
+  }
+}
+
 export function Audit() {
   const [page, setPage] = useState(0);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copyErrorId, setCopyErrorId] = useState<string | null>(null);
   const [eventType, setEventType] = useState("");
   const [actorId, setActorId] = useState("");
   const [entityType, setEntityType] = useState("");
@@ -43,6 +67,16 @@ export function Audit() {
     queryFn: () => api<AuditPage>(`/audit?${query.toString()}`),
   });
   const events = data?.events ?? [];
+  const copyMetadata = async (id: string, metadata: unknown) => {
+    setCopyErrorId(null);
+    try {
+      await navigator.clipboard.writeText(normalizeMetadata(String(metadata ?? "")).json);
+      setCopiedId(id);
+      window.setTimeout(() => setCopiedId((current) => current === id ? null : current), 1800);
+    } catch {
+      setCopyErrorId(id);
+    }
+  };
   return (
     <>
       <Title
@@ -164,7 +198,26 @@ export function Audit() {
                 </td>
                 <td>{a.userId}</td>
                 <td>{a.source}</td>
-                <td className="mono">{a.metadata}</td>
+                <td>
+                  <details>
+                    <summary aria-label={`View metadata for audit event ${a.id}`}>View metadata</summary>
+                    <dl>
+                      {normalizeMetadata(String(a.metadata ?? "")).entries.map(([key, value]) => (
+                        <div key={key}>
+                          <dt>{key}</dt>
+                          <dd className="mono" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <button className="secondary" onClick={() => void copyMetadata(String(a.id), a.metadata)}>
+                      {copiedId === String(a.id) ? "Copied JSON" : "Copy JSON"}
+                    </button>
+                    {copyErrorId === String(a.id) && <small role="alert">Could not copy. Check clipboard access and try again.</small>}
+                    {normalizeMetadata(String(a.metadata ?? "")).legacy && (
+                      <small>Legacy map text is split into key/value fields where possible. The copied JSON preserves the exact original text.</small>
+                    )}
+                  </details>
+                </td>
               </tr>
             ))}
           </tbody>
