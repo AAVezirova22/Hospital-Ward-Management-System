@@ -16,12 +16,24 @@ export function PatientPortal({
   const client = useQueryClient();
   const [correction, setCorrection] = useState({ firstName: "", lastName: "", dateOfBirth: "", address: "", phoneNumber: "" });
   const [correctionMessage, setCorrectionMessage] = useState("");
+  const [contact, setContact] = useState<{ address?: string; phoneNumber?: string }>({});
+  const [contactMessage, setContactMessage] = useState("");
   const query = useQuery({
     queryKey: ["portal", user.id],
     queryFn: () =>
       api<{ patient: Patient; admissions: AdmissionView[] }>("/portal/me"),
   });
   const requests = useQuery({ queryKey: ["portal-corrections", user.id], queryFn: () => api<any[]>("/portal/correction-requests") });
+  const address = contact.address ?? query.data?.patient.address ?? "";
+  const phoneNumber = contact.phoneNumber ?? query.data?.patient.phoneNumber ?? "";
+  const updateContact = useMutation({
+    mutationFn: () => api<{ address: string | null; phoneNumber: string | null }>("/portal/me/contact", "PUT", { address, phoneNumber }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["portal", user.id] });
+      setContact({});
+      setContactMessage("Your contact details were saved.");
+    },
+  });
   const submitCorrection = useMutation({
     mutationFn: () => api("/portal/correction-requests", "POST", {
       ...correction,
@@ -85,7 +97,18 @@ export function PatientPortal({
               </button>
             </section>
             <section className="panel">
-              <h2>Request a profile correction</h2>
+              <h2>Edit your contact details</h2>
+              <p>Update your address and phone number directly. Name and date of birth changes are reviewed by your care team below.</p>
+              <form className="form-grid" onSubmit={(event) => { event.preventDefault(); setContactMessage(""); updateContact.mutate(); }}>
+                <label>Address<input autoComplete="street-address" value={address} onChange={(event) => setContact({ ...contact, address: event.target.value })} maxLength={500} /></label>
+                <label>Phone number<input type="tel" autoComplete="tel" value={phoneNumber} onChange={(event) => setContact({ ...contact, phoneNumber: event.target.value })} maxLength={40} pattern="[+0-9().\\-\\s]{3,40}" title="Use digits and common phone punctuation." /></label>
+                <button className="primary" disabled={updateContact.isPending}>{updateContact.isPending ? "Saving…" : "Save contact details"}</button>
+              </form>
+              {contactMessage && <p role="status">{contactMessage}</p>}
+              {updateContact.error && <p className="error" role="alert">{updateContact.error.message}</p>}
+            </section>
+            <section className="panel">
+              <h2>Request a profile correction for staff review</h2>
               <p>Changes are reviewed by your care team before they update your record. Leave fields blank if they do not need correction.</p>
               <form className="form-grid" onSubmit={(event) => { event.preventDefault(); setCorrectionMessage(""); submitCorrection.mutate(); }}>
                 <label>First name<input value={correction.firstName} onChange={(event) => setCorrection({ ...correction, firstName: event.target.value })} maxLength={100} /></label>
