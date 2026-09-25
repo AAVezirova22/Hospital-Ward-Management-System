@@ -112,6 +112,7 @@ public class WorkspaceService {
     return Math.min(Math.max(requestedPage, 0), lastPage);
   }
 
+  @Transactional
   public String reveal(boolean hospital, long id) {
     if (hospital) owner(id);
     else departmentAdmin(id);
