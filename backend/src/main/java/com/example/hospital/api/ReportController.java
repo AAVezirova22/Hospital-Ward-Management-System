@@ -42,6 +42,92 @@ public ReportController(
     return reports.capacity();
   }
 
+  @GetMapping(value = "/census.csv", produces = "text/csv")
+  public ResponseEntity<String> censusCsv(
+      @RequestParam(required = false) Long roomId,
+      @RequestParam(required = false) Long doctorId) {
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    List<Map<String, Object>> admissions = reports.census(roomId, doctorId);
+    var out = new StringBuilder(
+        "Department,Admission ID,Admission number,Status,Admitted at,Expected discharge,Patient ID,Patient identifier,Patient name,Doctor ID,Doctor identifier,Doctor name,Current room ID,Current room\r\n");
+    for (var view : admissions) {
+      var admission = (Map<?, ?>) view.get("admission");
+      var patient = (Map<?, ?>) view.get("patient");
+      var doctor = (Map<?, ?>) view.get("doctor");
+      var assignment = (Map<?, ?>) view.get("assignment");
+      Map<?, ?> room = null;
+      if (assignment != null) {
+        for (Object historyEntry : (List<?>) view.get("rooms")) {
+          var history = (Map<?, ?>) historyEntry;
+          var historyAssignment = (Map<?, ?>) history.get("assignment");
+          if (java.util.Objects.equals(historyAssignment.get("id"), assignment.get("id"))) {
+            room = (Map<?, ?>) history.get("room");
+            break;
+          }
+        }
+      }
+      out.append(departmentId).append(',')
+          .append(csvValue(admission.get("id"))).append(',')
+          .append(csvText(admission.get("admissionNumber"))).append(',')
+          .append(csvText(admission.get("status"))).append(',')
+          .append(csvValue(admission.get("admissionDateTime"))).append(',')
+          .append(csvValue(admission.get("expectedDischargeDate"))).append(',')
+          .append(csvValue(patient.get("id"))).append(',')
+          .append(csvText(patient.get("patientIdentifier"))).append(',')
+          .append(csvText(readableName(patient.get("firstName"), patient.get("lastName")))).append(',')
+          .append(csvValue(doctor.get("id"))).append(',')
+          .append(csvText(doctor.get("doctorIdentifier"))).append(',')
+          .append(csvText(readableName(doctor.get("firstName"), doctor.get("lastName")))).append(',')
+          .append(csvValue(assignment == null ? null : assignment.get("roomId"))).append(',')
+          .append(csvText(room == null ? null : room.get("roomNumber"))).append("\r\n");
+    }
+    var filters = new java.util.LinkedHashMap<String, Object>();
+    filters.put("export", "census.csv");
+    filters.put("roomId", roomId);
+    filters.put("doctorId", doctorId);
+    filters.put("rows", admissions.size());
+    audit.log("DATA_EXPORTED", "Report", null, "UI", filters);
+    String suffix = (roomId == null ? "" : "-room-" + roomId)
+        + (doctorId == null ? "" : "-doctor-" + doctorId);
+    return csvResponse(out, "census-report-department-" + departmentId + "-" + LocalDate.now() + suffix + ".csv");
+  }
+
+  @GetMapping(value = "/capacity.csv", produces = "text/csv")
+  public ResponseEntity<String> capacityCsv() {
+    long departmentId = com.example.hospital.security.DepartmentContext.id();
+    List<Map<String, Object>> rooms = reports.capacity();
+    var out = new StringBuilder(
+        "Department,Room ID,Room number,Active,Bed count,Occupied beds,Held beds,Available beds,Capabilities\r\n");
+    for (var room : rooms) {
+      out.append(departmentId).append(',')
+          .append(csvValue(room.get("id"))).append(',')
+          .append(csvText(room.get("roomNumber"))).append(',')
+          .append(csvValue(room.get("active"))).append(',')
+          .append(csvValue(room.get("bedCount"))).append(',')
+          .append(csvValue(room.get("occupiedBeds"))).append(',')
+          .append(csvValue(room.get("heldBeds"))).append(',')
+          .append(csvValue(room.get("availableBeds"))).append(',')
+          .append(csvText(room.get("capabilities"))).append("\r\n");
+    }
+    var filters = new java.util.LinkedHashMap<String, Object>();
+    filters.put("export", "capacity.csv");
+    filters.put("rows", rooms.size());
+    audit.log("DATA_EXPORTED", "Report", null, "UI", filters);
+    return csvResponse(out, "capacity-report-department-" + departmentId + "-" + LocalDate.now() + ".csv");
+  }
+
+  private static ResponseEntity<String> csvResponse(StringBuilder csv, String filename) {
+    return ResponseEntity.ok()
+        .header("Content-Disposition", "attachment; filename=" + filename)
+        .contentType(org.springframework.http.MediaType.parseMediaType("text/csv; charset=UTF-8"))
+        .body(csv.toString());
+  }
+
+  private static String csvValue(Object value) {
+    if (value instanceof Number || value instanceof Boolean) return value.toString();
+    return csvText(value);
+  }
+
   @GetMapping("/doctor-workload")
   public Object doctorWorkload(@RequestParam LocalDate from, @RequestParam LocalDate to) {
     return reports.doctorWorkload(from, to);

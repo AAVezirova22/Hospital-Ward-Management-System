@@ -145,8 +145,18 @@ export function Reports() {
     setExporting(true);
     setExportError(null);
     try {
+      const exportPath =
+        mode === "census"
+          ? "/reports/census.csv?" +
+            new URLSearchParams({
+              ...(doctorId ? { doctorId } : {}),
+              ...(roomId ? { roomId } : {}),
+            })
+          : mode === "capacity"
+            ? "/reports/capacity.csv"
+            : "/reports/procedures.csv?" + params;
       const { blob, filename } = await downloadFile(
-        "/reports/procedures.csv?" + params,
+        exportPath,
         department,
       );
       const url = URL.createObjectURL(blob);
@@ -393,7 +403,9 @@ export function Reports() {
             </label>
           </>
         )}
-        {mode === "procedures" && (
+        {(mode === "procedures" ||
+          mode === "census" ||
+          mode === "capacity") && (
           <button
             type="button"
             className="secondary"
