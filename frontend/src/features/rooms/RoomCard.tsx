@@ -1,17 +1,25 @@
 "use client";
 import { BedDouble } from "../../icons";
-import { date, type Row } from "../../api";
+import { date, fullName, patientHref, type Row } from "../../api";
+import type { AdmissionView } from "../../api/contracts";
+import { Link } from "../../components/workspace";
 
 export function RoomCard({
   room: r,
   compact = false,
   onEdit,
   onManageHolds,
+  occupants = [],
+  occupantsLoading = false,
+  occupantsError = false,
 }: {
   room: Row;
   compact?: boolean;
   onEdit?: () => void;
   onManageHolds?: () => void;
+  occupants?: AdmissionView[];
+  occupantsLoading?: boolean;
+  occupantsError?: boolean;
 }) {
   const capabilities = Array.isArray(r.capabilities) ? r.capabilities : [];
   const held = r.heldBeds ?? 0;
@@ -68,6 +76,31 @@ export function RoomCard({
     ))}
   </ul>
 )}
+
+<details className="room-occupants">
+  <summary>Room details{!occupantsLoading && !occupantsError ? ` · ${occupants.length} current patient${occupants.length === 1 ? "" : "s"}` : ""}</summary>
+  {occupantsError ? (
+    <p role="alert">Current occupants could not be loaded.</p>
+  ) : occupantsLoading ? (
+    <p role="status">Loading current occupants…</p>
+  ) : occupants.length ? (
+    <ul aria-label={`Current occupants of room ${r.roomNumber}`}>
+      {occupants.map(({ admission, patient, doctor }) => (
+        <li key={admission.id}>
+          <Link to={patientHref(patient)}>{fullName(patient)}</Link>
+          <span>
+            <Link to={`/app/admissions?q=${encodeURIComponent(admission.admissionNumber)}`}>
+              Admission {admission.admissionNumber}
+            </Link>
+          </span>
+          <small>Attending doctor: Dr. {fullName(doctor)}</small>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p>No current patients are assigned to this room.</p>
+  )}
+</details>
 
 {holds.length > 0 && (
   <details className="room-holds">

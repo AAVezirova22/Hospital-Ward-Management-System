@@ -11,10 +11,11 @@ import {
   Title,
 } from "../../components/workspace";
 import { ArrowUpRight, ClipboardList } from "../../icons";
+import { useUrlState } from "../../components/useUrlState";
 export function Admissions() {
   const user = useUser();
   const [status, setStatus] = useState("ACTIVE");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useUrlState("q");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [doctorId, setDoctorId] = useState("");

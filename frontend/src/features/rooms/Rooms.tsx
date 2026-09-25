@@ -2,8 +2,8 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { type Row } from "../../api";
-import type { RoomCapacity } from "../../api/contracts";
-import { useUser, useData, ErrorBox, Empty, Title } from "../../components/workspace";
+import type { AdmissionView, RoomCapacity } from "../../api/contracts";
+import { useUser, useData, useAllPages, ErrorBox, Empty, Title } from "../../components/workspace";
 import { Plus, BedDouble } from "../../icons";
 import { RoomCard } from "./RoomCard";
 import { BedHoldManager } from "./BedHoldManager";
@@ -31,6 +31,7 @@ if (selectedRoom) params.set("roomId", selectedRoom);
 if (free) params.set("minFree", "1");
 
 const { data, error, isLoading } = useData(`/rooms?${params}`);
+const { data: admissions = [], isLoading: admissionsLoading, error: admissionsError } = useAllPages<AdmissionView>("/admissions?status=ACTIVE");
 
 const canManageHolds =
   user.role === "ADMIN" || user.role === "MEDICAL_STAFF";
@@ -108,6 +109,12 @@ const selectedHoldRoom =
       <motion.div layout key={room.id}>
         <RoomCard
           room={room}
+          occupants={admissions.filter((view) =>
+            view.admission.status === "ACTIVE" &&
+            view.rooms?.some((entry) => entry.room.id === room.id && !entry.assignment.releasedAt),
+          )}
+          occupantsLoading={admissionsLoading}
+          occupantsError={Boolean(admissionsError)}
           onEdit={user.role === "ADMIN" ? () => setEdit(room) : undefined}
           onManageHolds={
             canManageHolds ? () => setHoldRoom(room) : undefined
