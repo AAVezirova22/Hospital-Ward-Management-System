@@ -15,12 +15,15 @@ import org.springframework.web.bind.annotation.*;
 @PreAuthorize("hasRole('ADMIN')")
 public class AiSettingsController {
   private final AiProviderCheck check;
+  private final com.example.hospital.ai.AiProviderHealth health;
   private final RateLimitService rates;
   private final AuditService audit;
   private final Actor actor;
 
-  public AiSettingsController(AiProviderCheck check, RateLimitService rates, AuditService audit, Actor actor) {
+  public AiSettingsController(AiProviderCheck check, com.example.hospital.ai.AiProviderHealth health,
+      RateLimitService rates, AuditService audit, Actor actor) {
     this.check = check;
+    this.health = health;
     this.rates = rates;
     this.audit = audit;
     this.actor = actor;
@@ -31,11 +34,17 @@ public class AiSettingsController {
     return check.configuration();
   }
 
+  @GetMapping("/health")
+  public Object health() {
+    return health.snapshot();
+  }
+
   @PostMapping("/test")
   public Map<String, Object> test() {
     rates.hit("ai-provider-test:" + actor.user().getId(), 5, Duration.ofMinutes(10), "RATE_LIMITED",
         "Wait a few minutes before testing the provider again.");
     var result = check.run();
+    health.record("TEST", String.valueOf(result.get("outcome")));
     var details = new LinkedHashMap<String, Object>();
     details.put("outcome", result.get("outcome"));
     details.put("providerStatus", result.get("providerStatus"));

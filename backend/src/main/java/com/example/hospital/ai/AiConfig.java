@@ -18,13 +18,14 @@ public class AiConfig {
       @Value("${app.ai.key}") String key,
       @Value("${app.ai.model}") String name,
       @Value("${app.ai.timeout-seconds}") int timeout,
-      ObjectMapper json) {
+      ObjectMapper json,
+      AiProviderHealth health) {
     return switch (mode) {
       case "local" -> new LocalModelClient();
       case "external" -> {
         if (url.isBlank() || name.isBlank())
           throw new IllegalArgumentException("AI_URL and AI_MODEL required");
-        yield new ExternalAiProviderClient(url, key, name, timeout, json);
+        yield new ExternalAiProviderClient(url, key, name, timeout, json, health);
       }
       case "off" ->
           new AiModelClient() {
