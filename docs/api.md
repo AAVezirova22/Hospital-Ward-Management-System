@@ -237,6 +237,19 @@ The feed has one all-day event per active admission with an expected discharge d
 
 Outcomes: `COMPATIBLE` (exactly one call to the synthetic tool), `TOOL_CALLS_UNSUPPORTED`, `AUTHENTICATION_FAILED` (401/403), `PROVIDER_ERROR` (other HTTP status), `TIMEOUT`, `UNREACHABLE`, `INVALID_URL`, `INSECURE_PROTOCOL` (plain HTTP is accepted only for loopback addresses) and `NOT_EXTERNAL` (`AI_MODE` is not `external`). Provider response text is never returned.
 
+## External identifiers
+
+Other systems can refer to local records by their own identifiers. Each mapping has an `entityType` (`PATIENT`, `ADMISSION`, `DOCTOR`, `ROOM` or `PROCEDURE`), the local `entityId`, a `namespace` naming the issuing system (1–100 characters from letters, digits and `: . _ / -`, for example `urn:mrn:city-hospital`), the external `value` and an optional `source` recording where the link came from.
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| GET | `/external-ids?entityType=&entityId=` | Identifiers of one record in the active department |
+| GET | `/external-ids/resolve?entityType=&namespace=&value=` | The local record for an external identifier, or `404 EXTERNAL_ID_NOT_FOUND` |
+| POST | `/external-ids` | `{entityType, entityId, namespace, value, source?}`; staff and administrators. Repeating an identical link returns the existing one |
+| DELETE | `/external-ids/{id}` | Administrators only |
+
+Within a department an external identifier points at exactly one record, and a record has at most one identifier per namespace. A conflicting link is refused rather than moved or overwritten: `409 EXTERNAL_ID_CONFLICT` when the identifier already belongs to another record, and `409 EXTERNAL_ID_NAMESPACE_TAKEN` when the record already has an identifier in that namespace. Unlink first to correct a mapping. Links are audited as `EXTERNAL_ID_LINKED` / `EXTERNAL_ID_UNLINKED` with the namespace and source, never the identifier value.
+
 ## Rate-limit headers
 
 Rate-limited endpoints return the remaining budget on every checked response. They are `POST /assistant/messages`, registration confirmation resends, and the API budgets below:
