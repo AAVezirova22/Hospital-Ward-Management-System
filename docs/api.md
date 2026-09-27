@@ -134,6 +134,8 @@ Push titles and bodies are generic for both task reminders and operational notic
 | POST | `/assistant/messages` | `{message, sessionId?, route?, selectedPatientId?}`; typed response |
 | GET | `/assistant/sessions/{key}` | Owner-only recent metadata, no raw conversations |
 | POST | `/assistant/sessions/{key}/clear` | Clear selected-patient context |
+| GET | `/assistant/my-data` | Your own assistant data in the active department: sessions (with any stored conversation context and its expiry), request metadata (times, status, tools, model, tokens), proposals (type, status, times; payloads are not included), uploaded files (name, size, expiry; never the text), open patient drafts, the number of retained audit events, and what remains after clearing |
+| POST | `/assistant/my-data/clear` | `{confirmation: "CLEAR ASSISTANT DATA"}`. Deletes your sessions and conversation context, request metadata, proposals (pending ones can no longer be confirmed), uploaded files and patient drafts in the active department, and returns the counts. Other users' data is untouched. Audited as `ASSISTANT_DATA_CLEARED`. Audit events about earlier assistant use remain (the audit trail is append-only and holds no conversation text), as do hospital records created by confirmed proposals. Clearing also removes those requests from the assistant usage report. |
 | GET | `/ai-actions/{id}` | Owner-only proposal |
 | POST | `/ai-actions/{id}/confirm` | Uses the saved proposal; optionally accepts field decisions for uncertain workflow evidence |
 | POST | `/ai-actions/{id}/cancel` | Owner-only cancellation |
