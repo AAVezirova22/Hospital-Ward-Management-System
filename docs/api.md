@@ -9,6 +9,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/health` | Readiness alias (kept for existing probes) |
 | GET | `/health/live` | Liveness: process is serving; no dependency checks |
 | GET | `/health/ready` | Readiness: database reachable and migrations applied; `503` when not ready |
+| GET | `/maintenance` | Public maintenance status: `{active}`, plus `message` and `retryAfterSeconds` while maintenance is on |
 | GET | `/auth/csrf` | `{token, headerName}` |
 | POST | `/auth/login` | Form-encoded `username`, `password`; returns account without hash |
 | GET | `/auth/me` | Current account |
@@ -170,6 +171,7 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 429 | `AI_RATE_LIMIT` | Assistant quota or in-flight request limit |
 | 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
+| 503 | `MAINTENANCE` | Planned maintenance is on. Every path except the health probes and `/maintenance` answers this, with the operator's `message`, `retryAfterSeconds` and a matching `Retry-After` header ([procedure](deployment.md#planned-maintenance)) |
 
 ## Idempotency keys
 
