@@ -63,13 +63,14 @@ public class SecurityConfig {
       SessionLifetime lifetime,
       ClientAddressResolver clientAddresses,
       ApiRateLimits rateLimits,
+      MaintenanceMode maintenance,
       org.springframework.jdbc.core.JdbcTemplate jdbc,
       @org.springframework.beans.factory.annotation.Value("${app.idempotency.ttl:24h}") java.time.Duration idempotencyTtl,
       com.example.hospital.service.SecurityEventService securityEvents)
       throws Exception {
     http.authorizeHttpRequests(
             a ->
-                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health", "/api/v1/health/live", "/api/v1/health/ready",
+                a.requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/health", "/api/v1/health/live", "/api/v1/health/ready", "/api/v1/maintenance",
                     "/api/v1/demo/status", "/api/v1/demo/login", "/api/v1/registration/status",
                     "/api/v1/registration/hospitals",
                     "/api/v1/registration/signup", "/api/v1/registration/verify", "/api/v1/registration/resend",
@@ -209,6 +210,8 @@ public class SecurityConfig {
         .addFilterAfter(
             new IdempotencyFilter(jdbc, users, json, idempotencyTtl),
             DepartmentScopeFilter.class);
+    // Ahead of CSRF, authentication, rate limits and department checks, so the notice never touches the database.
+    http.addFilterAfter(maintenance.filter(json), org.springframework.security.web.header.HeaderWriterFilter.class);
     return http.build();
   }
 

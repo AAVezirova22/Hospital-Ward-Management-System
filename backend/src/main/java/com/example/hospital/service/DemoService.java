@@ -45,7 +45,7 @@ public class DemoService {
     // opts in to deleting it for this transaction only.
     jdbc.queryForObject("select set_config('hospital.audit_maintenance', 'on', true)", String.class);
     for (String table : new String[]{
-        "email_outbox",
+        "email_outbox", "external_identifiers",
         "idempotency_keys",
         "calendar_feeds",
         "email_verifications",

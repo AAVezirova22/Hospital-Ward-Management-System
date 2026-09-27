@@ -9,6 +9,7 @@ All paths start with `/api/v1`. Except health, login and CSRF-token retrieval, e
 | GET | `/health` | Readiness alias (kept for existing probes) |
 | GET | `/health/live` | Liveness: process is serving; no dependency checks |
 | GET | `/health/ready` | Readiness: database reachable and migrations applied; `503` when not ready |
+| GET | `/maintenance` | Public maintenance status: `{active}`, plus `message` and `retryAfterSeconds` while maintenance is on |
 | GET | `/auth/csrf` | `{token, headerName}` |
 | POST | `/auth/login` | Form-encoded `username`, `password`; returns account without hash |
 | GET | `/auth/me` | Current account |
@@ -134,6 +135,8 @@ Push titles and bodies are generic for both task reminders and operational notic
 | POST | `/assistant/messages` | `{message, sessionId?, route?, selectedPatientId?}`; typed response |
 | GET | `/assistant/sessions/{key}` | Owner-only recent metadata, no raw conversations |
 | POST | `/assistant/sessions/{key}/clear` | Clear selected-patient context |
+| GET | `/assistant/my-data` | Your own assistant data in the active department: sessions (with any stored conversation context and its expiry), request metadata (times, status, tools, model, tokens), proposals (type, status, times; payloads are not included), uploaded files (name, size, expiry; never the text), open patient drafts, the number of retained audit events, and what remains after clearing |
+| POST | `/assistant/my-data/clear` | `{confirmation: "CLEAR ASSISTANT DATA"}`. Deletes your sessions and conversation context, request metadata, proposals (pending ones can no longer be confirmed), uploaded files and patient drafts in the active department, and returns the counts. Other users' data is untouched. Audited as `ASSISTANT_DATA_CLEARED`. Audit events about earlier assistant use remain (the audit trail is append-only and holds no conversation text), as do hospital records created by confirmed proposals. Clearing also removes those requests from the assistant usage report. |
 | GET | `/ai-actions/{id}` | Owner-only proposal |
 | POST | `/ai-actions/{id}/confirm` | Uses the saved proposal; optionally accepts field decisions for uncertain workflow evidence |
 | POST | `/ai-actions/{id}/cancel` | Owner-only cancellation |
@@ -170,6 +173,7 @@ Read tools: `searchPatients`, `getPatientSummary`, `getAvailableRooms`, `getRoom
 | 429 | `AI_RATE_LIMIT` | Assistant quota or in-flight request limit |
 | 429 | `RATE_LIMITED` | Request budget spent: sign-in or registration per client address, searches/reports/exports per account, or the confirmation-email resend limit |
 | 503 | `DATABASE_TIMEOUT` / `DATABASE_UNAVAILABLE` | Request cancelled without saving, or database unreachable; honour `Retry-After` |
+| 503 | `MAINTENANCE` | Planned maintenance is on. Every path except the health probes and `/maintenance` answers this, with the operator's `message`, `retryAfterSeconds` and a matching `Retry-After` header ([procedure](deployment.md#planned-maintenance)) |
 
 ## Idempotency keys
 
@@ -245,6 +249,18 @@ Outcomes: `COMPATIBLE` (exactly one call to the synthetic tool), `TOOL_CALLS_UNS
 - `lastCheckedAt`, `lastSuccessAt`, `lastFailureAt` and `consecutiveFailures`.
 
 Real assistant requests update it: one or two failures in a row mean `DEGRADED`, three mean `UNAVAILABLE`, and any success means `HEALTHY`. A failed administrator test or scheduled check marks the provider `UNAVAILABLE` at once. `AI_HEALTH_CHECK_ENABLED=true` runs the connection test every `AI_HEALTH_CHECK_INTERVAL_MS` (default 15 minutes). Each scheduled run sends one synthetic prompt, so it is off by default. Health is kept in memory per instance, and provider text, prompts and keys are never stored.
+## External identifiers
+
+Other systems can refer to local records by their own identifiers. Each mapping has an `entityType` (`PATIENT`, `ADMISSION`, `DOCTOR`, `ROOM` or `PROCEDURE`), the local `entityId`, a `namespace` naming the issuing system (1–100 characters from letters, digits and `: . _ / -`, for example `urn:mrn:city-hospital`), the external `value` and an optional `source` recording where the link came from.
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| GET | `/external-ids?entityType=&entityId=` | Identifiers of one record in the active department |
+| GET | `/external-ids/resolve?entityType=&namespace=&value=` | The local record for an external identifier, or `404 EXTERNAL_ID_NOT_FOUND` |
+| POST | `/external-ids` | `{entityType, entityId, namespace, value, source?}`; staff and administrators. Repeating an identical link returns the existing one |
+| DELETE | `/external-ids/{id}` | Administrators only |
+
+Within a department an external identifier points at exactly one record, and a record has at most one identifier per namespace. A conflicting link is refused rather than moved or overwritten: `409 EXTERNAL_ID_CONFLICT` when the identifier already belongs to another record, and `409 EXTERNAL_ID_NAMESPACE_TAKEN` when the record already has an identifier in that namespace. Unlink first to correct a mapping. Links are audited as `EXTERNAL_ID_LINKED` / `EXTERNAL_ID_UNLINKED` with the namespace and source, never the identifier value.
 
 ## Rate-limit headers
 
