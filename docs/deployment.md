@@ -45,6 +45,29 @@ On `SIGTERM` the backend stops accepting new connections, readiness switches to 
 
 Keep the platform's kill timeout above the grace period. Compose sets `stop_grace_period: 30s`; Render sends `SIGTERM` and waits 30 seconds by default, which also fits.
 
+## Planned maintenance
+
+Switch the backend into maintenance mode before work that makes the API unreliable, such as a long database migration or a restore. Users then get one clear notice with a retry hint instead of ordinary service errors.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MAINTENANCE_MODE` | `false` | `true` answers every `/api/**` request with `503 MAINTENANCE`, except the health probes and `/api/v1/maintenance` |
+| `MAINTENANCE_MESSAGE` | generic notice | Text shown to users, for example the expected end time |
+| `MAINTENANCE_RETRY_AFTER_SECONDS` | `120` | Retry hint (5 to 86400) sent as the `Retry-After` header and `retryAfterSeconds` |
+| `MAINTENANCE_BYPASS_TOKEN` | empty | Operator bypass secret of at least 24 characters; empty disables the bypass |
+
+The notice is returned before authentication, CSRF, rate limiting and department checks, so blocked requests never reach the database, and signed-in and anonymous callers get the same answer. `GET /api/v1/maintenance` stays public so the sign-in screen can show the notice; when maintenance is off it returns only `{"active": false}`. Maintenance itself does not end sessions, but restarting an instance to change the setting signs its users out, because sessions live in memory (see [Multiple backend instances](#multiple-backend-instances)).
+
+Procedure:
+
+1. Generate a bypass token (for example `openssl rand -hex 24`) and store it with the other deployment secrets.
+2. Set `MAINTENANCE_MODE=true`, `MAINTENANCE_MESSAGE` and `MAINTENANCE_RETRY_AFTER_SECONDS` on every backend instance and restart them. `GET /api/v1/maintenance` must report `"active": true`.
+3. Run the migration or deploy the new release, keeping `MAINTENANCE_MODE=true`.
+4. Verify the release with the header `X-Maintenance-Bypass: <token>`, for example `curl -H "X-Maintenance-Bypass: $TOKEN" https://<host>/api/v1/auth/csrf`, followed by a sign-in and the checks you need. The frontend `/api` proxy forwards the header, so a browser header extension works too. The bypass only skips the maintenance switch: sign-in, CSRF and permissions still apply, and everyone else keeps seeing the notice.
+5. Set `MAINTENANCE_MODE=false` and restart. `GET /api/v1/maintenance` reports `"active": false` again.
+
+Readiness keeps checking the database during maintenance. If the database is offline, the platform may stop routing to the backend and show its own error page instead of the notice. The token is compared as a SHA-256 digest in constant time and is never logged or returned; rotate it after a window in which it was shared widely.
+
 ## Request and database timeouts
 
 | Variable | Default | Bounds |

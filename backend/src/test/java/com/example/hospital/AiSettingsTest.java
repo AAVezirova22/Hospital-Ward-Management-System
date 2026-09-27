@@ -24,4 +24,11 @@ class AiSettingsTest extends HospitalSupport {
     request("staff", "GET", "/api/v1/settings/ai", null).andExpect(status().isForbidden());
     request("doctor", "POST", "/api/v1/settings/ai/test", null).andExpect(status().isForbidden());
   }
+
+  @Test
+  void healthIsVisibleToAdministratorsOnly() throws Exception {
+    var health = result(request("admin", "GET", "/api/v1/settings/ai/health", null), 200);
+    assertThat(health.get("status").asText()).isEqualTo("NOT_EXTERNAL");
+    request("staff", "GET", "/api/v1/settings/ai/health", null).andExpect(status().isForbidden());
+  }
 }

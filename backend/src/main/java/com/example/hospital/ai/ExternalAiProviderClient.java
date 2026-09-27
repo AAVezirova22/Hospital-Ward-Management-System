@@ -12,9 +12,22 @@ public class ExternalAiProviderClient implements AiModelClient {
   private final int timeout;
   private final ObjectMapper json;
   private final HttpClient http;
+  private final AiProviderHealth health;
+
+  /** A non-200 provider status, kept only as a failure category for health reporting. */
+  private static final class ProviderStatus extends RuntimeException {
+    final int status;
+    ProviderStatus(int status) { super(null, null, false, false); this.status = status; }
+  }
 
   public ExternalAiProviderClient(
       String url, String key, String model, int timeout, ObjectMapper json) {
+    this(url, key, model, timeout, json, null);
+  }
+
+  public ExternalAiProviderClient(
+      String url, String key, String model, int timeout, ObjectMapper json, AiProviderHealth health) {
+    this.health = health;
     this.url = url;
     this.key = key;
     this.model = model;
@@ -73,8 +86,8 @@ public class ExternalAiProviderClient implements AiModelClient {
               .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)));
       if (!key.isBlank()) builder.header("Authorization", "Bearer " + key);
       var response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-      if (response.statusCode() != 200 || response.body().length() > 64000)
-        throw new IllegalStateException("Provider failed");
+      if (response.statusCode() != 200) throw new ProviderStatus(response.statusCode());
+      if (response.body().length() > 64000) throw new IllegalStateException("Response too large");
       var root = json.readTree(response.body());
       var usage = root.path("usage");
       if (usage.path("prompt_tokens").canConvertToLong() && usage.path("completion_tokens").canConvertToLong())
@@ -94,10 +107,20 @@ public class ExternalAiProviderClient implements AiModelClient {
                   throw new IllegalArgumentException("String arguments required");
                 args.put(e.getKey(), e.getValue().asText());
               });
+      if (health != null) health.record("TRAFFIC", "OK");
       return new ToolCall(f.path("name").asText(), args);
     } catch (Exception e) {
       if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+      if (health != null) health.record("TRAFFIC", category(e));
       throw new IllegalStateException("Assistant provider unavailable or invalid response.");
     }
+  }
+
+  private static String category(Exception e) {
+    if (e instanceof ProviderStatus status)
+      return status.status == 401 || status.status == 403 ? "AUTHENTICATION_FAILED" : "PROVIDER_ERROR";
+    if (e instanceof java.net.http.HttpTimeoutException) return "TIMEOUT";
+    if (e instanceof java.io.IOException || e instanceof InterruptedException) return "UNREACHABLE";
+    return "INVALID_RESPONSE";
   }
 }

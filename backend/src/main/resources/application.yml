@@ -121,6 +121,13 @@ app:
   idempotency:
     # How long a stored response is replayed for retries that carry the same Idempotency-Key.
     ttl: ${IDEMPOTENCY_KEY_TTL:24h}
+  maintenance:
+    # Planned maintenance: API requests answer 503 MAINTENANCE with a retry hint (health stays open).
+    enabled: ${MAINTENANCE_MODE:false}
+    message: ${MAINTENANCE_MESSAGE:}
+    retry-after-seconds: ${MAINTENANCE_RETRY_AFTER_SECONDS:120}
+    # Operators send it as X-Maintenance-Bypass to verify a release while maintenance is on.
+    bypass-token: ${MAINTENANCE_BYPASS_TOKEN:}
   diagnostics:
     # Log statements at or above this many milliseconds (redacted); 0 disables the log.
     slow-query-ms: ${SLOW_QUERY_MS:500}
@@ -131,6 +138,9 @@ app:
     key: ${AI_API_KEY:}
     model: ${AI_MODEL:}
     timeout-seconds: 15
+    # Optional scheduled provider check (sends one synthetic prompt per interval; off by default).
+    health-check-enabled: ${AI_HEALTH_CHECK_ENABLED:false}
+    health-check-interval-ms: ${AI_HEALTH_CHECK_INTERVAL_MS:900000}
     rate-limit: 20
     action-ttl-seconds: 300
     cost:
