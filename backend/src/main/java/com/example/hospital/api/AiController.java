@@ -3,6 +3,7 @@ package com.example.hospital.api;
 import com.example.hospital.ai.*;
 import com.example.hospital.api.MessageInput;
 import jakarta.validation.Valid;
+import java.util.Map;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -13,9 +14,11 @@ public class AiController {
   private final AiActionService actions;
   private final AiSourceService sources;
   private final AiPatientDraftService patientDrafts;
+  private final AssistantDataService assistantData;
 
   public AiController(AiAssistantService a, AiActionService b, AiSourceService sources,
-      AiPatientDraftService patientDrafts) {
+      AiPatientDraftService patientDrafts, AssistantDataService assistantData) {
+    this.assistantData = assistantData;
     assistant = a;
     actions = b;
     this.sources = sources;
@@ -52,6 +55,16 @@ public class AiController {
   @PostMapping("/assistant/messages")
   public Object message(@Valid @RequestBody MessageInput in) {
     return assistant.message(in);
+  }
+
+  @GetMapping("/assistant/my-data")
+  public Object myData() {
+    return assistantData.export();
+  }
+
+  @PostMapping("/assistant/my-data/clear")
+  public Object clearMyData(@RequestBody Map<String, String> input) {
+    return assistantData.clear(input.get("confirmation"));
   }
 
   @GetMapping("/assistant/sessions/{key}")
