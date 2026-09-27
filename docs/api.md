@@ -241,6 +241,14 @@ The feed has one all-day event per active admission with an expected discharge d
 
 Outcomes: `COMPATIBLE` (exactly one call to the synthetic tool), `TOOL_CALLS_UNSUPPORTED`, `AUTHENTICATION_FAILED` (401/403), `PROVIDER_ERROR` (other HTTP status), `TIMEOUT`, `UNREACHABLE`, `INVALID_URL`, `INSECURE_PROTOCOL` (plain HTTP is accepted only for loopback addresses) and `NOT_EXTERNAL` (`AI_MODE` is not `external`). Provider response text is never returned.
 
+`GET /settings/ai/health` (administrators only) reports the provider's last known health on this instance:
+
+- `status`: `HEALTHY`, `DEGRADED`, `UNAVAILABLE`, `UNKNOWN` (no observation yet) or `NOT_EXTERNAL`.
+- `category`: the non-sensitive failure category, one of `TIMEOUT`, `UNREACHABLE`, `AUTHENTICATION_FAILED`, `PROVIDER_ERROR`, `INVALID_RESPONSE` or a connection-test outcome.
+- `source`: `TRAFFIC`, `TEST` or `SCHEDULED`.
+- `lastCheckedAt`, `lastSuccessAt`, `lastFailureAt` and `consecutiveFailures`.
+
+Real assistant requests update it: one or two failures in a row mean `DEGRADED`, three mean `UNAVAILABLE`, and any success means `HEALTHY`. A failed administrator test or scheduled check marks the provider `UNAVAILABLE` at once. `AI_HEALTH_CHECK_ENABLED=true` runs the connection test every `AI_HEALTH_CHECK_INTERVAL_MS` (default 15 minutes). Each scheduled run sends one synthetic prompt, so it is off by default. Health is kept in memory per instance, and provider text, prompts and keys are never stored.
 ## External identifiers
 
 Other systems can refer to local records by their own identifiers. Each mapping has an `entityType` (`PATIENT`, `ADMISSION`, `DOCTOR`, `ROOM` or `PROCEDURE`), the local `entityId`, a `namespace` naming the issuing system (1–100 characters from letters, digits and `: . _ / -`, for example `urn:mrn:city-hospital`), the external `value` and an optional `source` recording where the link came from.

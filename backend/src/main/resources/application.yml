@@ -138,6 +138,9 @@ app:
     key: ${AI_API_KEY:}
     model: ${AI_MODEL:}
     timeout-seconds: 15
+    # Optional scheduled provider check (sends one synthetic prompt per interval; off by default).
+    health-check-enabled: ${AI_HEALTH_CHECK_ENABLED:false}
+    health-check-interval-ms: ${AI_HEALTH_CHECK_INTERVAL_MS:900000}
     rate-limit: 20
     action-ttl-seconds: 300
     cost:
