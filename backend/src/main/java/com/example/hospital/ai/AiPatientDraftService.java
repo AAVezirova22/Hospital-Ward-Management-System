@@ -57,6 +57,16 @@ public class AiPatientDraftService {
     this.actor = actor; this.audit = audit; this.json = json; this.mode = mode;
   }
 
+  public int countFor(long userId, long departmentId) {
+    return (int) drafts.values().stream().filter(d -> d.userId() == userId && d.departmentId() == departmentId).count();
+  }
+
+  public int removeAllFor(long userId, long departmentId) {
+    int before = drafts.size();
+    drafts.values().removeIf(d -> d.userId() == userId && d.departmentId() == departmentId);
+    return before - drafts.size();
+  }
+
   public Map<String, Object> disclosure() {
     boolean external = "external".equals(mode);
     String description = external

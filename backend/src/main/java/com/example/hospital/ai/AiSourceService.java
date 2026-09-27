@@ -129,6 +129,21 @@ public class AiSourceService {
 
   public synchronized void remove(String id) { purge(); owned(id); sources.remove(id); }
 
+  /** Name, size and expiry of one user's files in one department; never the extracted text. */
+  public synchronized List<Map<String, Object>> summariesFor(long userId, long departmentId) {
+    purge();
+    return sources.values().stream()
+        .filter(s -> s.userId() == userId && s.departmentId() == departmentId)
+        .map(s -> Map.<String, Object>of("id", s.id(), "name", s.name(), "characters", s.text().length(), "expiresAt", s.expiresAt()))
+        .toList();
+  }
+
+  public synchronized int removeAllFor(long userId, long departmentId) {
+    int before = sources.size();
+    sources.values().removeIf(s -> s.userId() == userId && s.departmentId() == departmentId);
+    return before - sources.size();
+  }
+
   /** Records offsets in the exact text emitted by Tika while retaining only structural locations Tika exposes. */
   private static final class LocatedTextWriter extends Writer {
     private final StringBuilder text = new StringBuilder();
