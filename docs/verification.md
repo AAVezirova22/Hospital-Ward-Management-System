@@ -13,6 +13,22 @@ Date: 2026-09-19. All bundled sample data is synthetic.
 
 Backend integration tests include real PDF, XLSX, and DOCX parser fixtures, consent version and withdrawal checks, per-subscription reminder behavior, and the synthetic discharge pathway from document submission through review, task creation, portal summary, and cancellation. The browser checks used a mocked API, and no live external AI or push provider was called.
 
+## Care pathway follow-up changes (2026-09-28)
+
+Covers the corrected-identity gate, separate summary publication, reminder auditing and delivery reclaim, and audit-trail completeness. The state above this section describes the pre-change baseline and is retained for history.
+
+| Check | Result |
+| --- | --- |
+| `mvn -f backend/pom.xml -DskipTests test-compile` | Passed (exit 0) |
+| Backend unit tests not requiring a database: `TaskReminderPolicyTest`, `AuditServiceReadTest`, `DischargeReminderServiceTest`, `AiModelTest` | **27 passed, 0 failures, 0 errors** |
+| Frontend unit tests and TypeScript type-check | **51 passed**; type-check passed |
+| Flyway migration versions are unique | Passed; no duplicate versions after adding `V37` |
+| `node scripts/check-text-encoding.mjs` | 557 files valid UTF-8, no mojibake |
+
+Not executed locally, and therefore verified only in CI: the DB-backed integration suites, which need Docker or `TEST_DATABASE_URL`. The changed tests in `PatientDocumentDraftIntegrationTest`, `PatientConsentIntegrationTest`, `TaskReminderIntegrationTest` and `SyntheticDischargePathwayIntegrationTest` are all in that group. `AiSafetyTest` also has one failure that predates this work: a Mockito argument-matcher mismatch in `modelFailureIsStructuredAndRateLimitOnlyAffectsAssistant`.
+
+This work also repaired the backend build, which did not compile at `daef984`: Dependabot had moved `tika-parsers-standard-package` to 4.0.0, where that artifact is a POM-only aggregator with no jar, and three `AiSourceService` call sites used 4.0.0-removed APIs. The dependency is now declared with `<type>pom</type>`, `tika-parser-pdf-module` is explicit, and OCR is configured through `OcrConfig` with `NO_OCR` preserved so scanned images are still rejected rather than silently OCR'd.
+
 ## Conversion checks executed
 
 | Check | Result |

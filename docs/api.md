@@ -128,6 +128,34 @@ These routes require an authenticated department staff member (admin, medical st
 
 Push titles and bodies are generic for both task reminders and operational notices; links contain only a random UUID token. Task links use `/app/tasks?reminder=…`, and operational links use `/app/dashboard?notification=…`. They include no patient, task, or notice details. The client must call the corresponding authenticated open route after navigation before requesting task or notification details. Push endpoints are limited to known browser push provider hosts. Task reminder schedules and retries are tracked separately for each active browser subscription, so each opted-in device receives its own delivery. Revoked provider subscriptions are marked revoked and excluded from future deliveries; retries use a fixed delay and stop after five attempts. Quiet hours are evaluated in the clinician's configured IANA time zone.
 
+Reminder preferences, subscription creation and revocation are recorded in the department audit trail. A push subscription endpoint is bearer-style secret material, so only its host is audited — never the full URL and never the `p256dh`/`auth` keys. A delivery claimed by a process that then restarts is returned to `PENDING` once its lease expires, so a crash cannot strand a reminder permanently.
+
+## Care pathway summaries
+
+Publishing a patient-facing summary is a separate, separately-approved act from launching care tasks. `POST /care-workflows/{id}/launch` and `POST /care-workflow-runs/{id}/approve` may record a `patientSummary`, but that text stays unpublished: the portal returns it only after an explicit publication.
+
+| Method | Path | Request / result |
+| --- | --- | --- |
+| POST | `/care-workflow-runs/{id}/publish-summary` | `{version,approved,patientSummary}`. Requires `approved: true`, an `ACTIVE` run, the current run version, and active `PORTAL_FOLLOW_UP_SUMMARY` consent. Sets `summaryPublishedAt`/`summaryPublishedBy` |
+| POST | `/care-workflow-runs/{id}/retract-summary` | `{version,approved}`. Clears the publication so the portal hides the summary again, without cancelling the pathway or erasing its history |
+| GET | `/portal/care-summaries` | The patient's own published summaries |
+
+Publication and retraction audit `CARE_WORKFLOW_SUMMARY_PUBLISHED` and `CARE_WORKFLOW_SUMMARY_RETRACTED` with the template and version but never the summary text. Withdrawing consent hides every summary for that patient regardless of publication state, and a cancelled run never appears in the portal.
+
+## Patient document drafts
+
+Identity candidates returned by the assistant are a review aid, not a decision. Each candidate carries the basis and strength of the match, and the dates of birth are compared rather than merely displayed:
+
+| Field | Meaning |
+| --- | --- |
+| `matchedOn` | `IDENTIFIER` or `NAME` — which field produced the candidate |
+| `matchStrength` | `CORROBORATED` (identifier and date of birth agree), `IDENTIFIER_ONLY`, or `NAME_ONLY` |
+| `dateOfBirthAgrees` | `true`, `false`, or `null` when either date is unknown |
+
+Candidates sort with corroborated records first. Identity fields still produce candidates when they are `CONFLICT` or `UNCERTAIN`, so an ambiguous identifier surfaces existing records instead of steering the reviewer towards a duplicate patient.
+
+`PUT /assistant/patient-drafts/{draftId}/patient` refuses with `409 PATIENT_DRAFT_IDENTITY_UNRESOLVED` when an identity field is not `SUGGESTED`, or when the selected record's date of birth contradicts the document. Binding a draft writes `PATIENT_DRAFT_BOUND` to the audit trail. A bound draft cannot be re-bound to a different patient (`409 PATIENT_DRAFT_BOUND`).
+
 ## Assistant
 
 | Method | Path | Body / result |
