@@ -32,7 +32,11 @@ type Candidate = Pick<
   "id" | "patientIdentifier" | "firstName" | "lastName" | "dateOfBirth"
 > & {
   matchedOn?: "IDENTIFIER" | "NAME";
-  matchStrength?: "CORROBORATED" | "IDENTIFIER_ONLY" | "NAME_ONLY";
+  matchStrength?:
+    | "CORROBORATED"
+    | "IDENTIFIER_CONTRADICTED"
+    | "IDENTIFIER_ONLY"
+    | "NAME_ONLY";
   dateOfBirthAgrees?: boolean | null;
 };
 type Draft = {
@@ -227,22 +231,26 @@ export function PatientDocumentDraft({
         phoneNumber: values.phoneNumber || null,
         version: record?.version ?? null,
       };
+      // Bind the document to the chosen record BEFORE writing any field into the chart.
+      // bindPatient is where identity is validated, and it refuses when the source
+      // contradicts the record. Writing first would commit a conflicted name or date of
+      // birth to the chart and then fail, leaving the record mutated and the clinician
+      // looking at an error with no way to undo it.
+      if (draft?.draftId) {
+        await api(`/assistant/patient-drafts/${draft.draftId}/patient`, "PUT", {
+          patientId: record?.id ?? target,
+        });
+      }
       const saved = await api<Patient>(
         record ? `/patients/${record.id}` : "/patients",
         record ? "PUT" : "POST",
         payload,
       );
       setSavedPatient(saved);
-      if (draft?.draftId) {
-        await api(`/assistant/patient-drafts/${draft.draftId}/patient`, "PUT", {
-          patientId: saved.id,
-        });
-        setDraftBound(true);
-      }
+      if (draft?.draftId) setDraftBound(true);
       await client.invalidateQueries();
     });
   }
-
   return (
     <section
       className="pathway-import panel"
@@ -446,9 +454,11 @@ export function PatientDocumentDraft({
                         <span className="pathway-choice-note">
                           {candidate.matchStrength === "CORROBORATED"
                             ? "Identifier and date of birth both agree."
-                            : candidate.matchStrength === "IDENTIFIER_ONLY"
-                              ? "Only the patient ID matches. Check the date of birth before attaching."
-                              : "Only the name matches. Confirm this is the same person."}
+                            : candidate.matchStrength === "IDENTIFIER_CONTRADICTED"
+                              ? "The patient ID matches but the date of birth in this document differs. Do not attach it to this record — it is likely a different person."
+                              : candidate.matchStrength === "IDENTIFIER_ONLY"
+                                ? "Only the patient ID matches. Check the date of birth before attaching."
+                                : "Only the name matches. Confirm this is the same person."}
                         </span>
                       </label>
                     ))}

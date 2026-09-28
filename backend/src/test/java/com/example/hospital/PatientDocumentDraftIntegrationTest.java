@@ -211,10 +211,18 @@ class PatientDocumentDraftIntegrationTest {
         .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
         .andExpect(status().isOk()).andReturn();
     JsonNode mismatchDraft = json.readTree(mismatch.getResponse().getContentAsString());
-    JsonNode twin = mismatchDraft.at("/matchCandidates/0");
-    assertThat(twin.path("id").asLong()).isEqualTo(twinId);
-    assertThat(twin.path("matchStrength").asText()).isEqualTo("IDENTIFIER_ONLY");
+    // Both records match by name, so look the twin up by id rather than by position:
+    // candidates are sorted corroborated-first, and the correct record is corroborated.
+    JsonNode twin = null;
+    for (JsonNode entry : mismatchDraft.path("matchCandidates"))
+      if (entry.path("id").asLong() == twinId) twin = entry;
+    assertThat(twin).isNotNull();
+    assertThat(twin.path("matchStrength").asText()).isEqualTo("IDENTIFIER_CONTRADICTED");
     assertThat(twin.path("dateOfBirthAgrees").asBoolean()).isFalse();
+    // The contradicted record is labelled, not silently folded in with the name matches,
+    // and the record that genuinely agrees sorts ahead of it.
+    assertThat(mismatchDraft.at("/matchCandidates/0").path("matchStrength").asText())
+        .isEqualTo("CORROBORATED");
     // The contradicted record must not be attachable, but the corrected one must remain available.
     mvc.perform(put("/api/v1/assistant/patient-drafts/" + mismatchDraft.path("draftId").asText() + "/patient")
         .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)

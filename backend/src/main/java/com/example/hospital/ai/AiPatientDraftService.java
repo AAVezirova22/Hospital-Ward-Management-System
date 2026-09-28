@@ -513,10 +513,12 @@ public class AiPatientDraftService {
     view.put("firstName", p.getFirstName()); view.put("lastName", p.getLastName());
     view.put("dateOfBirth", p.getDateOfBirth());
     view.put("matchedOn", matchedOn);
-    // A name-only hit is never promoted to a strong match, and a contradicting
-    // date of birth is always reported so a reviewer cannot attach a chart blindly.
+    // Four distinct outcomes, and the order matters: an identifier that matches
+    // while the date of birth contradicts is the most dangerous case, so it must not
+    // be folded into a benign-sounding label.
     String strength = dobAgrees ? "CORROBORATED"
-        : "IDENTIFIER".equals(matchedOn) && !dobKnown ? "IDENTIFIER_ONLY" : "NAME_ONLY";
+        : "IDENTIFIER".equals(matchedOn) ? (dobKnown ? "IDENTIFIER_CONTRADICTED" : "IDENTIFIER_ONLY")
+        : "NAME_ONLY";
     view.put("matchStrength", strength);
     view.put("dateOfBirthAgrees", dobAgrees ? Boolean.TRUE : dobKnown ? Boolean.FALSE : null);
     return view;
