@@ -223,6 +223,16 @@ class SyntheticDischargePathwayIntegrationTest {
     assertThat(reminder.get("action_token")).isInstanceOf(UUID.class);
     assertThat(reminder.get("scheduled_at")).isEqualTo(reminder.get("due_at"));
 
+    // Launching drafts the summary but does not release it: publication is a separate,
+    // separately-approved act, so nothing reaches the portal yet.
+    assertThat(patientGet("/portal/care-summaries", patientUsername).isEmpty()).isTrue();
+    MvcResult published = mvc.perform(adminPostBuilder("/care-workflow-runs/" + runId + "/publish-summary",
+        Map.of("version", launched.path("version").asLong(), "approved", true,
+            "patientSummary", "Clinician-approved cardiology follow-up is planned.")))
+        .andExpect(status().isOk()).andReturn();
+    assertThat(json.readTree(published.getResponse().getContentAsString())
+        .path("summaryPublishedAt").isNull()).isFalse();
+
     JsonNode visibleSummary = patientGet("/portal/care-summaries", patientUsername);
     assertThat(visibleSummary.size()).isEqualTo(1);
     assertThat(visibleSummary.get(0).path("summary").asText())
@@ -232,8 +242,9 @@ class SyntheticDischargePathwayIntegrationTest {
     assertThat(jdbc.queryForObject("select count(*) from audit_events where event_type='CARE_TASK_SOURCE_REVIEWED' and entity_id=?",
         Integer.class, taskId)).isEqualTo(1);
 
+    JsonNode current = adminGet("/care-workflow-runs/" + runId, 200);
     JsonNode cancelled = adminPost("/care-workflow-runs/" + runId + "/cancel",
-        Map.of("version", launched.path("version").asLong()), 200);
+        Map.of("version", current.path("version").asLong()), 200);
     assertThat(cancelled.path("status").asText()).isEqualTo("CANCELLED");
     assertThat(cancelled.path("cancelledAt").isNull()).isFalse();
     JsonNode retainedHistory = adminGet("/care-workflow-runs/" + runId, 200);

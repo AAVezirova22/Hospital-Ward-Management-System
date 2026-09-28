@@ -64,6 +64,11 @@ public class CareWorkflowService {
       @jakarta.validation.constraints.Size(max = 50) List<@jakarta.validation.Valid ReviewedAction> reviewedFollowUpActions,
       @jakarta.validation.constraints.Size(max = 64) String patientDraftId) {}
   public record CancelInput(@jakarta.validation.constraints.NotNull Long version) {}
+  /** Publishing is a separate, separately-approved act from launching tasks. */
+  public record SummaryPublishInput(
+      @jakarta.validation.constraints.NotNull Long version,
+      @jakarta.validation.constraints.Size(max = 2000) String patientSummary,
+      @jakarta.validation.constraints.AssertTrue boolean approved) {}
   public record ApprovalInput(
       @jakarta.validation.constraints.AssertTrue boolean approved,
       @jakarta.validation.constraints.Size(max = 200) String sourceReference,
@@ -349,11 +354,59 @@ public class CareWorkflowService {
     long patientId = portalPatient(); long departmentId = department();
     Boolean activeConsent = jdbc.queryForObject("select count(*)>0 from patient_consents where department_id=? and patient_id=? and consent_type='PORTAL_FOLLOW_UP_SUMMARY' and consent_version=? and withdrawn_at is null", Boolean.class, departmentId, patientId, summaryConsentVersion);
     if (!Boolean.TRUE.equals(activeConsent)) return List.of();
+    // Only an explicitly published summary reaches the portal. The four columns below are the
+    // complete patient-visible projection: no task, owner, provenance or internal note field.
     return jdbc.queryForList("""
         select r.id, r.patient_summary as summary, r.launched_at as approvedAt, r.reviewed_at as reviewedAt
         from care_workflow_runs r where r.department_id=? and r.patient_id=? and r.status in ('ACTIVE','COMPLETED')
-          and r.patient_summary is not null and r.patient_summary<>'' order by r.launched_at desc
+          and r.patient_summary is not null and r.patient_summary<>''
+          and r.summary_published_at is not null
+        order by r.launched_at desc
         """, departmentId, patientId);
+  }
+
+  /** Publishes the already-approved patient-facing summary. Requires its own explicit approval. */
+  @Transactional
+  public Map<String, Object> publishSummary(long runId, SummaryPublishInput in) {
+    clinician();
+    if (!in.approved()) throw new ApiException(400, "REVIEW_REQUIRED", "Confirm the summary before publishing it to the patient portal.");
+    var current = run(runId);
+    if (!"ACTIVE".equals(current.get("status"))) throw ApiException.conflict("RUN_CLOSED", "Only an active pathway can publish a summary.");
+    long departmentId = department();
+    if (((Number) current.get("version")).longValue() != in.version())
+      throw ApiException.conflict("STALE_STATE", "This workflow changed. Refresh before publishing.");
+    String summary = clean(in.patientSummary());
+    if (summary == null) throw invalid("Write the summary the patient should read, or leave it unpublished.");
+    long patientId = ((Number) current.get("patientId")).longValue();
+    requirePortalSummaryConsent(patientId);
+    int changed = jdbc.update("""
+        update care_workflow_runs set patient_summary=?, summary_published_by=?, summary_published_at=now(),
+          version=version+1 where department_id=? and id=? and status='ACTIVE' and version=?
+        """, summary, actor.user().getId(), departmentId, runId, in.version());
+    if (changed != 1) throw ApiException.conflict("STALE_STATE", "This workflow changed. Refresh before publishing.");
+    audit.log("CARE_WORKFLOW_SUMMARY_PUBLISHED", "CareWorkflowRun", runId, "UI",
+        Map.of("templateId", current.get("templateId"), "workflowVersion", current.get("workflowVersion")));
+    return run(runId);
+  }
+
+  /** Withdraws a summary from the portal. The audit trail and the pathway history are kept. */
+  @Transactional
+  public Map<String, Object> retractSummary(long runId, SummaryPublishInput in) {
+    clinician();
+    if (!in.approved()) throw new ApiException(400, "REVIEW_REQUIRED", "Confirm that the patient should no longer see this summary.");
+    var current = run(runId);
+    if (!"ACTIVE".equals(current.get("status"))) throw ApiException.conflict("RUN_CLOSED", "Only an active pathway can retract a summary.");
+    long departmentId = department();
+    if (((Number) current.get("version")).longValue() != in.version())
+      throw ApiException.conflict("STALE_STATE", "This workflow changed. Refresh before retracting.");
+    int changed = jdbc.update("""
+        update care_workflow_runs set summary_published_at=null, summary_published_by=null, version=version+1
+        where department_id=? and id=? and status='ACTIVE' and version=?
+        """, departmentId, runId, in.version());
+    if (changed != 1) throw ApiException.conflict("STALE_STATE", "This workflow changed. Refresh before retracting.");
+    audit.log("CARE_WORKFLOW_SUMMARY_RETRACTED", "CareWorkflowRun", runId, "UI",
+        Map.of("templateId", current.get("templateId"), "workflowVersion", current.get("workflowVersion")));
+    return run(runId);
   }
 
   @Transactional
@@ -393,6 +446,7 @@ public class CareWorkflowService {
           v.version_number as "workflowVersion", r.patient_id as "patientId", r.admission_id as "admissionId",
           r.trigger_type as "trigger", r.status, r.version, r.source_reference as "sourceReference",
           r.patient_summary as "patientSummary", r.reviewed_by as "reviewedBy", r.reviewed_at as "reviewedAt",
+          r.summary_published_by as "summaryPublishedBy", r.summary_published_at as "summaryPublishedAt",
           r.launched_by as "launchedBy", r.launched_at as "launchedAt", r.cancelled_at as "cancelledAt"
         from care_workflow_runs r join care_workflow_versions v on v.id=r.workflow_version_id
         where r.department_id=? and r.id=?
