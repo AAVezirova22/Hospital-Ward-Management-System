@@ -8,6 +8,7 @@ import type { WorkspaceList } from "../../api/contracts";
 import { ErrorBox, Link, Title, useUser } from "../../components/workspace";
 import type { CareTask } from "./types";
 import { ReminderSettings } from "./ReminderSettings";
+import { taskUpdateNotice } from "./care-review-copy";
 import { dueSort, formatDue, isOverdue } from "./due";
 
 type ReminderOpen = { taskId: number };
@@ -41,6 +42,7 @@ export function CareTasks() {
   const [snoozeNotice, setSnoozeNotice] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const [notices, setNotices] = useState<Record<number, string>>({});
   useEffect(() => {
     if (!reminder) return;
     let active = true;
@@ -55,6 +57,30 @@ export function CareTasks() {
       active = false;
     };
   }, [reminder]);
+  /**
+   * Reports what the service actually stored rather than what was asked for, so
+   * an assignment the service declined is never shown as a success.
+   */
+  function recordOutcome(
+    task: CareTask,
+    change: "status" | "assignee",
+    requestedAssigneeId: number | null,
+  ) {
+    const saved = tasks.data?.find((row) => row.id === task.id);
+    const savedAssigneeId = saved?.assignedUserId ?? task.assignedUserId;
+    setNotices((current) => ({
+      ...current,
+      [task.id]: taskUpdateNotice({
+        change,
+        savedStatus: saved?.status ?? task.status,
+        savedAssigneeId,
+        savedAssigneeName:
+          (assignees.data ?? []).find((person) => person.id === savedAssigneeId)
+            ?.displayName ?? null,
+        requestedAssigneeId,
+      }),
+    }));
+  }
   async function change(task: CareTask, status: CareTask["status"]) {
     setBusyId(task.id);
     setError(null);
@@ -65,22 +91,33 @@ export function CareTasks() {
         version: task.version,
       });
       await client.invalidateQueries({ queryKey: ["care-tasks"] });
+      recordOutcome(task, "status", task.assignedUserId);
     } catch (cause) {
       setError(cause as Error);
     } finally {
       setBusyId(null);
     }
   }
-  async function assign(task: CareTask, assignedUserId: number) {
+  /**
+   * Accepts an explicit null so the "Unassigned" option is a real choice rather
+   * than a value the handler silently discards. CareWorkflowService.updateTask
+   * distinguishes an absent `assignedUserId` (keep the current assignee) from an
+   * explicit null (clear it), so this genuinely returns a task to the pool.
+   *
+   * The outcome still reports the assignee the service actually stored, so a
+   * request the service declined is never shown as a success.
+   */
+  async function assign(task: CareTask, assignedUserId: number | null) {
     setBusyId(task.id);
     setError(null);
     try {
-      await api(`/care-tasks/${task.id}`, "PATCH", {
+      await api<CareTask>(`/care-tasks/${task.id}`, "PATCH", {
         status: task.status,
         assignedUserId,
         version: task.version,
       });
       await client.invalidateQueries({ queryKey: ["care-tasks"] });
+      recordOutcome(task, "assignee", assignedUserId);
     } catch (cause) {
       setError(cause as Error);
     } finally {
@@ -186,10 +223,14 @@ export function CareTasks() {
                       aria-label={`Assign ${task.title}`}
                       value={task.assignedUserId ?? ""}
                       disabled={busyId === task.id}
-                      onChange={(event) => {
-                        if (event.target.value)
-                          void assign(task, Number(event.target.value));
-                      }}
+                      onChange={(event) =>
+                        void assign(
+                          task,
+                          event.target.value
+                            ? Number(event.target.value)
+                            : null,
+                        )
+                      }
                     >
                       <option value="">Unassigned</option>
                       {(assignees.data ?? [])
@@ -202,6 +243,8 @@ export function CareTasks() {
                     </select>
                   </label>
                 )}
+              {/* Per row outcome for an assign or complete request. */}
+              {notices[task.id] && <p role="status">{notices[task.id]}</p>}
               {task.status === "OPEN" && (
                 <button
                   className="secondary"

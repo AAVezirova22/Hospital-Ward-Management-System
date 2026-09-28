@@ -1,6 +1,7 @@
 "use client";
 
 import type { CareTaskDefinition } from "./types";
+import { actionFlag, formatConfidence } from "./care-review-copy";
 
 export type DocumentEvidence = {
   name: string;
@@ -149,9 +150,23 @@ export function DocumentActionReview({
       {draft.followUpActions.length === 0 && (
         <p>No explicit follow-up action was found in the document.</p>
       )}
+      {/* Legend for the badges below, so a colour or word is never the only
+          signal that an action still needs a decision. */}
+      {draft.followUpActions.some(
+        (action) => actionFlag(action).note.length > 0,
+      ) && (
+        <p className="document-action-legend">
+          <span className={`document-action-flag conflict`}>Conflict</span> the
+          document contradicts itself ·{" "}
+          <span className="document-action-flag caution">Unresolved</span> the
+          suggestion is not settled · each action still needs your own accept or
+          reject decision.
+        </p>
+      )}
       {draft.followUpActions.map((action) => {
         const review = reviews[action.actionId];
         const selected = review?.kind === "INCLUDED" ? review.selection : null;
+        const flag = actionFlag(action);
         const candidates: DocumentActionCandidate[] = [
           {
             title: action.title,
@@ -166,14 +181,30 @@ export function DocumentActionReview({
           <article className="document-action" key={action.actionId}>
             <div className="section-heading">
               <strong>{action.title}</strong>
-              <span className="status">{action.status.toLowerCase()}</span>
+              {/* The bare lowercase status pill was the only previous signal and
+                  had no legend. The badge names the review state and the note
+                  below says what to do about it; the raw model status stays on
+                  data-status for styling and debugging. */}
+              <span
+                className={`document-action-flag ${flag.tone}`}
+                data-status={action.status}
+              >
+                {flag.label}
+                <span className="document-action-flag-status">
+                  {action.status.toLowerCase()}
+                </span>
+              </span>
             </div>
+            {flag.note && <p className="document-action-flag-note">{flag.note}</p>}
             {candidates.map((candidate, index) => (
               <div className="document-action-candidate" key={index}>
                 <p>
                   <strong>{candidate.title}</strong> · Due{" "}
                   {candidate.dueDate ?? "unspecified"}
                   {candidate.dueTime ? ` at ${candidate.dueTime}` : ""}
+                </p>
+                <p className="document-action-confidence">
+                  {formatConfidence(candidate.confidence)}
                 </p>
                 <blockquote>
                   “{candidate.source.excerpt}”
