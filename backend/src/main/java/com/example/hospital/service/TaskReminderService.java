@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import nl.martijndwars.webpush.Notification;
@@ -47,6 +48,7 @@ public class TaskReminderService {
   private final JdbcTemplate jdbc;
   private final Actor actor;
   private final ObjectMapper json;
+  private final AuditService audit;
   private final String vapidPublicKey;
   private final String vapidPrivateKey;
   private final String vapidSubject;
@@ -56,6 +58,7 @@ public class TaskReminderService {
       JdbcTemplate jdbc,
       Actor actor,
       ObjectMapper json,
+      AuditService audit,
       @Value("${app.push.vapid-public-key:}") String vapidPublicKey,
       @Value("${app.push.vapid-private-key:}") String vapidPrivateKey,
       @Value("${app.push.vapid-subject:mailto:admin@example.invalid}") String vapidSubject,
@@ -63,6 +66,7 @@ public class TaskReminderService {
     this.jdbc = jdbc;
     this.actor = actor;
     this.json = json;
+    this.audit = audit;
     this.vapidPublicKey = vapidPublicKey == null ? "" : vapidPublicKey.strip();
     this.vapidPrivateKey = vapidPrivateKey == null ? "" : vapidPrivateKey.strip();
     this.vapidSubject = vapidSubject;
@@ -97,6 +101,11 @@ public class TaskReminderService {
           operational_alerts = excluded.operational_alerts, updated_at = now()
         """, user.getId(), input.optedIn(), zone.getId(), input.minutesBefore(),
         input.quietHoursStart(), input.quietHoursEnd(), input.operationalAlerts());
+    // Opting out of phone reminders is a privacy-relevant act, so it is audited. The
+    // recorded settings are the clinician's own, never a task, patient or department.
+    audit.log("TASK_REMINDER_PREFERENCES_UPDATED", "TaskReminderPreferences", user.getId(), "UI",
+        Map.of("optedIn", input.optedIn(), "minutesBefore", input.minutesBefore(),
+            "operationalAlerts", input.operationalAlerts(), "timeZone", zone.getId()));
     if (!input.optedIn()) {
       jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'OPTED_OUT', updated_at = now()"
           + " where recipient_user_id = ? and status in ('PENDING', 'FAILED')", user.getId());
@@ -135,6 +144,10 @@ public class TaskReminderService {
         on conflict (user_id, endpoint) do update set p256dh_key = excluded.p256dh_key,
           auth_secret = excluded.auth_secret, revoked_at = null
         """, user.getId(), endpoint.toString(), input.p256dh(), input.auth());
+    // Only the endpoint host is recorded: the full URL is a bearer-style secret and the
+    // subscription keys must never reach the audit trail.
+    audit.log("PUSH_SUBSCRIPTION_CREATED", "PushSubscription", null, "UI",
+        Map.of("endpointHost", endpoint.getHost()));
     reconcileForUser(user.getId());
     return subscriptionStatus(user.getId());
   }
@@ -150,6 +163,8 @@ public class TaskReminderService {
     jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'SUBSCRIPTION_REVOKED', updated_at = now()"
         + " where subscription_id = ? and recipient_user_id = ? and status in ('PENDING', 'FAILED')",
         subscriptionId, user.getId());
+    audit.log("PUSH_SUBSCRIPTION_REVOKED", "PushSubscription", subscriptionId, "UI",
+        Map.of("reason", "SUBSCRIPTION_REVOKED"));
     return subscriptionStatus(user.getId());
   }
 
@@ -161,6 +176,8 @@ public class TaskReminderService {
         + " where recipient_user_id = ? and status in ('PENDING', 'FAILED')", user.getId());
     jdbc.update("update task_reminders set status = 'CANCELLED', error_code = 'SUBSCRIPTIONS_REVOKED', updated_at = now()"
         + " where recipient_user_id = ? and status in ('PENDING', 'FAILED')", user.getId());
+    audit.log("PUSH_SUBSCRIPTIONS_REVOKED", "PushSubscription", user.getId(), "UI",
+        Map.of("reason", "SUBSCRIPTIONS_REVOKED"));
     return subscriptionStatus(user.getId());
   }
 
@@ -353,8 +370,29 @@ public class TaskReminderService {
         """, OPERATIONAL_DELIVERY, user.getId(), DepartmentContext.id(), Math.max(1, Math.min(100, limit)));
   }
 
+  /**
+   * Returns deliveries stuck in SENDING to PENDING once their lease has expired, so a reminder
+   * is not silently abandoned by a crash. The attempt counter is deliberately not reset: the
+   * row still counts as an attempt so MAX_ATTEMPTS remains an effective bound.
+   */
+  private void reclaimStrandedSends(Timestamp expiredBefore) {
+    // A row already at MAX_ATTEMPTS must become FAILED, not PENDING: the due query guards
+    // the attempt count with `(status <> 'FAILED' or attempt_count < MAX_ATTEMPTS)`, so
+    // reclaiming it to PENDING would short-circuit that guard and allow one extra attempt.
+    jdbc.update("update task_reminders set status = case when attempt_count >= ? then 'FAILED' else 'PENDING' end,"
+        + " next_attempt_at = now(), updated_at = now()"
+        + " where status = 'SENDING' and last_attempt_at < ?", MAX_ATTEMPTS, expiredBefore);
+    jdbc.update("update operational_push_deliveries set status = case when attempt_count >= ? then 'FAILED' else 'PENDING' end,"
+        + " next_attempt_at = now(), updated_at = now()"
+        + " where status = 'SENDING' and last_attempt_at < ?", MAX_ATTEMPTS, expiredBefore);
+  }
+
   private int deliverDue() {
     Instant now = Instant.now();
+    // Reclaim deliveries stranded in SENDING by a crashed or restarted process. Without this a
+    // row claimed before a crash stays SENDING forever: the due query only selects PENDING/FAILED,
+    // so it is never retried and never cancelled, and cancelling a pathway would not stop it.
+    reclaimStrandedSends(Timestamp.from(now.minusMillis(SENDING_LEASE_MS)));
     var due = jdbc.query("""
         select r.id, r.task_id, r.department_id, r.recipient_user_id, r.action_token,
                s.id as subscription_id, s.endpoint, s.p256dh_key, s.auth_secret,

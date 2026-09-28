@@ -55,6 +55,16 @@ public class CareWorkflowController {
   @PostMapping("/care-workflow-runs/{id}/cancel")
   public Object cancel(@PathVariable long id, @Valid @RequestBody CareWorkflowService.CancelInput in) { return workflows.cancel(id, in); }
 
+  @PostMapping("/care-workflow-runs/{id}/publish-summary")
+  public Object publishSummary(@PathVariable long id, @Valid @RequestBody CareWorkflowService.SummaryPublishInput in) {
+    return workflows.publishSummary(id, in);
+  }
+
+  @PostMapping("/care-workflow-runs/{id}/retract-summary")
+  public Object retractSummary(@PathVariable long id, @Valid @RequestBody CareWorkflowService.SummaryPublishInput in) {
+    return workflows.retractSummary(id, in);
+  }
+
   @GetMapping("/care-tasks")
   public Object tasks() { return workflows.tasks(); }
 

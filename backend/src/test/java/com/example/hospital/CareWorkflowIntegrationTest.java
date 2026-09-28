@@ -222,4 +222,39 @@ class CareWorkflowIntegrationTest {
     assertThat(jdbc.queryForObject("select count(*) from audit_events where event_type='CARE_TASK_CANCELLED' and entity_id=?", Integer.class, taskId)).isEqualTo(1);
     assertThat(jdbc.queryForObject("select count(*) from audit_events where event_type='CARE_WORKFLOW_CANCELLED' and entity_id=?", Integer.class, runId)).isEqualTo(1);
   }
+
+  @Test
+  void clearingAnAssigneeIsDistinctFromLeavingTheFieldOut() throws Exception {
+    Long userId = jdbc.queryForObject("select id from app_users where username='admin'", Long.class);
+    Long patientId = jdbc.queryForObject("select min(id) from patients where department_id=1", Long.class);
+    var task = Map.of("key", "assignable", "title", "Reassign me", "ownerRole", "ADMIN",
+        "assignedUserId", userId, "dueOffsetMinutes", 60, "dependsOn", List.of());
+    var created = post("/care-workflows", Map.of("name", "Assignee " + UUID.randomUUID(), "description", "",
+        "triggers", List.of("MANUAL"), "tasks", List.of(task), "version", 0));
+    long templateId = created.get("id").asLong();
+    var published = post("/care-workflows/" + templateId + "/publish", Map.of("version", 0));
+    var launched = post("/care-workflows/" + templateId + "/launch", Map.of(
+        "workflowVersion", published.get("version").asLong(), "patientId", patientId,
+        "idempotencyKey", UUID.randomUUID().toString(), "approved", true));
+    long taskId = launched.at("/tasks/0/id").asLong();
+    long version = launched.at("/tasks/0/version").asLong();
+    assertThat(jdbc.queryForObject("select assigned_user_id from care_tasks where id=?", Long.class, taskId))
+        .isEqualTo(userId);
+
+    // An absent field keeps the current assignee.
+    patch("/care-tasks/" + taskId, Map.of("status", "OPEN", "version", version));
+    assertThat(jdbc.queryForObject("select assigned_user_id from care_tasks where id=?", Long.class, taskId))
+        .isEqualTo(userId);
+    long keptVersion = jdbc.queryForObject("select version from care_tasks where id=?", Long.class, taskId);
+
+    // An explicit null clears it, which is the only way a clinician can return a task to the
+    // pool. Map.of rejects null values, so the body is built explicitly.
+    var clear = new java.util.LinkedHashMap<String, Object>();
+    clear.put("status", "OPEN");
+    clear.put("assignedUserId", null);
+    clear.put("version", keptVersion);
+    patch("/care-tasks/" + taskId, clear);
+    assertThat(jdbc.queryForObject("select assigned_user_id from care_tasks where id=?", Long.class, taskId))
+        .isNull();
+  }
 }

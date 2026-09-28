@@ -8,8 +8,10 @@ import java.time.Instant;
 import java.util.*;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
+import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.parser.*;
 import org.apache.tika.parser.pdf.PDFParserConfig;
+import org.apache.tika.parser.pdf.OcrConfig;
 import org.apache.tika.sax.BodyContentHandler;
 import org.apache.tika.extractor.EmbeddedDocumentExtractor;
 import org.apache.tika.sax.ContentHandlerDecorator;
@@ -65,7 +67,7 @@ public class AiSourceService {
       throw new ApiException(400, "FILE_TYPE", "Use text, CSV, JSON, PDF, Word, Excel, PowerPoint, OpenDocument or RTF files.");
     String text;
     List<LocationSpan> locations;
-    try (var stream = file.getInputStream()) {
+    try (var stream = TikaInputStream.get(file.getInputStream())) {
       var writer = new LocatedTextWriter();
       var body = new BodyContentHandler(writer);
       var handler = new StructuralLocationHandler(body, writer);
@@ -73,11 +75,14 @@ public class AiSourceService {
       metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, name);
       var context = new ParseContext();
       var pdf = new PDFParserConfig();
-      pdf.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.NO_OCR);
+      var ocr = new OcrConfig();
+      ocr.setStrategy(OcrConfig.Strategy.NO_OCR);
+      pdf.setOcr(ocr);
       context.set(PDFParserConfig.class, pdf);
       context.set(EmbeddedDocumentExtractor.class, new EmbeddedDocumentExtractor() {
-        public boolean shouldParseEmbedded(Metadata m) { return false; }
-        public void parseEmbedded(InputStream i, org.xml.sax.ContentHandler h, Metadata m, boolean outputHtml) {}
+        public boolean shouldParseEmbedded(Metadata m, org.apache.tika.parser.ParseContext c) { return false; }
+        public void parseEmbedded(org.apache.tika.io.TikaInputStream i, org.xml.sax.ContentHandler h, Metadata m,
+            org.apache.tika.parser.ParseContext c, boolean outputHtml) {}
       });
       new AutoDetectParser().parse(stream, handler, metadata, context);
       int leading = 0;

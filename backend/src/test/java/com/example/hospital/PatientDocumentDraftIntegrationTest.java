@@ -167,6 +167,122 @@ class PatientDocumentDraftIntegrationTest {
         .andExpect(status().isServiceUnavailable());
   }
 
+  @Test void identityMatchIsCorroboratedAndUnresolvedIdentityCannotBeBound() throws Exception {
+    // A record whose date of birth agrees with the document.
+    mvc.perform(post("/api/v1/patients").with(user("admin")).with(csrf()).header("X-Department-Id", "1")
+        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+            "patientIdentifier", "P-DRAFT-427", "firstName", "Alice", "lastName", "Example",
+            "dateOfBirth", "1981-04-03"))))
+        .andExpect(status().isCreated());
+    var source = mvc.perform(multipart("/api/v1/assistant/sources")
+        .file(new MockMultipartFile("file", "referral.txt", "text/plain", TEXT.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1"))
+        .andExpect(status().isOk()).andReturn();
+    String sourceId = json.readTree(source.getResponse().getContentAsString()).path("id").asText();
+    var response = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
+        .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .andExpect(status().isOk()).andReturn();
+    JsonNode draft = json.readTree(response.getResponse().getContentAsString());
+    JsonNode candidate = draft.at("/matchCandidates/0");
+    assertThat(candidate.path("matchStrength").asText()).isEqualTo("CORROBORATED");
+    assertThat(candidate.path("matchedOn").asText()).isEqualTo("IDENTIFIER");
+    assertThat(candidate.path("dateOfBirthAgrees").asBoolean()).isTrue();
+    String corroboratedDraft = draft.path("draftId").asText();
+
+    // An identifier that matches an existing record but contradicts its date of birth.
+    mvc.perform(post("/api/v1/patients").with(user("admin")).with(csrf()).header("X-Department-Id", "1")
+        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+            "patientIdentifier", "P-TWINTEST-428", "firstName", "Alice", "lastName", "Example",
+            "dateOfBirth", "1975-11-30"))))
+        .andExpect(status().isCreated());
+    long twinId = jdbc.queryForObject(
+        "select id from patients where patient_identifier='P-TWINTEST-428'", Long.class);
+
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
+        {"patientIdentifier":[{"value":"P-TWINTEST-428","confidence":0.97,"excerpt":"P-TWINTEST-428","location":"page 1"}],
+         "firstName":[{"value":"Alice","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "lastName":[{"value":"Example","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "dateOfBirth":[{"value":"1981-04-03","confidence":0.9,"excerpt":"1981-04-03","location":"page 1"}],
+         "followUpActions":[]}
+        """)));
+    var mismatch = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
+        .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .andExpect(status().isOk()).andReturn();
+    JsonNode mismatchDraft = json.readTree(mismatch.getResponse().getContentAsString());
+    // Both records match by name, so look the twin up by id rather than by position:
+    // candidates are sorted corroborated-first, and the correct record is corroborated.
+    JsonNode twin = null;
+    for (JsonNode entry : mismatchDraft.path("matchCandidates"))
+      if (entry.path("id").asLong() == twinId) twin = entry;
+    assertThat(twin).isNotNull();
+    assertThat(twin.path("matchStrength").asText()).isEqualTo("IDENTIFIER_CONTRADICTED");
+    assertThat(twin.path("dateOfBirthAgrees").asBoolean()).isFalse();
+    // The contradicted record is labelled, not silently folded in with the name matches,
+    // and the record that genuinely agrees sorts ahead of it.
+    assertThat(mismatchDraft.at("/matchCandidates/0").path("matchStrength").asText())
+        .isEqualTo("CORROBORATED");
+    // The contradicted record must not be attachable, but the corrected one must remain available.
+    mvc.perform(put("/api/v1/assistant/patient-drafts/" + mismatchDraft.path("draftId").asText() + "/patient")
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of("patientId", twinId))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("PATIENT_DRAFT_IDENTITY_UNRESOLVED"));
+
+    // A source with contradictory identity fields cannot be bound at all.
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
+        {"patientIdentifier":[{"value":"P-DRAFT-427","confidence":0.95,"excerpt":"P-DRAFT-427","location":"page 1"},
+                              {"value":"P-DRAFT-427-TYPO","confidence":0.6,"excerpt":"P-DRAFT-427","location":"page 1"}],
+         "firstName":[{"value":"Alice","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "lastName":[{"value":"Example","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "followUpActions":[]}
+        """)));
+    var conflicted = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
+        .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .andExpect(status().isOk()).andReturn();
+    JsonNode conflictedDraft = json.readTree(conflicted.getResponse().getContentAsString());
+    assertThat(conflictedDraft.at("/fields/patientIdentifier/status").asText()).isEqualTo("CONFLICT");
+    // A conflicted identifier must still surface the existing record, not an empty candidate list.
+    assertThat(conflictedDraft.path("matchCandidates").size()).isGreaterThan(0);
+    mvc.perform(put("/api/v1/assistant/patient-drafts/" + conflictedDraft.path("draftId").asText() + "/patient")
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of(
+            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-DRAFT-427'", Long.class)))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("PATIENT_DRAFT_IDENTITY_UNRESOLVED"));
+
+    // Binding a corroborated draft succeeds and is audited.
+    mvc.perform(put("/api/v1/assistant/patient-drafts/" + corroboratedDraft + "/patient")
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of(
+            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-DRAFT-427'", Long.class)))))
+        .andExpect(status().isOk());
+    assertThat(jdbc.queryForObject(
+        "select count(*) from audit_events where event_type='PATIENT_DRAFT_BOUND'", Long.class)).isEqualTo(1);
+
+    // A source that simply does not state an identity field is ordinary, not contradictory:
+    // absence of evidence must not dead-end the reviewer.
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
+        {"firstName":[{"value":"Alice","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "lastName":[{"value":"Example","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "dateOfBirth":[{"value":"1981-04-03","confidence":0.9,"excerpt":"1981-04-03","location":"page 1"}],
+         "followUpActions":[]}
+        """)));
+    var partial = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
+        .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .andExpect(status().isOk()).andReturn();
+    JsonNode partialDraft = json.readTree(partial.getResponse().getContentAsString());
+    assertThat(partialDraft.at("/fields/patientIdentifier/status").asText()).isEqualTo("MISSING");
+    mvc.perform(put("/api/v1/assistant/patient-drafts/" + partialDraft.path("draftId").asText() + "/patient")
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of(
+            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-DRAFT-427'", Long.class)))))
+        .andExpect(status().isOk());
+  }
+
   private long doctorUserId() {
     return jdbc.queryForObject("select id from app_users where username='doctor'", Long.class);
   }

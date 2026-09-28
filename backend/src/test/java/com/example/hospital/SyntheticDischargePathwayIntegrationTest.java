@@ -223,6 +223,47 @@ class SyntheticDischargePathwayIntegrationTest {
     assertThat(reminder.get("action_token")).isInstanceOf(UUID.class);
     assertThat(reminder.get("scheduled_at")).isEqualTo(reminder.get("due_at"));
 
+    // A rejected follow-up never becomes a task, so it must still leave a trace: the
+    // reviewer's decision is recorded without the action's title or excerpt.
+    List<Map<String, Object>> rejectedActions = List.of(Map.of(
+        "actionId", actionId,
+        "title", "Arrange cardiology follow-up",
+        "dueDate", followUpDateText,
+        "dueTime", "09:30",
+        "decision", "REJECTED",
+        "ownerRole", "ADMIN",
+        "assignedUserId", adminId,
+        "dependsOn", List.of()));
+    Map<String, Object> rejectLaunchInput = new java.util.LinkedHashMap<>(launchInput);
+    rejectLaunchInput.put("reviewedFollowUpActions", rejectedActions);
+    rejectLaunchInput.put("idempotencyKey", "synthetic-reject-" + UUID.randomUUID());
+    MvcResult rejectLaunch = mvc.perform(adminPostBuilder("/care-workflows/" + templateId + "/launch", rejectLaunchInput))
+        .andExpect(status().isCreated()).andReturn();
+    long rejectRunId = json.readTree(rejectLaunch.getResponse().getContentAsString()).path("id").asLong();
+    assertThat(jdbc.queryForObject(
+        "select count(*) from care_tasks where workflow_run_id=? and task_origin='DOCUMENT'",
+        Long.class, rejectRunId)).isZero();
+    String rejectionAudit = jdbc.queryForObject(
+        "select metadata from audit_events where event_type='CARE_TASK_SOURCE_REJECTED' and entity_id=?",
+        String.class, rejectRunId);
+    assertThat(rejectionAudit).contains("REJECTED");
+    assertThat(rejectionAudit).doesNotContain("cardiology");
+    assertThat(rejectionAudit).doesNotContain(actionExcerpt);
+    // The accepted task names its reviewer explicitly.
+    assertThat(jdbc.queryForObject(
+        "select metadata from audit_events where event_type='CARE_TASK_SOURCE_REVIEWED' and entity_id=?",
+        String.class, taskId)).contains("reviewerUserId");
+
+    // Launching drafts the summary but does not release it: publication is a separate,
+    // separately-approved act, so nothing reaches the portal yet.
+    assertThat(patientGet("/portal/care-summaries", patientUsername).isEmpty()).isTrue();
+    MvcResult published = mvc.perform(adminPostBuilder("/care-workflow-runs/" + runId + "/publish-summary",
+        Map.of("version", launched.path("version").asLong(), "approved", true,
+            "patientSummary", "Clinician-approved cardiology follow-up is planned.")))
+        .andExpect(status().isOk()).andReturn();
+    assertThat(json.readTree(published.getResponse().getContentAsString())
+        .path("summaryPublishedAt").isNull()).isFalse();
+
     JsonNode visibleSummary = patientGet("/portal/care-summaries", patientUsername);
     assertThat(visibleSummary.size()).isEqualTo(1);
     assertThat(visibleSummary.get(0).path("summary").asText())
@@ -232,8 +273,9 @@ class SyntheticDischargePathwayIntegrationTest {
     assertThat(jdbc.queryForObject("select count(*) from audit_events where event_type='CARE_TASK_SOURCE_REVIEWED' and entity_id=?",
         Integer.class, taskId)).isEqualTo(1);
 
+    JsonNode current = adminGet("/care-workflow-runs/" + runId, 200);
     JsonNode cancelled = adminPost("/care-workflow-runs/" + runId + "/cancel",
-        Map.of("version", launched.path("version").asLong()), 200);
+        Map.of("version", current.path("version").asLong()), 200);
     assertThat(cancelled.path("status").asText()).isEqualTo("CANCELLED");
     assertThat(cancelled.path("cancelledAt").isNull()).isFalse();
     JsonNode retainedHistory = adminGet("/care-workflow-runs/" + runId, 200);

@@ -81,6 +81,8 @@ export type CareRun = {
   patientSummary: string | null;
   reviewedBy: number | null;
   reviewedAt: string | null;
+  summaryPublishedBy: number | null;
+  summaryPublishedAt: string | null;
   launchedBy: number | null;
   launchedAt: string | null;
   cancelledAt: string | null;
