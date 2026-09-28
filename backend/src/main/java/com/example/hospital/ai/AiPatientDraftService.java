@@ -244,12 +244,18 @@ public class AiPatientDraftService {
     var unresolved = new ArrayList<String>();
     for (String field : List.of("patientIdentifier", "firstName", "lastName")) {
       Object status = fields.containsKey(field) ? fields.get(field).get("status") : null;
-      if (status != null && !"SUGGESTED".equals(status)) unresolved.add(field);
+      // Only a field the document contradicts blocks the bind. MISSING means the source
+      // simply does not state it - absence of evidence is not evidence of a wrong patient -
+      // and UNCERTAIN means one low-confidence value whose excerpt was still verified. Both
+      // are surfaced to the reviewer, and neither can be fixed by editing an extraction, so
+      // refusing here would dead-end a clinician on a perfectly ordinary referral letter.
+      if ("CONFLICT".equals(status)) unresolved.add(field);
     }
     if (!unresolved.isEmpty())
       throw ApiException.conflict("PATIENT_DRAFT_IDENTITY_UNRESOLVED",
-          "Resolve the conflicting patient details in this document before attaching it to a record: "
-              + String.join(", ", unresolved) + ". Re-check the source, or search the department for the correct patient.");
+          "This document states more than one value for "
+              + String.join(", ", unresolved)
+              + ", so it cannot be attached to a record yet. Re-check the source, or search the department for the correct patient.");
     Object candidates = draft.response().get("matchCandidates");
     if (candidates instanceof List<?> list && !list.isEmpty()) {
       for (var entry : list) {

@@ -253,6 +253,26 @@ class PatientDocumentDraftIntegrationTest {
         .andExpect(status().isOk());
     assertThat(jdbc.queryForObject(
         "select count(*) from audit_events where event_type='PATIENT_DRAFT_BOUND'", Long.class)).isEqualTo(1);
+
+    // A source that simply does not state an identity field is ordinary, not contradictory:
+    // absence of evidence must not dead-end the reviewer.
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
+        {"firstName":[{"value":"Alice","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "lastName":[{"value":"Example","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "dateOfBirth":[{"value":"1981-04-03","confidence":0.9,"excerpt":"1981-04-03","location":"page 1"}],
+         "followUpActions":[]}
+        """)));
+    var partial = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
+        .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .andExpect(status().isOk()).andReturn();
+    JsonNode partialDraft = json.readTree(partial.getResponse().getContentAsString());
+    assertThat(partialDraft.at("/fields/patientIdentifier/status").asText()).isEqualTo("MISSING");
+    mvc.perform(put("/api/v1/assistant/patient-drafts/" + partialDraft.path("draftId").asText() + "/patient")
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of(
+            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-DRAFT-427'", Long.class)))))
+        .andExpect(status().isOk());
   }
 
   private long doctorUserId() {
