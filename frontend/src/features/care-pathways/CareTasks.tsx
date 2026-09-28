@@ -60,22 +60,25 @@ export function CareTasks() {
   /**
    * Reports what the service actually stored rather than what was asked for, so
    * an assignment the service declined is never shown as a success.
+   *
+   * `saved` must be the PATCH response body, not a row re-read from the query cache:
+   * the cache still holds the pre-PATCH value until the refetch lands, which would
+   * make this report the old state and defeat its own purpose.
    */
   function recordOutcome(
     task: CareTask,
     change: "status" | "assignee",
+    saved: CareTask,
     requestedAssigneeId: number | null,
   ) {
-    const saved = tasks.data?.find((row) => row.id === task.id);
-    const savedAssigneeId = saved?.assignedUserId ?? task.assignedUserId;
     setNotices((current) => ({
       ...current,
       [task.id]: taskUpdateNotice({
         change,
-        savedStatus: saved?.status ?? task.status,
-        savedAssigneeId,
+        savedStatus: saved.status,
+        savedAssigneeId: saved.assignedUserId,
         savedAssigneeName:
-          (assignees.data ?? []).find((person) => person.id === savedAssigneeId)
+          (assignees.data ?? []).find((person) => person.id === saved.assignedUserId)
             ?.displayName ?? null,
         requestedAssigneeId,
       }),
@@ -85,13 +88,13 @@ export function CareTasks() {
     setBusyId(task.id);
     setError(null);
     try {
-      await api(`/care-tasks/${task.id}`, "PATCH", {
+      const saved = await api<CareTask>(`/care-tasks/${task.id}`, "PATCH", {
         status,
         assignedUserId: task.assignedUserId,
         version: task.version,
       });
       await client.invalidateQueries({ queryKey: ["care-tasks"] });
-      recordOutcome(task, "status", task.assignedUserId);
+      recordOutcome(task, "status", saved, task.assignedUserId);
     } catch (cause) {
       setError(cause as Error);
     } finally {
@@ -111,13 +114,13 @@ export function CareTasks() {
     setBusyId(task.id);
     setError(null);
     try {
-      await api<CareTask>(`/care-tasks/${task.id}`, "PATCH", {
+      const saved = await api<CareTask>(`/care-tasks/${task.id}`, "PATCH", {
         status: task.status,
         assignedUserId,
         version: task.version,
       });
       await client.invalidateQueries({ queryKey: ["care-tasks"] });
-      recordOutcome(task, "assignee", assignedUserId);
+      recordOutcome(task, "assignee", saved, assignedUserId);
     } catch (cause) {
       setError(cause as Error);
     } finally {

@@ -55,6 +55,9 @@
 .pathway-choice {
   display: flex;
   align-items: center;
+  /* flex-basis:100% on the note below only wraps onto its own line if the row
+     itself wraps. Without this the note is squeezed beside the radio. */
+  flex-wrap: wrap;
   gap: 12px;
   padding: 12px 0;
 }
