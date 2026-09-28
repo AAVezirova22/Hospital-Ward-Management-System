@@ -30,7 +30,11 @@ type SuggestedField = {
 type Candidate = Pick<
   Patient,
   "id" | "patientIdentifier" | "firstName" | "lastName" | "dateOfBirth"
->;
+> & {
+  matchedOn?: "IDENTIFIER" | "NAME";
+  matchStrength?: "CORROBORATED" | "IDENTIFIER_ONLY" | "NAME_ONLY";
+  dateOfBirthAgrees?: boolean | null;
+};
 type Draft = {
   draftId?: string;
   source: { id: string; name: string; expiresAt: string };
@@ -439,6 +443,13 @@ export function PatientDocumentDraft({
                         {candidate.firstName} {candidate.lastName} ·{" "}
                         {candidate.patientIdentifier} · Born{" "}
                         {candidate.dateOfBirth}
+                        <span className="pathway-choice-note">
+                          {candidate.matchStrength === "CORROBORATED"
+                            ? "Identifier and date of birth both agree."
+                            : candidate.matchStrength === "IDENTIFIER_ONLY"
+                              ? "Only the patient ID matches. Check the date of birth before attaching."
+                              : "Only the name matches. Confirm this is the same person."}
+                        </span>
                       </label>
                     ))}
                     <label className="pathway-choice">

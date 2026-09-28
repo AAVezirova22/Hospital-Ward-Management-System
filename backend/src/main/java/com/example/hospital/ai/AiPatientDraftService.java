@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 public class AiPatientDraftService {
   private static final List<String> FIELDS = List.of(
       "patientIdentifier", "firstName", "lastName", "dateOfBirth", "address", "phoneNumber");
+  private static final Set<String> IDENTITY_FIELDS = Set.of("patientIdentifier", "firstName", "lastName", "dateOfBirth");
   private static final String TOOL = "submitPatientDraft";
   private final AiModelClient model;
   private final AiSourceService sources;
@@ -149,6 +150,10 @@ public class AiPatientDraftService {
           : ((Number)candidates.getFirst().get("confidence")).doubleValue() < 0.65 ? "UNCERTAIN" : "SUGGESTED";
       String proposed = "SUGGESTED".equals(status) ? distinct.getFirst() : null;
       if (proposed != null) candidateValues.put(field, proposed);
+      // Identity fields still drive candidate lookup when they are CONFLICT or UNCERTAIN:
+      // an ambiguous identifier is exactly when a reviewer most needs the existing
+      // records surfaced instead of being nudged towards creating a duplicate patient.
+      else if (IDENTITY_FIELDS.contains(field) && !distinct.isEmpty()) candidateValues.put(field, distinct.getFirst());
       Double confidence = candidates.isEmpty() ? null : ((Number)candidates.getFirst().get("confidence")).doubleValue();
       List<Map<String, Object>> evidence = candidates.stream().map(candidate -> {
         @SuppressWarnings("unchecked") Map<String, Object> sourceView = (Map<String, Object>) candidate.get("source");
@@ -216,10 +221,45 @@ public class AiPatientDraftService {
     }
     if (draft.patientId() != null && !draft.patientId().equals(patientId))
       throw ApiException.conflict("PATIENT_DRAFT_BOUND", "This document draft is already attached to another patient. Prepare a new draft to change its patient.");
+    requireResolvedIdentity(draft, patientId);
     var bound = new DraftState(draft.userId(), draft.departmentId(), draft.sourceId(), patientId,
         draft.expiresAt(), draft.response(), draft.actions());
     drafts.put(draftId, bound);
+    audit.log("PATIENT_DRAFT_BOUND", "PatientDraft", null, "UI",
+        Map.of("sourceId", draft.sourceId(), "patientId", patientId));
     return getDraft(draftId);
+  }
+
+  /**
+   * A document may only be attached to a chart once the identity evidence in the source
+   * agrees with the record. Conflicting or missing identity fields are refused here rather
+   * than surfaced as an advisory badge, so a discharge summary cannot be filed against the
+   * wrong patient on the strength of a single plausible-looking field.
+   */
+  @SuppressWarnings("unchecked")
+  private void requireResolvedIdentity(DraftState draft, long patientId) {
+    @SuppressWarnings("unchecked")
+    Map<String, Map<String, Object>> fields = (Map<String, Map<String, Object>>) draft.response().get("fields");
+    if (fields == null) return;
+    var unresolved = new ArrayList<String>();
+    for (String field : List.of("patientIdentifier", "firstName", "lastName")) {
+      Object status = fields.containsKey(field) ? fields.get(field).get("status") : null;
+      if (status != null && !"SUGGESTED".equals(status)) unresolved.add(field);
+    }
+    if (!unresolved.isEmpty())
+      throw ApiException.conflict("PATIENT_DRAFT_IDENTITY_UNRESOLVED",
+          "Resolve the conflicting patient details in this document before attaching it to a record: "
+              + String.join(", ", unresolved) + ". Re-check the source, or search the department for the correct patient.");
+    Object candidates = draft.response().get("matchCandidates");
+    if (candidates instanceof List<?> list && !list.isEmpty()) {
+      for (var entry : list) {
+        if (!(entry instanceof Map<?, ?> candidate)) continue;
+        if (candidate.get("id") instanceof Number id && id.longValue() == patientId
+            && Boolean.FALSE.equals(candidate.get("dateOfBirthAgrees")))
+          throw ApiException.conflict("PATIENT_DRAFT_IDENTITY_UNRESOLVED",
+              "The date of birth in this document contradicts the record you selected. Attach it to the correct patient.");
+      }
+    }
   }
 
   public List<ValidatedFollowUpAction> validateReviewedFollowUpActions(String draftId,
@@ -446,18 +486,34 @@ public class AiPatientDraftService {
     String identifier = fields.get("patientIdentifier");
     if (identifier != null) hospital.patientDirectory(identifier, null, null, null, 0, 5)
         .getContent().stream().filter(p -> p.getPatientIdentifier().equalsIgnoreCase(identifier))
-        .forEach(p -> found.put(p.getId(), match(p)));
+        .forEach(p -> found.put(p.getId(), match(p, "IDENTIFIER", fields.get("dateOfBirth"))));
     String first = fields.get("firstName"), last = fields.get("lastName");
     if (first != null && last != null) hospital.patientDirectory(first + " " + last, null, null, null, 0, 5)
         .getContent().stream().filter(p -> p.getFirstName().equalsIgnoreCase(first)
             && p.getLastName().equalsIgnoreCase(last))
-        .forEach(p -> found.put(p.getId(), match(p)));
-    return List.copyOf(found.values());
+        .forEach(p -> found.putIfAbsent(p.getId(), match(p, "NAME", fields.get("dateOfBirth"))));
+    // Corroborated records sort first: a lone identifier hit is never treated as proof of identity.
+    return found.values().stream()
+        .sorted(Comparator.comparingInt(v -> "CORROBORATED".equals(v.get("matchStrength")) ? 0 : 1))
+        .toList();
   }
 
-  private static Map<String, Object> match(com.example.hospital.domain.Patient p) {
-    return Map.of("id", p.getId(), "patientIdentifier", p.getPatientIdentifier(),
-        "firstName", p.getFirstName(), "lastName", p.getLastName(), "dateOfBirth", p.getDateOfBirth());
+  private static Map<String, Object> match(com.example.hospital.domain.Patient p, String matchedOn, String documentDob) {
+    String recordDob = p.getDateOfBirth() == null ? null : p.getDateOfBirth().toString();
+    boolean dobKnown = documentDob != null && recordDob != null;
+    boolean dobAgrees = dobKnown && recordDob.equals(documentDob);
+    var view = new LinkedHashMap<String, Object>();
+    view.put("id", p.getId()); view.put("patientIdentifier", p.getPatientIdentifier());
+    view.put("firstName", p.getFirstName()); view.put("lastName", p.getLastName());
+    view.put("dateOfBirth", p.getDateOfBirth());
+    view.put("matchedOn", matchedOn);
+    // A name-only hit is never promoted to a strong match, and a contradicting
+    // date of birth is always reported so a reviewer cannot attach a chart blindly.
+    String strength = dobAgrees ? "CORROBORATED"
+        : "IDENTIFIER".equals(matchedOn) && !dobKnown ? "IDENTIFIER_ONLY" : "NAME_ONLY";
+    view.put("matchStrength", strength);
+    view.put("dateOfBirthAgrees", dobAgrees ? Boolean.TRUE : dobKnown ? Boolean.FALSE : null);
+    return view;
   }
 
   private boolean keysAreAllowed(JsonNode root) {

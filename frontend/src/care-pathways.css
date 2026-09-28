@@ -61,6 +61,15 @@
 .pathway-choice input {
   width: auto;
 }
+/* Match-strength note under an identity candidate; wraps on narrow screens. */
+.pathway-choice-note {
+  flex-basis: 100%;
+  margin-left: 28px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
 .pathway-fields {
   margin-top: 28px;
   padding-top: 24px;
