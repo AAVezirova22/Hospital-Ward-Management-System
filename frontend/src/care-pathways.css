@@ -428,6 +428,14 @@
 .pending-care-review {
   padding: 20px;
 }
+/* Explains that a launch-time summary is a draft the patient cannot see yet. */
+.care-review-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
 .care-reminder-action {
   display: grid;
   gap: 10px;

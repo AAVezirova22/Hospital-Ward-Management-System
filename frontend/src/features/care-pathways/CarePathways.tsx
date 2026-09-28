@@ -734,13 +734,19 @@ export function CarePathways() {
                       </label>
                     )}
                     <label>
-                      Patient-facing summary
+                      Patient-facing summary (draft)
                       <textarea
                         value={summary}
+                        maxLength={2000}
                         onChange={(event) => setSummary(event.target.value)}
                         placeholder="Only clinician-approved follow-up details. Leave blank to keep this internal."
                       />
                     </label>
+                    <p className="care-review-note">
+                      This is saved as a draft on the pathway. The patient
+                      cannot see it until you publish it from the patient
+                      timeline after launch.
+                    </p>
                     {!!summary.trim() &&
                       !preview.portalSummaryConsentActive && (
                         <p role="alert">

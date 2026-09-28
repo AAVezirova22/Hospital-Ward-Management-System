@@ -28,6 +28,138 @@ type RunSummary = Pick<
 >;
 const dateTime = (value: string) => new Date(value).toLocaleString();
 
+/**
+ * Publishing the patient-facing summary is a separate, separately-approved act
+ * from launching the tasks, and it is the only thing that puts text in front of
+ * the patient. A summary written at launch is a draft: the portal shows nothing
+ * until a clinician publishes it here, and a wrong summary can be withdrawn
+ * again without cancelling the pathway.
+ */
+function SummaryPublication({
+  run,
+  onChanged,
+}: {
+  run: CareRun;
+  onChanged: () => Promise<void>;
+}) {
+  const published = Boolean(run.summaryPublishedAt);
+  const [draft, setDraft] = useState(run.patientSummary ?? "");
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [notice, setNotice] = useState("");
+  // Adopt the stored summary when this run is re-fetched, unless the clinician is mid-edit.
+  const [editing, setEditing] = useState(false);
+  const shown = editing ? draft : (run.patientSummary ?? "");
+  const dirty = shown.trim() !== (run.patientSummary ?? "").trim();
+
+  async function publish() {
+    if (!shown.trim() || !confirmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/care-workflow-runs/${run.id}/publish-summary`, "POST", {
+        version: run.version,
+        approved: true,
+        patientSummary: shown.trim(),
+      });
+      setEditing(false);
+      setConfirmed(false);
+      setNotice(
+        published
+          ? "Updated summary published. The patient portal now shows this text."
+          : "Summary published. The patient can now see it in their portal.",
+      );
+      await onChanged();
+    } catch (cause) {
+      setError(cause as Error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retract() {
+    if (!confirmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/care-workflow-runs/${run.id}/retract-summary`, "POST", {
+        version: run.version,
+        approved: true,
+      });
+      setConfirmed(false);
+      setNotice(
+        "Summary withdrawn from the patient portal. The pathway and its history are unchanged.",
+      );
+      await onChanged();
+    } catch (cause) {
+      setError(cause as Error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="pending-care-review">
+      <h4>Patient-facing summary</h4>
+      <p>
+        {published
+          ? `Published ${dateTime(run.summaryPublishedAt as string)}. The patient can see this in their portal.`
+          : "Not published. Nothing from this pathway is visible to the patient until you publish a summary."}
+      </p>
+      <ErrorBox error={error} />
+      <label>
+        What the patient should read
+        <textarea
+          value={shown}
+          maxLength={2000}
+          disabled={busy}
+          onChange={(event) => {
+            setEditing(true);
+            setDraft(event.target.value);
+            setConfirmed(false);
+          }}
+        />
+      </label>
+      {notice && <p role="status">{notice}</p>}
+      <label>
+        <input
+          type="checkbox"
+          checked={confirmed}
+          disabled={busy}
+          onChange={(event) => setConfirmed(event.target.checked)}
+        />
+        {published
+          ? "I have checked this is what the patient should read."
+          : "I confirm this summary is accurate and free of staff-only details."}
+      </label>
+      <div className="care-task-actions">
+        <button
+          className="secondary"
+          disabled={
+            busy ||
+            !confirmed ||
+            !shown.trim() ||
+            (!dirty && published)
+          }
+          onClick={() => void publish()}
+        >
+          {published ? "Update published summary" : "Publish to patient portal"}
+        </button>
+        {published && (
+          <button
+            className="secondary"
+            disabled={busy || !confirmed}
+            onClick={() => void retract()}
+          >
+            Withdraw from portal
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PendingReview({
   run,
   onApproved,
@@ -159,14 +291,19 @@ function PendingReview({
               />
             </label>
             <label>
-              Patient-facing summary
+              Patient-facing summary (draft)
               <textarea
                 value={patientSummary}
+                maxLength={2000}
                 onChange={(event) => setPatientSummary(event.target.value)}
                 placeholder="Leave blank to keep this plan internal."
               />
             </label>
           </div>
+          <p className="care-review-note">
+            This is saved as a draft on the pathway. The patient cannot see it
+            until you publish it from the patient timeline after approval.
+          </p>
           {summaryNeedsConsent && (
             <p role="alert">
               The patient has not consented to portal follow-up summaries.
@@ -318,6 +455,9 @@ export function PatientPathways({ patientId }: { patientId: number }) {
                     </li>
                   ))}
                 </ol>
+              )}
+              {run.status === "ACTIVE" && (
+                <SummaryPublication run={detail.data} onChanged={refresh} />
               )}
               {(run.status === "ACTIVE" || run.status === "PENDING_REVIEW") && (
                 <div className="care-cancel">
