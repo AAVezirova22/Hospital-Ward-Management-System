@@ -411,13 +411,17 @@ public class CareWorkflowService {
     clinician();
     if (!in.approved()) throw new ApiException(400, "REVIEW_REQUIRED", "Confirm that the patient should no longer see this summary.");
     var current = run(runId);
-    if (!"ACTIVE".equals(current.get("status"))) throw ApiException.conflict("RUN_CLOSED", "Only an active pathway can retract a summary.");
+    // Retraction must also be possible once a run completes: the portal keeps showing a
+    // published summary for COMPLETED runs, so refusing to withdraw there would leave a
+    // wrong summary visible with no way to remove it short of cancelling the pathway.
+    if (!Set.of("ACTIVE", "COMPLETED").contains(current.get("status")))
+      throw ApiException.conflict("RUN_CLOSED", "Only an active or completed pathway can retract a summary.");
     long departmentId = department();
     if (((Number) current.get("version")).longValue() != in.version())
       throw ApiException.conflict("STALE_STATE", "This workflow changed. Refresh before retracting.");
     int changed = jdbc.update("""
         update care_workflow_runs set summary_published_at=null, summary_published_by=null, version=version+1
-        where department_id=? and id=? and status='ACTIVE' and version=?
+        where department_id=? and id=? and status in ('ACTIVE','COMPLETED') and version=?
         """, departmentId, runId, in.version());
     if (changed != 1) throw ApiException.conflict("STALE_STATE", "This workflow changed. Refresh before retracting.");
     audit.log("CARE_WORKFLOW_SUMMARY_RETRACTED", "CareWorkflowRun", runId, "UI",

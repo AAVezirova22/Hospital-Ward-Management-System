@@ -456,7 +456,7 @@ export function PatientPathways({ patientId }: { patientId: number }) {
                   ))}
                 </ol>
               )}
-              {run.status === "ACTIVE" && (
+              {run.status !== "CANCELLED" && (
                 <SummaryPublication run={detail.data} onChanged={refresh} />
               )}
               {(run.status === "ACTIVE" || run.status === "PENDING_REVIEW") && (
