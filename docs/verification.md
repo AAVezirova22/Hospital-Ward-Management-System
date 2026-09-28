@@ -21,11 +21,30 @@ Covers the corrected-identity gate, separate summary publication, reminder audit
 | --- | --- |
 | `mvn -f backend/pom.xml -DskipTests test-compile` | Passed (exit 0) |
 | Backend unit tests not requiring a database: `TaskReminderPolicyTest`, `AuditServiceReadTest`, `DischargeReminderServiceTest`, `AiModelTest` | **27 passed, 0 failures, 0 errors** |
-| Frontend unit tests and TypeScript type-check | **51 passed**; type-check passed |
+| Frontend unit tests and TypeScript type-check | **61 passed**; type-check passed |
 | Flyway migration versions are unique | Passed; no duplicate versions after adding `V37` |
 | `node scripts/check-text-encoding.mjs` | 557 files valid UTF-8, no mojibake |
 
 Not executed locally, and therefore verified only in CI: the DB-backed integration suites, which need Docker or `TEST_DATABASE_URL`. The changed tests in `PatientDocumentDraftIntegrationTest`, `PatientConsentIntegrationTest`, `TaskReminderIntegrationTest` and `SyntheticDischargePathwayIntegrationTest` are all in that group. `AiSafetyTest` also has one failure that predates this work: a Mockito argument-matcher mismatch in `modelFailureIsStructuredAndRateLimitOnlyAffectsAssistant`.
+
+### Second-pass review (2026-09-28)
+
+The change was re-reviewed adversarially against the diff after the first pass, and the review found defects introduced by the first pass. Each was reproduced in the source before being fixed:
+
+| Defect | Consequence if shipped |
+| --- | --- |
+| Summary publication split on the server with no client to call it | The end-to-end acceptance criterion was broken: a launch-time summary would silently never reach the portal. Fixed in `91a2da9`. |
+| Identity gate refused on `MISSING` as well as `CONFLICT` | A referral letter with a name but no patient ID was refused with a message about a conflict that did not exist, with no recovery. Fixed in `d50e30e`. |
+| Identifier match with a contradicting date of birth was labelled `NAME_ONLY` | The most dangerous candidate carried the most reassuring caption, and the test added in `8e98b6c` asserted the correct value, so it would have failed in CI. Fixed in `8142da3`. |
+| `V37` added `summary_published_at` with no backfill | Every patient summary already visible in the portal would disappear on upgrade, silently. Fixed in `f3cca03`. |
+| Patient chart written before the document bind was validated | A conflicted name or date of birth was committed to the record, the view had already switched to "approved", and the only retry re-ran the call that always failed. Fixed in `8142da3`. |
+| `retractSummary` rejected `COMPLETED` runs | A wrong published summary would become unwithdrawable once completion is implemented. Latent. Fixed in `de702c3`. |
+| Reclaim reset stranded sends to `PENDING` at any attempt count | Bypassed the `MAX_ATTEMPTS` guard, allowing one attempt past the limit. Fixed in `a384a0e`. |
+| Task update notice read the pre-PATCH row from the query cache | The honest-outcome reporting could never report a decline, the one case it exists for. Fixed in `d1f58ee`. |
+
+After these fixes: `mvn -f backend/pom.xml -DskipTests test-compile` exits 0, the 27 non-DB unit tests pass, `npx tsc --noEmit` exits 0, and `npm test` reports 12 files and 61 tests passed. The integration suites above remain CI-only.
+
+The two defects that would have been visible to a reviewer without a database — the contradicting-date-of-birth label and the candidate-ordering assumption in the new identity test — are noted here because compiling a test is not running it. They are the reason the CI suite matters for the remaining DB-backed assertions.
 
 This work also repaired the backend build, which did not compile at `daef984`: Dependabot had moved `tika-parsers-standard-package` to 4.0.0, where that artifact is a POM-only aggregator with no jar, and three `AiSourceService` call sites used 4.0.0-removed APIs. The dependency is now declared with `<type>pom</type>`, `tika-parser-pdf-module` is explicit, and OCR is configured through `OcrConfig` with `NO_OCR` preserved so scanned images are still rejected rather than silently OCR'd.
 
