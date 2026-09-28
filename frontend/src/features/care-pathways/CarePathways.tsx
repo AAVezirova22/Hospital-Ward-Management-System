@@ -4,10 +4,22 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { api, activeDepartment } from "../../api";
-import type { PatientDirectoryPage, WorkspaceList } from "../../api/contracts";
+import type {
+  PatientDirectoryPage,
+  Patient,
+  WorkspaceList,
+} from "../../api/contracts";
 import { ErrorBox, Title } from "../../components/workspace";
 import { CarePreviewTimeline } from "./CarePreviewTimeline";
 import { PatientTaskEditor } from "./PatientTaskEditor";
+import {
+  approvalGateMessage,
+  launchGateMessage,
+  patientSelectionLabel,
+  previewGateMessage,
+  previewNotice,
+  refreshGateMessage,
+} from "./care-review-copy";
 import { buildTaskOverrides, validPatientTasks as tasksAreValid } from "./task-overrides";
 import {
   DocumentActionReview,
@@ -88,6 +100,20 @@ export function CarePathways() {
         `/patients?q=${encodeURIComponent(patientSearch)}&page=0&size=10`,
       ),
     enabled: patientSearch.trim().length >= 2,
+  });
+  /**
+   * Both entry links (the patient dossier and the document draft) pass a raw
+   * internal integer, so the studio has to resolve the name itself. The detail
+   * endpoint accepts the record id, reuses the existing api client, and scopes
+   * itself to the clinician's own access.
+   */
+  const launchPatient = useQuery({
+    queryKey: ["care-launch-patient", department, launchPatientId],
+    queryFn: () =>
+      api<{ patient: Patient }>(
+        `/patients/${encodeURIComponent(launchPatientId)}`,
+      ),
+    enabled: /^\d+$/.test(launchPatientId),
   });
   const [summary, setSummary] = useState("");
   const [sourceReference, setSourceReference] = useState(sourceId ?? "");
@@ -230,6 +256,10 @@ export function CarePathways() {
     if (!selectedId || !launchPatientId || !selected.data?.published_version || !validPatientTasks)
       return;
     await run(async () => {
+      // Document actions only reach the preview once every suggestion has a
+      // decision. Until then the preview is built without them, and the notice
+      // below has to say so.
+      const includeDocumentActions = !!draftId && actionsReviewed;
       const result = await api<CarePreview>(
         `/care-workflows/${selectedId}/preview`,
         "POST",
@@ -238,16 +268,19 @@ export function CarePathways() {
           trigger: "MANUAL",
           workflowVersion: selected.data.published_version,
           taskOverrides,
-          patientDraftId: draftId && actionsReviewed ? draftId : null,
-          reviewedFollowUpActions:
-            draftId && actionsReviewed ? selectedDocumentActions : [],
+          patientDraftId: includeDocumentActions ? draftId : null,
+          reviewedFollowUpActions: includeDocumentActions
+            ? selectedDocumentActions
+            : [],
         },
       );
       setPreview(result);
-      setPreviewRevision(draftId && !actionsReviewed ? null : reviewRevision);
+      setPreviewRevision(
+        draftId && !actionsReviewed ? null : reviewRevision,
+      );
       setReviewed(false);
       setNotice(
-        "Review the full timeline, owners, dependencies and due times before approval.",
+        previewNotice(draftId ? !actionsReviewed : false),
       );
     });
   }
@@ -283,6 +316,35 @@ export function CarePathways() {
     });
   }
 
+  /**
+   * Clears everything that belongs to a single launch. `draftId` lives in the
+   * URL, so it outlives a template change: leaving any of this state behind
+   * would resubmit a previous launch's document-action decisions against a
+   * different template, and leave that launch's success notice on screen.
+   */
+  function resetLaunch() {
+    setPreview(null);
+    setPreviewRevision(null);
+    setReviewed(false);
+    setPatientTasks([]);
+    setLaunchPatientId("");
+    setPatientSearch("");
+    setSummary("");
+    setActionReviews({});
+    setError(null);
+    setNotice("");
+  }
+  function startNewDraft() {
+    resetLaunch();
+    setSelectedId(null);
+    setName("");
+    setDescription("");
+    setTriggers(["MANUAL"]);
+    setTasks([blankTask()]);
+    setVersion(null);
+    setSavedDraftFingerprint(null);
+  }
+
   return (
     <div className="care-studio">
       <Title
@@ -299,16 +361,7 @@ export function CarePathways() {
             <h2>Templates</h2>
             <button
               className="secondary"
-              onClick={() => {
-                setSelectedId(null);
-                setName("");
-                setDescription("");
-                setTriggers(["MANUAL"]);
-                setTasks([blankTask()]);
-                setVersion(null);
-                setSavedDraftFingerprint(null);
-                setPreview(null);
-              }}
+              onClick={startNewDraft}
             >
               New draft
             </button>
@@ -571,7 +624,15 @@ export function CarePathways() {
                 </div>
               )}
               {launchPatientId && (
-                <p>Selected patient record #{launchPatientId}</p>
+                <>
+                  <p>
+                    {patientSelectionLabel(
+                      launchPatientId,
+                      launchPatient.data?.patient,
+                    )}
+                  </p>
+                  <ErrorBox error={launchPatient.error} />
+                </>
               )}
               {draftId && documentDraft.isLoading && (
                 <p>Loading the document suggestions…</p>
@@ -607,6 +668,14 @@ export function CarePathways() {
               {!selected.data?.published_version && (
                 <p>Publish a version before previewing a patient launch.</p>
               )}
+              {/* A disabled control is unfocusable and unannounced, so every
+                  blocking condition is also stated on screen. */}
+              {selected.data?.published_version &&
+                previewGateMessage({ validPatientTasks }) && (
+                  <p role="status">
+                    {previewGateMessage({ validPatientTasks })}
+                  </p>
+                )}
               {preview && (
                 <>
                   {documentDraft.data && (
@@ -638,6 +707,19 @@ export function CarePathways() {
                       Refresh patient preview
                     </button>
                   )}
+                  {refreshGateMessage({
+                    documentPatientMatches,
+                    validDocumentActions,
+                    validPatientTasks,
+                  }) && (
+                    <p role="status">
+                      {refreshGateMessage({
+                        documentPatientMatches,
+                        validDocumentActions,
+                        validPatientTasks,
+                      })}
+                    </p>
+                  )}
                   <div className="care-editor-fields">
                     {!draftId && (
                       <label>
@@ -652,13 +734,19 @@ export function CarePathways() {
                       </label>
                     )}
                     <label>
-                      Patient-facing summary
+                      Patient-facing summary (draft)
                       <textarea
                         value={summary}
+                        maxLength={2000}
                         onChange={(event) => setSummary(event.target.value)}
                         placeholder="Only clinician-approved follow-up details. Leave blank to keep this internal."
                       />
                     </label>
+                    <p className="care-review-note">
+                      This is saved as a draft on the pathway. The patient
+                      cannot see it until you publish it from the patient
+                      timeline after launch.
+                    </p>
                     {!!summary.trim() &&
                       !preview.portalSummaryConsentActive && (
                         <p role="alert">
@@ -678,6 +766,14 @@ export function CarePathways() {
                     I reviewed the patient, owners, due times, source, and
                     patient-facing text.
                   </label>
+                  {approvalGateMessage({ actionsReviewed, finalPreviewReady }) && (
+                    <p role="status">
+                      {approvalGateMessage({
+                        actionsReviewed,
+                        finalPreviewReady,
+                      })}
+                    </p>
+                  )}
                   <button
                     className="primary"
                     disabled={
@@ -693,6 +789,25 @@ export function CarePathways() {
                   >
                     Approve and launch pathway
                   </button>
+                  {launchGateMessage({
+                    documentPatientMatches,
+                    actionsReviewed,
+                    validDocumentActions,
+                    validPatientTasks,
+                    finalPreviewReady,
+                    reviewed,
+                  }) && (
+                    <p role="status">
+                      {launchGateMessage({
+                        documentPatientMatches,
+                        actionsReviewed,
+                        validDocumentActions,
+                        validPatientTasks,
+                        finalPreviewReady,
+                        reviewed,
+                      })}
+                    </p>
+                  )}
                 </>
               )}
             </section>

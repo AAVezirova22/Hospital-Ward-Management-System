@@ -8,9 +8,11 @@ import java.time.Instant;
 import java.util.*;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
+import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.parser.*;
 import org.apache.tika.parser.pdf.OcrConfig;
 import org.apache.tika.parser.pdf.PDFParserConfig;
+import org.apache.tika.parser.pdf.OcrConfig;
 import org.apache.tika.sax.BodyContentHandler;
 import org.apache.tika.extractor.EmbeddedDocumentExtractor;
 import org.apache.tika.io.TikaInputStream;
@@ -67,7 +69,7 @@ public class AiSourceService {
       throw new ApiException(400, "FILE_TYPE", "Use text, CSV, JSON, PDF, Word, Excel, PowerPoint, OpenDocument or RTF files.");
     String text;
     List<LocationSpan> locations;
-    try (var stream = file.getInputStream()) {
+    try (var stream = TikaInputStream.get(file.getInputStream())) {
       var writer = new LocatedTextWriter();
       var body = new BodyContentHandler(writer);
       var handler = new StructuralLocationHandler(body, writer);

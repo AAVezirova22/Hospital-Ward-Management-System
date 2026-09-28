@@ -70,6 +70,8 @@ class PatientConsentIntegrationTest {
     assertThat(jdbc.queryForObject("select count(*) from care_workflow_runs where trigger_source_id=?",
         Integer.class, launchKey)).isZero();
 
+    // A summary written straight into the table without an explicit publication is invisible:
+    // approval alone is not enough to release patient-facing text.
     jdbc.update("""
         insert into care_workflow_runs(department_id,template_id,workflow_version_id,patient_id,
           trigger_type,trigger_source_id,status,patient_summary,triggered_by,reviewed_by,reviewed_at,launched_by,launched_at)
@@ -93,18 +95,86 @@ class PatientConsentIntegrationTest {
 
     mvc.perform(adminPost("/api/v1/care-workflows/" + workflow.templateId() + "/launch", Map.of(
             "workflowVersion", workflow.version(), "patientId", patientId,
-            "idempotencyKey", "current-consent-" + UUID.randomUUID(), "approved", true,
-            "patientSummary", "Call cardiology to arrange a follow-up.")))
+            "idempotencyKey", "current-consent-" + UUID.randomUUID(), "approved", true)))
         .andExpect(status().isCreated());
+
+    // Launching alone must not release anything to the portal: publishing is a separate act.
+    assertThat(patientGet("/api/v1/portal/care-summaries", patientUsername).size()).isZero();
+
+    long runId = jdbc.queryForObject(
+        "select id from care_workflow_runs where patient_id=? order by id desc limit 1", Long.class, patientId);
+    long runVersion = jdbc.queryForObject(
+        "select version from care_workflow_runs where id=?", Long.class, runId);
+    MvcResult publishedRun = mvc.perform(adminPost("/api/v1/care-workflow-runs/" + runId + "/publish-summary",
+            Map.of("version", runVersion, "approved", true, "patientSummary", "Call cardiology to arrange a follow-up.")))
+        .andExpect(status().isOk()).andReturn();
+    assertThat(json.readTree(publishedRun.getResponse().getContentAsString()).path("patientSummary").asText())
+        .isEqualTo("Call cardiology to arrange a follow-up.");
 
     JsonNode visible = patientGet("/api/v1/portal/care-summaries", patientUsername);
     assertThat(visible.size()).isEqualTo(1);
     assertThat(visible.get(0).path("summary").asText()).isEqualTo("Call cardiology to arrange a follow-up.");
+    // The patient projection is exactly these four keys: no task, owner or provenance fields.
+    assertThat(visible.get(0).fieldNames()).toIterable().containsExactlyInAnyOrder(
+        "id", "summary", "approvedAt", "reviewedAt");
 
     JsonNode withdrawn = patientPost("/api/v1/portal/consents/" + consent.path("id").asLong() + "/withdraw",
         Map.of("confirmed", true), patientUsername);
     assertThat(withdrawn.path("withdrawnAt").isNull()).isFalse();
     assertThat(patientGet("/api/v1/portal/care-summaries", patientUsername).size()).isZero();
+  }
+
+  @Test
+  void publishingASummaryRequiresItsOwnApprovalAndCanBeRetracted() throws Exception {
+    long patientId = createPatient();
+    String patientUsername = createPatientAccount(patientId);
+    Workflow workflow = createWorkflow();
+    patientPost("/api/v1/portal/consents", Map.of(
+        "consentType", "PORTAL_FOLLOW_UP_SUMMARY", "consentVersion", "2", "confirmed", true), patientUsername);
+
+    mvc.perform(adminPost("/api/v1/care-workflows/" + workflow.templateId() + "/launch", Map.of(
+            "workflowVersion", workflow.version(), "patientId", patientId,
+            "idempotencyKey", "retract-" + UUID.randomUUID(), "approved", true)))
+        .andExpect(status().isCreated());
+    long runId = jdbc.queryForObject(
+        "select id from care_workflow_runs where patient_id=? order by id desc limit 1", Long.class, patientId);
+    long runVersion = jdbc.queryForObject("select version from care_workflow_runs where id=?", Long.class, runId);
+
+    // Without the explicit approval flag the publish is refused and nothing is written.
+    MvcResult unapproved = mvc.perform(adminPost("/api/v1/care-workflow-runs/" + runId + "/publish-summary",
+            Map.of("version", runVersion, "approved", false, "patientSummary", "Should not be published.")))
+        .andExpect(status().isBadRequest()).andReturn();
+    assertThat(json.readTree(unapproved.getResponse().getContentAsString()).path("code").asText())
+        .isEqualTo("REVIEW_REQUIRED");
+    assertThat(jdbc.queryForObject(
+        "select count(*) from care_workflow_runs where id=? and summary_published_at is not null",
+        Integer.class, runId)).isZero();
+
+    // A stale version is refused rather than silently overwriting.
+    MvcResult stale = mvc.perform(adminPost("/api/v1/care-workflow-runs/" + runId + "/publish-summary",
+            Map.of("version", runVersion + 99, "approved", true, "patientSummary", "Stale write.")))
+        .andExpect(status().isConflict()).andReturn();
+    assertThat(json.readTree(stale.getResponse().getContentAsString()).path("code").asText())
+        .isEqualTo("STALE_STATE");
+
+    mvc.perform(adminPost("/api/v1/care-workflow-runs/" + runId + "/publish-summary",
+            Map.of("version", runVersion, "approved", true, "patientSummary", "Corrected follow-up summary.")))
+        .andExpect(status().isOk());
+    assertThat(patientGet("/api/v1/portal/care-summaries", patientUsername).get(0).path("summary").asText())
+        .isEqualTo("Corrected follow-up summary.");
+
+    // Retracting hides it again without cancelling the pathway or erasing the audit trail.
+    long publishedVersion = jdbc.queryForObject("select version from care_workflow_runs where id=?", Long.class, runId);
+    mvc.perform(adminPost("/api/v1/care-workflow-runs/" + runId + "/retract-summary",
+            Map.of("version", publishedVersion, "approved", true)))
+        .andExpect(status().isOk());
+    assertThat(patientGet("/api/v1/portal/care-summaries", patientUsername).size()).isZero();
+    assertThat(jdbc.queryForObject("select status from care_workflow_runs where id=?", String.class, runId))
+        .isEqualTo("ACTIVE");
+    assertThat(jdbc.queryForObject(
+        "select count(*) from audit_events where entity_id=? and event_type in"
+            + " ('CARE_WORKFLOW_SUMMARY_PUBLISHED','CARE_WORKFLOW_SUMMARY_RETRACTED')",
+        Integer.class, runId)).isEqualTo(2);
   }
 
   private long createPatient() throws Exception {

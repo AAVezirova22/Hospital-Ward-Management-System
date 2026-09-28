@@ -55,11 +55,23 @@
 .pathway-choice {
   display: flex;
   align-items: center;
+  /* flex-basis:100% on the note below only wraps onto its own line if the row
+     itself wraps. Without this the note is squeezed beside the radio. */
+  flex-wrap: wrap;
   gap: 12px;
   padding: 12px 0;
 }
 .pathway-choice input {
   width: auto;
+}
+/* Match-strength note under an identity candidate; wraps on narrow screens. */
+.pathway-choice-note {
+  flex-basis: 100%;
+  margin-left: 28px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 .pathway-fields {
   margin-top: 28px;
@@ -311,6 +323,128 @@
   background: var(--accent-soft);
   border-radius: 12px;
 }
+/* Cited source excerpts. A discharge document can quote one long unbreakable
+   token, and without wrapping here the blockquote also keeps the UA 40px side
+   margin, which pushed the row past a 390px phone. */
+.care-task-source {
+  margin: 10px 0;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.care-task-source small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* Document action review. These classes were used by the component but never
+   styled, so the whole review surface fell back to UA blockquote margins and
+   inline layout. */
+.document-action-review {
+  width: 100%;
+  min-width: 0;
+}
+.document-action-legend {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.document-action {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.document-action .section-heading {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.document-action-flag {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: none;
+}
+.document-action-flag.conflict {
+  color: #f2bba9;
+  border-color: #f2bba9;
+}
+.document-action-flag.caution {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+.document-action-flag.neutral {
+  color: var(--muted);
+}
+.document-action-flag-status {
+  color: var(--muted);
+  font-weight: 400;
+}
+.document-action-flag-note {
+  max-width: 65ch;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.document-action-candidate {
+  margin: 12px 0;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-radius: 12px;
+}
+.document-action-candidate p {
+  margin: 0 0 6px;
+}
+.document-action-candidate blockquote {
+  margin: 0 0 10px;
+  padding: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.document-action-candidate blockquote small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.document-action-edit {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.document-action-edit > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+/* Patient level task tailoring and the pending review block on the dossier. */
+.care-patient-task-editor {
+  width: 100%;
+  min-width: 0;
+}
+.pending-care-review {
+  padding: 20px;
+}
+/* Explains that a launch-time summary is a draft the patient cannot see yet. */
+.care-review-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.care-reminder-action {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  margin: 18px 0;
+}
 @media (max-width: 900px) {
   .care-studio-layout {
     grid-template-columns: 1fr;
@@ -328,6 +462,11 @@
   .care-editor-actions button,
   .care-launch > button {
     width: 100%;
+  }
+  /* Cited excerpts and action candidates are the widest content here. */
+  .care-task-source,
+  .document-action-candidate {
+    padding: 10px 12px;
   }
 }
 .care-task-list {
