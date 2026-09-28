@@ -376,10 +376,15 @@ public class TaskReminderService {
    * row still counts as an attempt so MAX_ATTEMPTS remains an effective bound.
    */
   private void reclaimStrandedSends(Timestamp expiredBefore) {
-    jdbc.update("update task_reminders set status = 'PENDING', next_attempt_at = now(), updated_at = now()"
-        + " where status = 'SENDING' and last_attempt_at < ?", expiredBefore);
-    jdbc.update("update operational_push_deliveries set status = 'PENDING', next_attempt_at = now(), updated_at = now()"
-        + " where status = 'SENDING' and last_attempt_at < ?", expiredBefore);
+    // A row already at MAX_ATTEMPTS must become FAILED, not PENDING: the due query guards
+    // the attempt count with `(status <> 'FAILED' or attempt_count < MAX_ATTEMPTS)`, so
+    // reclaiming it to PENDING would short-circuit that guard and allow one extra attempt.
+    jdbc.update("update task_reminders set status = case when attempt_count >= ? then 'FAILED' else 'PENDING' end,"
+        + " next_attempt_at = now(), updated_at = now()"
+        + " where status = 'SENDING' and last_attempt_at < ?", MAX_ATTEMPTS, expiredBefore);
+    jdbc.update("update operational_push_deliveries set status = case when attempt_count >= ? then 'FAILED' else 'PENDING' end,"
+        + " next_attempt_at = now(), updated_at = now()"
+        + " where status = 'SENDING' and last_attempt_at < ?", MAX_ATTEMPTS, expiredBefore);
   }
 
   private int deliverDue() {
