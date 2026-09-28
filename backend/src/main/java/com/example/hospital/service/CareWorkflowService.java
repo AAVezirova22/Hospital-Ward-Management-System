@@ -95,7 +95,10 @@ public class CareWorkflowService {
       @jakarta.validation.constraints.Size(max=100) List<String> dependsOn) {}
   public record TaskUpdate(
       @jakarta.validation.constraints.NotBlank String status,
-      Long assignedUserId,
+      // JsonNode, not Long: an absent field means "keep the current assignee", while an
+      // explicit null means "clear it". This mirrors TaskOverride.assignedUserId, and with
+      // fail-on-unknown-properties enabled there is no other way to express the difference.
+      JsonNode assignedUserId,
       @jakarta.validation.constraints.NotNull Long version) {}
   public record ConsentInput(
       @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 40) String consentType,
@@ -534,7 +537,16 @@ public class CareWorkflowService {
     if ("CANCELLED".equals(current.get("status"))) throw ApiException.conflict("TASK_CANCELLED", "A cancelled task cannot be changed.");
     if ("COMPLETED".equals(current.get("status")) && !"COMPLETED".equals(status)) throw ApiException.conflict("TASK_COMPLETE", "A completed task cannot be reopened.");
     if ("BLOCKED".equals(current.get("dependencyState")) && !"OPEN".equals(status)) throw ApiException.conflict("TASK_BLOCKED", "Complete its dependencies before starting this task.");
-    Long assignee = in.assignedUserId() == null ? (Long) current.get("assignedUserId") : in.assignedUserId();
+    // An absent assignedUserId keeps the current assignee; an explicit null clears it.
+    JsonNode requestedAssignee = in.assignedUserId();
+    Long assignee = (Long) current.get("assignedUserId");
+    if (requestedAssignee != null && !requestedAssignee.isNull()) {
+      if (!requestedAssignee.isIntegralNumber() || !requestedAssignee.canConvertToLong() || requestedAssignee.asLong() <= 0)
+        throw invalid("Choose an active department member for the task owner.");
+      assignee = requestedAssignee.asLong();
+    } else if (requestedAssignee != null) {
+      assignee = null;
+    }
     validateAssignee((String) current.get("ownerRole"), assignee);
     if ("DOCTOR".equals(DepartmentContext.current().role()) && !java.util.Objects.equals(assignee, actor.user().getId())) throw new AccessDeniedException("Doctors can update tasks assigned to them.");
     int changed = jdbc.update("""
