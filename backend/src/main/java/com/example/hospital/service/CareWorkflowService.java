@@ -182,6 +182,11 @@ public class CareWorkflowService {
     clinician();
     var normalized = normalize(in);
     long departmentId = department();
+    // Capture the superseded draft revision so the trail records which one was replaced and
+    // what changed, rather than only that "something was edited".
+    var before = jdbc.queryForList(
+        "select name, description, version from care_workflow_templates where department_id=? and id=?",
+        departmentId, id);
     int changed = jdbc.update("""
         update care_workflow_templates set name=?, description=?, draft_definition=?, version=version+1, updated_at=now()
          where department_id=? and id=? and version=?
@@ -190,7 +195,15 @@ public class CareWorkflowService {
       if (!existsTemplate(id, departmentId)) throw ApiException.missing();
       throw ApiException.conflict("STALE_STATE", "This draft changed. Refresh before continuing.");
     }
-    audit.log("CARE_WORKFLOW_DRAFT_UPDATED", "CareWorkflowTemplate", id, "UI");
+    var previous = before.isEmpty() ? Map.<String, Object>of() : before.getFirst();
+    // A LinkedHashMap tolerates a null old value; Map.of would throw on one.
+    var templateAudit = new LinkedHashMap<String, Object>();
+    templateAudit.put("draftVersion", in.version());
+    templateAudit.put("oldName", previous.get("name"));
+    templateAudit.put("newName", in.name().trim());
+    templateAudit.put("taskCount", normalized.get("tasks") == null ? 0 : ((java.util.List<?>) normalized.get("tasks")).size());
+    templateAudit.put("triggers", normalized.getOrDefault("triggers", List.of()));
+    audit.log("CARE_WORKFLOW_DRAFT_UPDATED", "CareWorkflowTemplate", id, "UI", templateAudit);
     return get(id);
   }
 
@@ -533,6 +546,10 @@ public class CareWorkflowService {
     var changes = new LinkedHashMap<String, Object>();
     changes.put("status", status);
     changes.put("assignedUserId", assignee);
+    // Before/after values, so a reader can reconstruct what actually changed rather than
+    // inferring it. This mirrors the role-change audit already used elsewhere in the app.
+    changes.put("oldStatus", current.get("status"));
+    changes.put("oldAssignedUserId", current.get("assignedUserId"));
     audit.log("CARE_TASK_UPDATED", "CareTask", id, "UI", changes);
     var task = task(id);
     publisher.publishEvent(new CareTaskChanged(departmentId, id, assignee, (Instant) task.get("dueAt"), status));
@@ -681,17 +698,28 @@ public class CareWorkflowService {
       taskAudit.put("dueAt", dueAt == null ? null : dueAt.toInstant());
       taskAudit.put("dueOn", item.get("dueOn")); taskAudit.put("dueTime", item.get("dueTime"));
       taskAudit.put("dependencyCount", listStrings(item.get("dependsOn")).size());
+      // Name the deciding clinician explicitly: the audit actor alone does not attribute the
+      // review when one user approves tasks sourced from a document another user prepared.
+      taskAudit.put("reviewerUserId", actor.user().getId());
       audit.log("CARE_TASK_CREATED", "CareTask", taskId, "UI", taskAudit);
       if (item.get("sourceReference") instanceof String sourceId) {
         audit.log("CARE_TASK_SOURCE_REVIEWED", "CareTask", taskId, "UI",
             Map.of("workflowRunId", runId, "sourceReference", sourceId,
                 "reviewDecision", item.get("reviewDecision"), "sourceConfidence", item.get("sourceConfidence"),
-                "sourceEdited", item.get("sourceEdited")));
+                "sourceEdited", item.get("sourceEdited"), "reviewerUserId", actor.user().getId()));
       }
     }
     for (var entry : deps.entrySet()) for (String dependency : entry.getValue()) jdbc.update(
         "insert into care_task_dependencies(department_id,task_id,depends_on_task_id) values (?,?,?)",
         departmentId, taskIds.get(entry.getKey()), taskIds.get(dependency));
+    // A rejected follow-up never becomes a task, so without this it would leave no trace of
+    // the reviewer's decision at all. Only the action id and decision are recorded, never
+    // the title or excerpt.
+    for (var action : reviewedActions)
+      if ("REJECTED".equals(action.decision()))
+        audit.log("CARE_TASK_SOURCE_REJECTED", "CareWorkflowRun", runId, "UI",
+            Map.of("actionId", action.actionId(), "sourceId", String.valueOf(action.sourceId()),
+                "reviewDecision", "REJECTED", "reviewerUserId", actor.user().getId()));
     audit.log("CARE_WORKFLOW_TASKS_CREATED", "CareWorkflowRun", runId, "UI",
         Map.of("workflowVersion", versionNumber, "trigger", trigger, "taskCount", tasks.size(),
             "overriddenTaskKeys", tasks.stream().filter(t -> "OVERRIDDEN".equals(t.get("taskOrigin"))).map(t -> t.get("key")).toList(),
