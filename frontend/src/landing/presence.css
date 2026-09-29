@@ -591,6 +591,17 @@ html:has(.mc):has(dialog[open]) {
   height: 490px;
   transition: object-position 1.2s var(--mc-ease);
 }
+/* Outgoing and incoming views share one cell so a tab change is a wipe. */
+.mc-product-stage {
+  display: grid;
+  overflow: hidden;
+  background: #10211b;
+}
+.mc-product-shot {
+  grid-area: 1 / 1;
+  position: relative;
+  overflow: hidden;
+}
 .mc-story {
   padding-block: 150px;
 }

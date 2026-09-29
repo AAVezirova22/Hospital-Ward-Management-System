@@ -121,6 +121,25 @@ export function FilmChoreography({
               },
             },
           );
+          // The product chapter rises like a stage, widening to full bleed.
+          gsap.fromTo(
+            ".mc-platform",
+            {
+              clipPath: desktop
+                ? "inset(0% 5% 0% 5% round 64px 64px 0px 0px)"
+                : "inset(0% 3% 0% 3% round 32px 32px 0px 0px)",
+            },
+            {
+              clipPath: "inset(0% 0% 0% 0% round 40px 40px 0px 0px)",
+              ease: "none",
+              scrollTrigger: {
+                trigger: ".mc-platform",
+                start: "top bottom",
+                end: "top 15%",
+                scrub: 0.8,
+              },
+            },
+          );
           gsap.fromTo(
             ".mc-product-bezel",
             {
