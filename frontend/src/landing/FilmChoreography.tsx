@@ -23,19 +23,40 @@ export function FilmChoreography({
         { desktop: "(min-width: 901px)", mobile: "(max-width: 900px)" },
         (context) => {
           const desktop = context.conditions?.desktop;
+          // Opening shot: the frame widens from a letterboxed aperture while
+          // the headline rises out of its line masks.
           const opening = gsap.timeline({ defaults: { ease: "power3.out" } });
           opening
-            .from(".mc-hero h1 span", {
-              yPercent: 65,
-              opacity: 0,
-              duration: 1.25,
-              stagger: 0.16,
-            })
+            .fromTo(
+              ".mc-hero-frame",
+              {
+                clipPath: desktop
+                  ? "inset(11% 9% 11% 9% round 40px)"
+                  : "inset(6% 4% 6% 4% round 26px)",
+              },
+              {
+                clipPath: "inset(0% 0% 0% 0% round 26px)",
+                duration: 1.6,
+                ease: "expo.inOut",
+                clearProps: "clipPath",
+              },
+            )
+            .from(
+              ".mc-hero .mc-eyebrow",
+              { y: 14, opacity: 0, duration: 0.8 },
+              "-=0.75",
+            )
+            .from(
+              ".mc-hero h1 .mc-line > span",
+              { yPercent: 112, duration: 1.2, stagger: 0.14 },
+              "<0.1",
+            )
             .from(
               ".mc-hero-lede, .mc-hero .mc-actions",
               { y: 20, opacity: 0, duration: 0.9, stagger: 0.12 },
               "-=0.75",
-            );
+            )
+            .from(".mc-hero-note", { y: 36, opacity: 0, duration: 1 }, "-=0.7");
 
           gsap.to(".mc-hero-copy", {
             y: desktop ? -65 : -24,

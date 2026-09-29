@@ -17,7 +17,7 @@ export default async function Home() {
       <noscript>
         <style
           nonce={nonce}
-        >{`.mc [data-reveal], .mc h1 span, .mc-hero-copy > div { opacity: 1 !important; transform: none !important; }`}</style>
+        >{`.mc [data-reveal], .mc h1 span, .mc-hero-copy > div { opacity: 1 !important; transform: none !important; } .mc .mc-hero-frame { clip-path: none !important; }`}</style>
       </noscript>
       <LandingPage nonce={nonce} />
     </>

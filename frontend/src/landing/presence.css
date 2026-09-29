@@ -396,6 +396,29 @@ html:has(.mc):has(dialog[open]) {
 .mc-hero h1 > span {
   display: block;
 }
+/* Line masks; the padding reserves room for the descenders in "presence"/"process". */
+.mc-line {
+  overflow: hidden;
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+.mc-line > span {
+  display: block;
+}
+/* Hold the opening shot until GSAP takes it, so hydration does not flash. */
+@media (prefers-reduced-motion: no-preference) {
+  .mc[data-ready="false"] .mc-hero-frame {
+    clip-path: inset(11% 9% 11% 9% round 40px);
+  }
+  .mc[data-ready="false"] .mc-hero h1 .mc-line > span {
+    transform: translateY(112%);
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 900px) {
+  .mc[data-ready="false"] .mc-hero-frame {
+    clip-path: inset(6% 4% 6% 4% round 26px);
+  }
+}
 .mc-hero-lede {
   font-size: clamp(1rem, 1.3vw, 1.2rem);
   color: #3e5544;
