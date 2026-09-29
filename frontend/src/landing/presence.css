@@ -402,6 +402,7 @@ html:has(.mc):has(dialog[open]) {
 }
 /* Line masks; the padding reserves room for the descenders in "presence"/"process". */
 .mc-line {
+  display: block;
   overflow: hidden;
   padding-bottom: 0.12em;
   margin-bottom: -0.12em;

@@ -127,9 +127,12 @@ export function LandingPage({ nonce }: { nonce?: string }) {
                 A little less admin. A lot more possibility.
               </p>
               <h2 id="start-title">
-                Make room
-                <br />
-                for better care.
+                <span className="mc-line">
+                  <span>Make room</span>
+                </span>{" "}
+                <span className="mc-line">
+                  <span>for better care.</span>
+                </span>
               </h2>
               <div className="mc-actions">
                 <Magnetic>

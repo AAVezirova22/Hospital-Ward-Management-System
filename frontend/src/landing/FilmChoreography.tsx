@@ -224,6 +224,33 @@ export function FilmChoreography({
               },
             },
           );
+          // Closing shot mirrors the opening: the panel opens from an
+          // aperture and its headline rises out of the same line masks.
+          gsap.fromTo(
+            ".mc-close",
+            {
+              clipPath: desktop
+                ? "inset(7% 6% 7% 6% round 64px)"
+                : "inset(3% 3% 3% 3% round 32px)",
+            },
+            {
+              clipPath: "inset(0% 0% 0% 0% round 32px)",
+              ease: "none",
+              scrollTrigger: {
+                trigger: ".mc-close",
+                start: "top bottom",
+                end: "top 30%",
+                scrub: 0.8,
+              },
+            },
+          );
+          gsap.from(".mc-close h2 .mc-line > span", {
+            yPercent: 112,
+            duration: 1.15,
+            stagger: 0.14,
+            ease: "power3.out",
+            scrollTrigger: { trigger: ".mc-close", start: "top 65%" },
+          });
         },
       );
       return () => media.revert();
