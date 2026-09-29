@@ -80,7 +80,6 @@ export function PlatformTour() {
     >
       <div className="mc-wrap">
         <Reveal>
-          <p className="mc-eyebrow">One connected platform</p>
           <h2 id="platform-title">
             Everything in view.
             <br />

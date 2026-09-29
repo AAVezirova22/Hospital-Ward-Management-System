@@ -696,9 +696,6 @@ html:has(.mc):has(dialog[open]) {
   column-gap: 80px;
   align-items: end;
 }
-.mc-assistant-heading .mc-eyebrow {
-  grid-column: 1 / -1;
-}
 .mc-assistant-heading > p:last-child {
   color: var(--mc-text);
   font-size: 1.1rem;

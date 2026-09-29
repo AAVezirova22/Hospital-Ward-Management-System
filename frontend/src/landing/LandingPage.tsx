@@ -39,7 +39,6 @@ export function LandingPage({ nonce }: { nonce?: string }) {
         <PresenceHero />
         <section className="mc-intro mc-wrap" aria-labelledby="intro-title">
           <Reveal>
-            <p className="mc-eyebrow">Made for the people behind the care</p>
             <h2 id="intro-title">
               {words("A hospital is a thousand")}
               <br className="mc-desktop" /> {words("moving parts.")}

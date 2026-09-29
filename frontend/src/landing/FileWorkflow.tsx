@@ -84,7 +84,6 @@ export function FileWorkflow() {
     >
       <div className="mc-wrap">
         <Reveal className="mc-assistant-heading">
-          <p className="mc-eyebrow">Your operations assistant</p>
           <h2 id="assistant-title">
             Files in.
             <br />
