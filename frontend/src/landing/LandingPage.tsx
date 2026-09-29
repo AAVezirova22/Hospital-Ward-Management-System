@@ -15,6 +15,7 @@ import { PlatformTour } from "./PlatformTour";
 import { WorkflowStory } from "./WorkflowStory";
 import { FileWorkflow } from "./FileWorkflow";
 import { MessageExperience } from "./MessageExperience";
+import { Magnetic } from "./Magnetic";
 
 /** Splits a phrase into word spans that the film choreography can scrub. */
 function words(phrase: string) {
@@ -131,12 +132,14 @@ export function LandingPage({ nonce }: { nonce?: string }) {
                 for better care.
               </h2>
               <div className="mc-actions">
-                <Link href="/app" className="mc-button">
-                  Open the workspace{" "}
-                  <span>
-                    <ArrowUpRight aria-hidden="true" />
-                  </span>
-                </Link>
+                <Magnetic>
+                  <Link href="/app" className="mc-button">
+                    Open the workspace{" "}
+                    <span>
+                      <ArrowUpRight aria-hidden="true" />
+                    </span>
+                  </Link>
+                </Magnetic>
                 <a href="#booking" className="mc-text-link" data-film-book>
                   Take a guided tour <ArrowUpRight aria-hidden="true" />
                 </a>

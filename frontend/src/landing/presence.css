@@ -275,6 +275,10 @@ html:has(.mc):has(dialog[open]) {
 .mc-button:active {
   transform: scale(0.98);
 }
+.mc-magnetic {
+  display: inline-flex;
+  will-change: transform;
+}
 .mc-actions {
   display: flex;
   align-items: center;
