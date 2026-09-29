@@ -309,14 +309,15 @@ class PatientDocumentDraftIntegrationTest {
         .content(json.writeValueAsString(Map.of(
             "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-CORROB-429'", Long.class)))))
         .andExpect(status().isOk());
-    // Scoped to this test's own patient rather than counted per event type: the
+    // Scoped to the row this test created rather than counted per event type: the
     // sibling test in this class binds a draft too, so a class-wide total depends on
-    // which test ran first. The audit row records the patient it bound.
+    // which test ran first. audit_events.metadata is a Java map rendered as text, so
+    // the match is on the source id, which is unique to this test, and does not
+    // depend on the entry order inside the rendered map.
     assertThat(jdbc.queryForObject(
         "select count(*) from audit_events where event_type='PATIENT_DRAFT_BOUND' and metadata like ?",
-        Long.class, "%patientId=" + jdbc.queryForObject(
-            "select id from patients where patient_identifier='P-CORROB-429'", Long.class) + ",%"))
-        .as("one binding recorded for the patient this draft was bound to")
+        Long.class, "%sourceId=" + sourceId + "%"))
+        .as("one binding recorded for the source this draft came from")
         .isEqualTo(1L);
 
     // A source that simply does not state an identity field is ordinary, not contradictory:
