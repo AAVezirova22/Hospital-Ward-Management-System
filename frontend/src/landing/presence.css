@@ -1192,12 +1192,39 @@ html:has(.mc):has(dialog[open]) {
   font-size: 0.8rem;
 }
 .mc-close {
+  position: relative;
+  isolation: isolate;
   background: var(--mc-tint);
   margin-inline: 22px;
   border-radius: 32px;
   overflow: hidden;
 }
+/* Canvas UI Liquid light trail; artwork sits beneath the chapter content. */
+.mc-trail {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+/* On the dark panel a pale trail would wash out the type; keep it a glow. */
+html[data-site-theme="dark"] .mc-trail {
+  opacity: 0.32;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-site-theme]) .mc-trail {
+    opacity: 0.32;
+  }
+}
+.mc-trail-canvas,
+.mc-trail-surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
 .mc-close-inner {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   align-items: center;

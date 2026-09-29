@@ -16,6 +16,7 @@ import { WorkflowStory } from "./WorkflowStory";
 import { FileWorkflow } from "./FileWorkflow";
 import { MessageExperience } from "./MessageExperience";
 import { Magnetic } from "./Magnetic";
+import { PresenceTrail } from "./PresenceTrail";
 
 /** Splits a phrase into word spans that the film choreography can scrub. */
 function words(phrase: string) {
@@ -121,6 +122,7 @@ export function LandingPage({ nonce }: { nonce?: string }) {
           </div>
         </section>
         <section className="mc-close" id="start" aria-labelledby="start-title">
+          <PresenceTrail />
           <div className="mc-wrap mc-close-inner">
             <Reveal>
               <p className="mc-eyebrow">
