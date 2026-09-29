@@ -25,11 +25,14 @@ class AuditHistoryFiltersTest extends HospitalSupport {
     Instant nearUtcMidnight = Instant.parse("2026-01-01T00:30:00Z");
     try {
       jdbc.update("update departments set time_zone='America/Los_Angeles' where id=?", departmentId);
-      jdbc.update("update audit_events set timestamp=? where department_id=? and event_type=? and entity_id=?",
-          Timestamp.from(nearUtcMidnight), departmentId, "PATIENT_CREATED", patientId);
       long actorId = users.findByUsername("admin").orElseThrow().getId();
       long otherActorId = users.findByUsername("staff").orElseThrow().getId();
       long otherEntityId = patientId + 1_000_000_000L;
+      // Inserted rather than backdated by UPDATE: audit_events is append-only behind a
+      // trigger, and the UPDATE raised on every run, so the local-date boundary below
+      // was asserting against a row that was never where this test put it. The row the
+      // test needs is simply written at the timestamp it needs.
+      insertAuditEvent(departmentId, actorId, "PATIENT_CREATED", "Patient", patientId, "UI", nearUtcMidnight);
       insertAuditEvent(departmentId, otherActorId, "PATIENT_CREATED", "Patient", patientId, "UI", nearUtcMidnight);
       insertAuditEvent(departmentId, actorId, "PATIENT_UPDATED", "Patient", patientId, "UI", nearUtcMidnight);
       insertAuditEvent(departmentId, actorId, "PATIENT_CREATED", "Ward", patientId, "UI", nearUtcMidnight);
@@ -57,6 +60,10 @@ class AuditHistoryFiltersTest extends HospitalSupport {
       assertThat(nextDay.path("total").asLong()).isZero();
       assertThat(nextDay.path("events").size()).isZero();
 
+      // Each one-sided filter must return the fixture rows. The patient's real creation
+      // event is stamped "now" — after the local day under test — so a from-only query
+      // legitimately sees it as well, and both queries return it alongside the two
+      // fixture rows. The two-sided query above is what pins the local-day boundary.
       var fromOnly = auditWithParams("admin", departmentId, Map.of(
           "eventType", "PATIENT_CREATED", "actorId", Long.toString(actorId),
           "entityType", "Patient", "entityId", Long.toString(patientId),
@@ -65,8 +72,12 @@ class AuditHistoryFiltersTest extends HospitalSupport {
           "actorId", Long.toString(actorId), "entityType", "Patient",
           "entityId", Long.toString(patientId), "to", localDay.toString(),
           "eventType", "  ", "source", "UI"));
-      assertThat(fromOnly.path("total").asLong()).isEqualTo(2);
-      assertThat(toOnly.path("total").asLong()).isEqualTo(2);
+      assertThat(fromOnly.path("total").asLong())
+          .as("from-only reaches the fixture rows and everything after the day")
+          .isEqualTo(3);
+      assertThat(toOnly.path("total").asLong())
+          .as("to-only reaches the fixture rows and nothing after the day")
+          .isEqualTo(2);
 
       request("admin", "GET", "/api/v1/audit?from=" + localDay.plusDays(1)
           + "&to=" + localDay, null).andExpect(status().isBadRequest());
