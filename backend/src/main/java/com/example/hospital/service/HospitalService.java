@@ -174,6 +174,126 @@ public class HospitalService {
         pageable);
   }
 
+  /**
+   * Free-text search over the admission number and the patient's name and
+   * identifier (#163), combined with the existing status, date and doctor filters.
+   *
+   * <p>A blank term is treated as absent rather than as a wildcard, so clearing the
+   * box returns the full list instead of everything matching {@code %}.
+   */
+  public Page<Admission> admissions(
+      String search,
+      String status,
+      Instant fromDate,
+      Instant toDateExclusive,
+      Long doctorId,
+      Pageable pageable) {
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    String term = search == null ? "" : search.strip();
+    return new org.springframework.data.domain.PageImpl<>(
+        admissions.searchAdmissionsText(
+            DepartmentContext.id(),
+            !term.isEmpty(),
+            escapeLike(term) + "%",
+            status != null,
+            status,
+            fromDate != null,
+            fromDate,
+            toDateExclusive != null,
+            toDateExclusive,
+            doctorId != null,
+            doctorId,
+            doctorScoped,
+            scopedDoctorId,
+            patientScoped,
+            scopedPatientId,
+            pageable),
+        pageable,
+        countSearchAdmissions(
+            term, status, fromDate, toDateExclusive, doctorId,
+            doctorScoped, scopedDoctorId, patientScoped, scopedPatientId));
+  }
+
+  /**
+   * Escapes the LIKE metacharacters. Without this a user typing {@code %} gets a
+   * full-table scan and anyone typing {@code _} matches any character, which would
+   * make a search return rows the user did not ask for.
+   */
+  private static String escapeLike(String term) {
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+  }
+
+  /** The filter set with everything removed, so a client can offer "clear filters". */
+  public Map<String, Object> defaultFilters() {
+    var filters = new java.util.LinkedHashMap<String, Object>();
+    filters.put("search", "");
+    filters.put("status", null);
+    filters.put("from", null);
+    filters.put("to", null);
+    filters.put("doctorId", null);
+    filters.put("page", 0);
+    filters.put("size", 20);
+    return filters;
+  }
+
+  private long countSearchAdmissions(
+      String term,
+      String status,
+      Instant fromDate,
+      Instant toDateExclusive,
+      Long doctorId,
+      boolean doctorScoped,
+      Long scopedDoctorId,
+      boolean patientScoped,
+      Long scopedPatientId) {
+    return admissions.countSearchAdmissionsText(
+        DepartmentContext.id(),
+        !term.isEmpty(),
+        escapeLike(term) + "%",
+        status != null,
+        status,
+        fromDate != null,
+        fromDate,
+        toDateExclusive != null,
+        toDateExclusive,
+        doctorId != null,
+        doctorId,
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId);
+  }
+
+  public long admissionCount(
+      String term, String status, Instant fromDate, Instant toDateExclusive, Long doctorId) {
+    var currentActor = actor.user();
+    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
+    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
+    boolean patientScoped = currentActor.getRole().equals("PATIENT");
+    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
+    String search = term == null ? "" : term.strip();
+    return admissions.countSearchAdmissionsText(
+        DepartmentContext.id(),
+        !search.isEmpty(),
+        escapeLike(search) + "%",
+        status != null,
+        status,
+        fromDate != null,
+        fromDate,
+        toDateExclusive != null,
+        toDateExclusive,
+        doctorId != null,
+        doctorId,
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId);
+  }
+
   public long admissionCount(
       String status, Instant fromDate, Instant toDateExclusive, Long doctorId) {
     var currentActor = actor.user();

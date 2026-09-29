@@ -21,12 +21,22 @@ public class StayController {
   public PagedResult<Map<String, Object>> admissions(
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size,
+      @RequestParam(required = false) String search,
       @RequestParam(required = false) String status,
       @RequestParam(required = false) LocalDate from,
       @RequestParam(required = false) LocalDate to,
       @RequestParam(required = false) Long doctorId) {
-    var result = stays.list(page, size, status, from, to, doctorId);
+    var result = stays.list(page, size, search, status, from, to, doctorId);
     return PagedResult.of(result.map(stays::view));
+  }
+
+  /**
+   * The cleared filter set, so a client does not have to hard-code what "no
+   * filters" means and can reset the form from the server's own definition.
+   */
+  @GetMapping("/admissions/filters")
+  public Object admissionFilters() {
+    return stays.defaultFilters();
   }
 
   @GetMapping("/admissions/{id}")

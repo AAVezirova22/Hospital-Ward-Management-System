@@ -81,13 +81,16 @@ public class StayService {
   }
 
   public Page<Admission> list(
-      int page, int size, String status, LocalDate from, LocalDate to, Long doctorId) {
+      int page, int size, String search, String status, LocalDate from, LocalDate to, Long doctorId) {
     if (page < 0 || size < 1 || (doctorId != null && doctorId < 1))
       throw new ApiException(
           400, "VALIDATION_ERROR", "Check the admission filters and page values.");
     if (from != null && to != null && from.isAfter(to))
       throw new ApiException(
           400, "VALIDATION_ERROR", "The start date must not be after the end date.");
+    if (search != null && search.length() > 100)
+      throw new ApiException(
+          400, "VALIDATION_ERROR", "Search for at most 100 characters.");
 
     String normalizedStatus =
         status == null || status.isBlank() ? null : status.trim().toUpperCase(Locale.ROOT);
@@ -105,16 +108,15 @@ public class StayService {
     }
 
     int pageSize = Math.min(size, MAX_PAGE_SIZE);
-    Sort sort =
-        Sort.by(Sort.Order.desc("admissionDateTime")).and(Sort.by(Sort.Order.desc("id")));
-    return page(
-        page,
-        pageSize,
-        sort,
-        normalizedStatus,
-        fromDate,
-        toDateExclusive,
-        doctorId);
+    // The text search orders in SQL, so the pageable must not carry a sort the
+    // native query would ignore or contradict.
+    String term = search == null ? "" : search.strip();
+    long totalElements =
+        hospital.admissionCount(term, normalizedStatus, fromDate, toDateExclusive, doctorId);
+    long lastPageNumber = totalElements == 0 ? 0 : (totalElements - 1) / pageSize;
+    int effectivePage = (int) Math.min(page, Math.min(lastPageNumber, Integer.MAX_VALUE));
+    Pageable pageable = PageRequest.of(effectivePage, pageSize);
+    return hospital.admissions(term, normalizedStatus, fromDate, toDateExclusive, doctorId, pageable);
   }
 
   private Page<Admission> page(
@@ -132,6 +134,11 @@ public class StayService {
     List<Admission> content =
         hospital.admissions(status, fromDate, toDateExclusive, doctorId, pageable);
     return new PageImpl<>(content, pageable, totalElements);
+  }
+
+  /** The cleared admission filter set, for a client's "clear filters" action. */
+  public Map<String, Object> defaultFilters() {
+    return hospital.defaultFilters();
   }
 
   public Map<String, Object> view(Admission admission) {
