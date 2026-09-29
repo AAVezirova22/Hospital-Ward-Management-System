@@ -103,6 +103,9 @@ public class Errors {
     } else if (detail.contains("one_active_admission")) {
       code = "ALREADY_ADMITTED";
       message = "This patient already has an active admission.";
+    } else if (detail.contains("is archived and cannot accept new members")) {
+      code = "DEPARTMENT_ARCHIVED";
+      message = "This department is archived and cannot accept new members.";
     }
     return ResponseEntity.status(409).body(body(409, code, message, r.getRequestURI()));
   }
