@@ -187,6 +187,8 @@ public class HospitalService {
       Instant fromDate,
       Instant toDateExclusive,
       Long doctorId,
+      String sortKey,
+      String sortDirection,
       Pageable pageable) {
     var currentActor = actor.user();
     boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
@@ -194,28 +196,74 @@ public class HospitalService {
     boolean patientScoped = currentActor.getRole().equals("PATIENT");
     Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
     String term = search == null ? "" : search.strip();
-    return new org.springframework.data.domain.PageImpl<>(
-        admissions.searchAdmissionsText(
-            DepartmentContext.id(),
-            !term.isEmpty(),
-            escapeLike(term) + "%",
-            status != null,
-            status,
-            fromDate != null,
-            fromDate,
-            toDateExclusive != null,
-            toDateExclusive,
-            doctorId != null,
-            doctorId,
-            doctorScoped,
-            scopedDoctorId,
-            patientScoped,
-            scopedPatientId,
-            pageable),
-        pageable,
-        countSearchAdmissions(
-            term, status, fromDate, toDateExclusive, doctorId,
-            doctorScoped, scopedDoctorId, patientScoped, scopedPatientId));
+    String prefix = escapeLike(term) + "%";
+    boolean descending = "desc".equals(sortDirection);
+
+    long total = countSearchAdmissions(term, status, fromDate, toDateExclusive, doctorId,
+        doctorScoped, scopedDoctorId, patientScoped, scopedPatientId);
+    long lastPage = total == 0 ? 0 : (total - 1) / pageable.getPageSize();
+    int page = (int) Math.min(pageable.getPageNumber(), lastPage);
+    var effective = PageRequest.of(page, pageable.getPageSize());
+
+    // The sort key selects one of four constant queries rather than splicing text
+    // into an ORDER BY: a native query cannot bind a sort column as a parameter,
+    // and concatenating a caller's word into SQL is not something to do for a
+    // convenience. Every query's ORDER BY ends with a.id so the order is total —
+    // without a tiebreak, rows sharing a room or status could come back in either
+    // order and a user paging the register would see one row twice and another
+    // not at all.
+    List<Admission> content = switch (
+        sortKey == null ? com.example.hospital.repository.AdmissionRepository.SORT_ADMISSION_DATE : sortKey) {
+      case com.example.hospital.repository.AdmissionRepository.SORT_PATIENT ->
+          admissions.searchAdmissionsByPatient(DepartmentContext.id(), !term.isEmpty(), prefix,
+              status != null, status, fromDate != null, fromDate,
+              toDateExclusive != null, toDateExclusive, doctorId != null, doctorId,
+              doctorScoped, scopedDoctorId, patientScoped, scopedPatientId, descending, effective);
+      case com.example.hospital.repository.AdmissionRepository.SORT_ROOM ->
+          admissions.searchAdmissionsByRoom(DepartmentContext.id(), !term.isEmpty(), prefix,
+              status != null, status, fromDate != null, fromDate,
+              toDateExclusive != null, toDateExclusive, doctorId != null, doctorId,
+              doctorScoped, scopedDoctorId, patientScoped, scopedPatientId, descending, effective);
+      case com.example.hospital.repository.AdmissionRepository.SORT_STATUS ->
+          admissions.searchAdmissionsByStatus(DepartmentContext.id(), !term.isEmpty(), prefix,
+              status != null, status, fromDate != null, fromDate,
+              toDateExclusive != null, toDateExclusive, doctorId != null, doctorId,
+              doctorScoped, scopedDoctorId, patientScoped, scopedPatientId, descending, effective);
+      default -> admissions.searchAdmissionsText(DepartmentContext.id(), !term.isEmpty(), prefix,
+          status != null, status, fromDate != null, fromDate,
+          toDateExclusive != null, toDateExclusive, doctorId != null, doctorId,
+          doctorScoped, scopedDoctorId, patientScoped, scopedPatientId, effective);
+    };
+    return new org.springframework.data.domain.PageImpl<>(content, effective, total);
+  }
+
+  private long countSearchAdmissions(
+      String term,
+      String status,
+      Instant fromDate,
+      Instant toDateExclusive,
+      Long doctorId,
+      boolean doctorScoped,
+      Long scopedDoctorId,
+      boolean patientScoped,
+      Long scopedPatientId) {
+    String search = term == null ? "" : term.strip();
+    return admissions.countSearchAdmissionsText(
+        DepartmentContext.id(),
+        !search.isEmpty(),
+        escapeLike(search) + "%",
+        status != null,
+        status,
+        fromDate != null,
+        fromDate,
+        toDateExclusive != null,
+        toDateExclusive,
+        doctorId != null,
+        doctorId,
+        doctorScoped,
+        scopedDoctorId,
+        patientScoped,
+        scopedPatientId);
   }
 
   /**
@@ -240,59 +288,7 @@ public class HospitalService {
     return filters;
   }
 
-  private long countSearchAdmissions(
-      String term,
-      String status,
-      Instant fromDate,
-      Instant toDateExclusive,
-      Long doctorId,
-      boolean doctorScoped,
-      Long scopedDoctorId,
-      boolean patientScoped,
-      Long scopedPatientId) {
-    return admissions.countSearchAdmissionsText(
-        DepartmentContext.id(),
-        !term.isEmpty(),
-        escapeLike(term) + "%",
-        status != null,
-        status,
-        fromDate != null,
-        fromDate,
-        toDateExclusive != null,
-        toDateExclusive,
-        doctorId != null,
-        doctorId,
-        doctorScoped,
-        scopedDoctorId,
-        patientScoped,
-        scopedPatientId);
-  }
 
-  public long admissionCount(
-      String term, String status, Instant fromDate, Instant toDateExclusive, Long doctorId) {
-    var currentActor = actor.user();
-    boolean doctorScoped = currentActor.getRole().equals("DOCTOR");
-    Long scopedDoctorId = doctorScoped ? currentActor.getDoctorId() : null;
-    boolean patientScoped = currentActor.getRole().equals("PATIENT");
-    Long scopedPatientId = patientScoped ? currentActor.getPatientId() : null;
-    String search = term == null ? "" : term.strip();
-    return admissions.countSearchAdmissionsText(
-        DepartmentContext.id(),
-        !search.isEmpty(),
-        escapeLike(search) + "%",
-        status != null,
-        status,
-        fromDate != null,
-        fromDate,
-        toDateExclusive != null,
-        toDateExclusive,
-        doctorId != null,
-        doctorId,
-        doctorScoped,
-        scopedDoctorId,
-        patientScoped,
-        scopedPatientId);
-  }
 
   public long admissionCount(
       String status, Instant fromDate, Instant toDateExclusive, Long doctorId) {

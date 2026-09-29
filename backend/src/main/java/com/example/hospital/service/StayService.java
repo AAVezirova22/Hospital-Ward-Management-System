@@ -43,6 +43,12 @@ public class StayService {
   private static final int MAX_PAGE_SIZE = 100;
   private static final Set<String> ADMISSION_STATUSES = Set.of("ACTIVE", "DISCHARGED", "CANCELLED");
 
+  /**
+   * The sortable register columns (#164), mirroring the whitelist in the repository
+   * so the service can reject a bad key before it reaches the query.
+   */
+  private static final List<String> REGISTER_SORT_KEYS = List.of("admissionDate", "patient", "room", "status");
+
   private final HospitalService hospital;
   private final WorkflowLockRepository lock;
   private final Actor actor;
@@ -85,7 +91,8 @@ public class StayService {
   }
 
   public Page<Admission> list(
-      int page, int size, String search, String status, LocalDate from, LocalDate to, Long doctorId) {
+      int page, int size, String search, String status, LocalDate from, LocalDate to, Long doctorId,
+      String sortKey, String sortDirection) {
     if (page < 0 || size < 1 || (doctorId != null && doctorId < 1))
       throw new ApiException(
           400, "VALIDATION_ERROR", "Check the admission filters and page values.");
@@ -95,6 +102,18 @@ public class StayService {
     if (search != null && search.length() > 100)
       throw new ApiException(
           400, "VALIDATION_ERROR", "Search for at most 100 characters.");
+
+    // Validate the sort before anything else runs, so a bad sort is refused rather
+    // than silently falling back to the default the user did not ask for.
+    String key = sortKey == null || sortKey.isBlank()
+        ? AdmissionSort.DEFAULT_KEY : sortKey.strip();
+    String direction = sortDirection == null || sortDirection.isBlank()
+        ? AdmissionSort.defaultDirection(key) : sortDirection.strip().toLowerCase(Locale.ROOT);
+    if (!REGISTER_SORT_KEYS.contains(key))
+      throw new ApiException(400, "INVALID_SORT",
+          "Sort by " + String.join(", ", REGISTER_SORT_KEYS) + ".");
+    if (!direction.equals("asc") && !direction.equals("desc"))
+      throw new ApiException(400, "INVALID_SORT", "Sort direction must be asc or desc.");
 
     String normalizedStatus =
         status == null || status.isBlank() ? null : status.trim().toUpperCase(Locale.ROOT);
@@ -112,15 +131,30 @@ public class StayService {
     }
 
     int pageSize = Math.min(size, MAX_PAGE_SIZE);
-    // The text search orders in SQL, so the pageable must not carry a sort the
-    // native query would ignore or contradict.
-    String term = search == null ? "" : search.strip();
-    long totalElements =
-        hospital.admissionCount(term, normalizedStatus, fromDate, toDateExclusive, doctorId);
-    long lastPageNumber = totalElements == 0 ? 0 : (totalElements - 1) / pageSize;
-    int effectivePage = (int) Math.min(page, Math.min(lastPageNumber, Integer.MAX_VALUE));
-    Pageable pageable = PageRequest.of(effectivePage, pageSize);
-    return hospital.admissions(term, normalizedStatus, fromDate, toDateExclusive, doctorId, pageable);
+    // The query orders in SQL, so the pageable must not carry a sort the query would
+    // ignore or contradict. The query also owns the total, so the page maths and the
+    // result count can never disagree.
+    return hospital.admissions(
+        search, normalizedStatus, fromDate, toDateExclusive, doctorId, key, direction,
+        PageRequest.of(page, pageSize));
+  }
+
+  /**
+   * The sort options and the result count shape a register needs, so a client can
+   * render the column headers and the "N results" line from the server rather than
+   * hard-coding either (#164).
+   */
+  public Map<String, Object> sortOptions() {
+    var options = new java.util.ArrayList<Map<String, Object>>();
+    for (String key : AdmissionSort.KEYS) {
+      options.add(Map.of("key", key, "defaultDirection", AdmissionSort.defaultDirection(key)));
+    }
+    return Map.of("sortable", options, "resultCountField", "totalElements");
+  }
+
+  /** The sort the server applied, including the default when none was requested. */
+  public String appliedSort(String key, String direction) {
+    return AdmissionSort.describe(key, direction);
   }
 
   private Page<Admission> page(
