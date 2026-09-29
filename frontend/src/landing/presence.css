@@ -450,6 +450,9 @@ html:has(.mc):has(dialog[open]) {
 .mc-intro {
   padding-block: 143px 75px;
 }
+.mc-word {
+  display: inline-block;
+}
 .mc-intro h2 {
   font-size: clamp(2.7rem, 4.8vw, 4.65rem);
   max-width: 1040px;

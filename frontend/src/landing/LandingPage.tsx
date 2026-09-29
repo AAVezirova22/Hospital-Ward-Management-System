@@ -16,6 +16,16 @@ import { WorkflowStory } from "./WorkflowStory";
 import { FileWorkflow } from "./FileWorkflow";
 import { MessageExperience } from "./MessageExperience";
 
+/** Splits a phrase into word spans that the film choreography can scrub. */
+function words(phrase: string) {
+  return phrase.split(" ").flatMap((word, index) => [
+    index ? " " : null,
+    <span className="mc-word" key={index}>
+      {word}
+    </span>,
+  ]);
+}
+
 export function LandingPage({ nonce }: { nonce?: string }) {
   return (
     <LandingExperience nonce={nonce}>
@@ -29,8 +39,8 @@ export function LandingPage({ nonce }: { nonce?: string }) {
           <Reveal>
             <p className="mc-eyebrow">Made for the people behind the care</p>
             <h2 id="intro-title">
-              A hospital is a thousand
-              <br className="mc-desktop" /> moving parts.
+              {words("A hospital is a thousand")}
+              <br className="mc-desktop" /> {words("moving parts.")}
               <span className="mc-inline-photo">
                 <Image
                   src="/landing/stills/clinical-conversation.webp"
@@ -40,7 +50,7 @@ export function LandingPage({ nonce }: { nonce?: string }) {
                 />
               </span>
               <br />
-              Bring them together.
+              {words("Bring them together.")}
             </h2>
             <p className="mc-intro-copy">
               Your people, your wards, your next decision. Medcore connects the

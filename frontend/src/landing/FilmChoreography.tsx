@@ -89,6 +89,23 @@ export function FilmChoreography({
             { yPercent: 0, scale: 1 },
             { yPercent: 8, scale: 1.16, ease: "none", scrollTrigger: leaving },
           );
+          // The "thousand moving parts" line assembles as the reader arrives.
+          gsap.fromTo(
+            ".mc-intro .mc-word",
+            { opacity: 0.12, yPercent: 22 },
+            {
+              opacity: 1,
+              yPercent: 0,
+              stagger: 0.08,
+              ease: "none",
+              scrollTrigger: {
+                trigger: ".mc-intro h2",
+                start: "top 85%",
+                end: "bottom 45%",
+                scrub: 0.6,
+              },
+            },
+          );
           gsap.fromTo(
             ".mc-inline-photo",
             { scale: 0.8, rotation: -8 },
