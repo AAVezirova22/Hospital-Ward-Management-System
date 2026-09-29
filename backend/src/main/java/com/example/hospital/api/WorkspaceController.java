@@ -16,13 +16,16 @@ public class WorkspaceController {
   private final WorkspaceService workspaces;
   private final DepartmentTimeService departmentTime;
   private final com.example.hospital.security.ClientAddressResolver clientAddresses;
+  private final com.example.hospital.service.DepartmentArchiveService archive;
   public WorkspaceController(
       WorkspaceService workspaces,
       DepartmentTimeService departmentTime,
-      com.example.hospital.security.ClientAddressResolver clientAddresses) {
+      com.example.hospital.security.ClientAddressResolver clientAddresses,
+      com.example.hospital.service.DepartmentArchiveService archive) {
     this.workspaces = workspaces;
     this.departmentTime = departmentTime;
     this.clientAddresses = clientAddresses;
+    this.archive = archive;
   }
   public record HospitalInput(@NotBlank @Size(max=120) String name, @NotBlank @Size(max=120) String departmentName) {}
   public record DepartmentInput(@NotBlank @Size(max=120) String name) {}
@@ -41,7 +44,10 @@ public class WorkspaceController {
   public record ExpiryInput(java.time.Instant expiresAt) {}
 
   @GetMapping
-  public Object list() { return Map.of("activeDepartmentId", DepartmentContext.id(), "timeZone", departmentTime.timeZone(), "hospitals", workspaces.list()); }
+  public Object list() {
+    return Map.of("activeDepartmentId", DepartmentContext.id(), "timeZone", departmentTime.timeZone(),
+        "hospitals", workspaces.list(), "archivedDepartmentIds", archive.archivedIds());
+  }
   @GetMapping("/hospitals/{id}/members")
   public Object hospitalMembers(@PathVariable long id,
       @RequestParam(defaultValue = "0") int page,
@@ -125,6 +131,21 @@ public class WorkspaceController {
   public Object patientImportPermission(@PathVariable long id, @PathVariable long userId,
       @Valid @RequestBody PatientImportPermissionInput input) {
     return workspaces.setPatientImportPermission(id, userId, input.enabled());
+  }
+
+  @PostMapping("/departments/{id}/archive")
+  public Object archiveDepartment(@PathVariable long id,
+      @RequestParam(required = false) @Size(max = 500) String reason) {
+    return archive.archive(id, reason);
+  }
+  @PostMapping("/departments/{id}/restore")
+  public Object restoreDepartment(@PathVariable long id,
+      @RequestParam(required = false) @Size(max = 500) String reason) {
+    return archive.restore(id, reason);
+  }
+  @GetMapping("/departments/{id}/state")
+  public Object departmentState(@PathVariable long id) {
+    return archive.state(id);
   }
 
   private static Integer hours(RotateInput input) {

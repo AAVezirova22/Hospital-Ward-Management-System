@@ -18,6 +18,7 @@ import com.example.hospital.repository.PerformedProcedureRepository;
 import com.example.hospital.repository.RoomAssignmentRepository;
 import com.example.hospital.repository.WorkflowLockRepository;
 import com.example.hospital.security.Actor;
+import com.example.hospital.security.DepartmentContext;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.util.Collection;
@@ -52,6 +53,7 @@ public class StayService {
   private final PerformedProcedureRepository performed;
   private final AuditService audit;
   private final CareWorkflowService careWorkflows;
+  private final DepartmentArchiveService archive;
 
   public StayService(
       HospitalService hospital,
@@ -63,7 +65,8 @@ public class StayService {
       MedicalProcedureRepository catalogue,
       PerformedProcedureRepository performed,
       AuditService audit,
-      CareWorkflowService careWorkflows) {
+      CareWorkflowService careWorkflows,
+      DepartmentArchiveService archive) {
     this.hospital = hospital;
     this.lock = lock;
     this.actor = actor;
@@ -74,6 +77,7 @@ public class StayService {
     this.performed = performed;
     this.audit = audit;
     this.careWorkflows = careWorkflows;
+    this.archive = archive;
   }
 
   public List<Admission> list() {
@@ -210,6 +214,8 @@ if (hospital.occupied(id) + hospital.held(id) >= r.getBedCount())
   public Admission create(AdmissionInput in, String source) {
     lock.acquire();
     actor.staff();
+    // A closed unit still serves its historical records but takes no new admissions.
+    archive.requireWritable(DepartmentContext.id());
     hospital.patient(in.patientId());
     activeDoctor(in.doctorId());
     var requirements = RoomCapabilityMatcher.normalize(in.requiredRoomCapabilities());
