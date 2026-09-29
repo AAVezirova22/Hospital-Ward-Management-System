@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowUpRight, Play } from "@phosphor-icons/react";
 import { motion, useTransform } from "motion/react";
 import { AmbientLight } from "./AmbientLight";
+import { Magnetic } from "./Magnetic";
 import { useFilmPlayback } from "./useFilmPlayback";
 import { useSiteMotion } from "./SiteMotion";
 
@@ -33,7 +34,12 @@ export function PresenceHero() {
         <div className="mc-hero-copy">
           <p className="mc-eyebrow">Hospital operations, with a human touch</p>
           <h1>
-            <span>More presence.</span> <span>Less process.</span>
+            <span className="mc-line">
+              <span>More presence.</span>
+            </span>{" "}
+            <span className="mc-line">
+              <span>Less process.</span>
+            </span>
           </h1>
           <div>
             <p className="mc-hero-lede">
@@ -42,12 +48,14 @@ export function PresenceHero() {
               moving.
             </p>
             <div className="mc-actions">
-              <Link className="mc-button" href="/app">
-                Open the workspace
-                <span>
-                  <ArrowUpRight size={20} aria-hidden="true" />
-                </span>
-              </Link>
+              <Magnetic>
+                <Link className="mc-button" href="/app">
+                  Open the workspace
+                  <span>
+                    <ArrowUpRight size={20} aria-hidden="true" />
+                  </span>
+                </Link>
+              </Magnetic>
               <a className="mc-tour-link" href="#booking">
                 <span>
                   <Play size={12} weight="fill" aria-hidden="true" />

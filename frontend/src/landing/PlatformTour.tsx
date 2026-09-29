@@ -80,7 +80,6 @@ export function PlatformTour() {
     >
       <div className="mc-wrap">
         <Reveal>
-          <p className="mc-eyebrow">One connected platform</p>
           <h2 id="platform-title">
             Everything in view.
             <br />
@@ -159,14 +158,44 @@ export function PlatformTour() {
                 <span>Medcore workspace</span>
                 <span>{panel.name}</span>
               </div>
-              <Image
-                src={`/landing/stills/${panel.image}`}
-                alt={`Actual Medcore ${panel.name.toLowerCase()} with demonstration data`}
-                width={1440}
-                height={panel.height}
-                sizes="(max-width: 767px) calc(100vw - 52px), (max-width: 1100px) 62vw, 840px"
-                style={{ objectPosition: panel.position }}
-              />
+              {/* Shot change: the next view wipes in over the previous one. */}
+              <div className="mc-product-stage">
+                <AnimatePresence initial={false}>
+                  <motion.div
+                    key={selected}
+                    className="mc-product-shot"
+                    initial={
+                      reduced ? false : { clipPath: "inset(0% 0% 0% 100%)" }
+                    }
+                    animate={{ clipPath: "inset(0% 0% 0% 0%)", zIndex: 1 }}
+                    exit={
+                      reduced
+                        ? { opacity: 0, transition: { duration: 0 } }
+                        : { zIndex: 0, scale: 0.96, opacity: 0.35 }
+                    }
+                    transition={{
+                      duration: 0.85,
+                      ease: [0.76, 0, 0.24, 1],
+                      zIndex: { duration: 0 },
+                    }}
+                  >
+                    <motion.div
+                      initial={reduced ? false : { scale: 1.08 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      <Image
+                        src={`/landing/stills/${panel.image}`}
+                        alt={`Actual Medcore ${panel.name.toLowerCase()} with demonstration data`}
+                        width={1440}
+                        height={panel.height}
+                        sizes="(max-width: 767px) calc(100vw - 52px), (max-width: 1100px) 62vw, 840px"
+                        style={{ objectPosition: panel.position }}
+                      />
+                    </motion.div>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         </div>

@@ -275,6 +275,10 @@ html:has(.mc):has(dialog[open]) {
 .mc-button:active {
   transform: scale(0.98);
 }
+.mc-magnetic {
+  display: inline-flex;
+  will-change: transform;
+}
 .mc-actions {
   display: flex;
   align-items: center;
@@ -396,6 +400,30 @@ html:has(.mc):has(dialog[open]) {
 .mc-hero h1 > span {
   display: block;
 }
+/* Line masks; the padding reserves room for the descenders in "presence"/"process". */
+.mc-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+.mc-line > span {
+  display: block;
+}
+/* Hold the opening shot until GSAP takes it, so hydration does not flash. */
+@media (prefers-reduced-motion: no-preference) {
+  .mc[data-ready="false"] .mc-hero-frame {
+    clip-path: inset(11% 9% 11% 9% round 40px);
+  }
+  .mc[data-ready="false"] .mc-hero h1 .mc-line > span {
+    transform: translateY(112%);
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 900px) {
+  .mc[data-ready="false"] .mc-hero-frame {
+    clip-path: inset(6% 4% 6% 4% round 26px);
+  }
+}
 .mc-hero-lede {
   font-size: clamp(1rem, 1.3vw, 1.2rem);
   color: #3e5544;
@@ -426,6 +454,9 @@ html:has(.mc):has(dialog[open]) {
 }
 .mc-intro {
   padding-block: 143px 75px;
+}
+.mc-word {
+  display: inline-block;
 }
 .mc-intro h2 {
   font-size: clamp(2.7rem, 4.8vw, 4.65rem);
@@ -565,6 +596,17 @@ html:has(.mc):has(dialog[open]) {
   height: 490px;
   transition: object-position 1.2s var(--mc-ease);
 }
+/* Outgoing and incoming views share one cell so a tab change is a wipe. */
+.mc-product-stage {
+  display: grid;
+  overflow: hidden;
+  background: #10211b;
+}
+.mc-product-shot {
+  grid-area: 1 / 1;
+  position: relative;
+  overflow: hidden;
+}
 .mc-story {
   padding-block: 150px;
 }
@@ -653,9 +695,6 @@ html:has(.mc):has(dialog[open]) {
   grid-template-columns: 1fr 1fr;
   column-gap: 80px;
   align-items: end;
-}
-.mc-assistant-heading .mc-eyebrow {
-  grid-column: 1 / -1;
 }
 .mc-assistant-heading > p:last-child {
   color: var(--mc-text);
@@ -1150,12 +1189,39 @@ html:has(.mc):has(dialog[open]) {
   font-size: 0.8rem;
 }
 .mc-close {
+  position: relative;
+  isolation: isolate;
   background: var(--mc-tint);
   margin-inline: 22px;
   border-radius: 32px;
   overflow: hidden;
 }
+/* Canvas UI Liquid light trail; artwork sits beneath the chapter content. */
+.mc-trail {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+/* On the dark panel a pale trail would wash out the type; keep it a glow. */
+html[data-site-theme="dark"] .mc-trail {
+  opacity: 0.32;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-site-theme]) .mc-trail {
+    opacity: 0.32;
+  }
+}
+.mc-trail-canvas,
+.mc-trail-surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
 .mc-close-inner {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   align-items: center;
@@ -1851,20 +1917,62 @@ html[data-site-theme="dark"] .mc-tour-link > span {
     align-items: stretch;
   }
 }
+/* Film grain: one fixed, non-interactive layer between content and the
+   navigation. Only its transform jitters, so it never repaints the page. */
+.mc::after {
+  content: "";
+  position: fixed;
+  inset: -80px;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0.075;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.45 0 0 0 0 0.45 0 0 0 1.6 -0.5'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: mc-grain 0.8s steps(4) infinite;
+}
+html[data-site-theme="dark"] .mc::after {
+  opacity: 0.1;
+  mix-blend-mode: screen;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-site-theme]) .mc::after {
+    opacity: 0.1;
+    mix-blend-mode: screen;
+  }
+}
+@keyframes mc-grain {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-38px, 22px);
+  }
+  50% {
+    transform: translate(26px, -41px);
+  }
+  75% {
+    transform: translate(-19px, -27px);
+  }
+  100% {
+    transform: translate(33px, 17px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   html:has(.mc) {
     scroll-behavior: auto;
   }
   .mc *,
   .mc *::before,
-  .mc *::after {
+  .mc *::after,
+  .mc::after {
     animation: none !important;
     transition: none !important;
   }
 }
 .mc[data-motion="reduced"] *,
 .mc[data-motion="reduced"] *::before,
-.mc[data-motion="reduced"] *::after {
+.mc[data-motion="reduced"] *::after,
+.mc[data-motion="reduced"]::after {
   animation: none !important;
   transition: none !important;
 }

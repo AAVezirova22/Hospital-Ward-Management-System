@@ -15,6 +15,18 @@ import { PlatformTour } from "./PlatformTour";
 import { WorkflowStory } from "./WorkflowStory";
 import { FileWorkflow } from "./FileWorkflow";
 import { MessageExperience } from "./MessageExperience";
+import { Magnetic } from "./Magnetic";
+import { PresenceTrail } from "./PresenceTrail";
+
+/** Splits a phrase into word spans that the film choreography can scrub. */
+function words(phrase: string) {
+  return phrase.split(" ").flatMap((word, index) => [
+    index ? " " : null,
+    <span className="mc-word" key={index}>
+      {word}
+    </span>,
+  ]);
+}
 
 export function LandingPage({ nonce }: { nonce?: string }) {
   return (
@@ -27,10 +39,9 @@ export function LandingPage({ nonce }: { nonce?: string }) {
         <PresenceHero />
         <section className="mc-intro mc-wrap" aria-labelledby="intro-title">
           <Reveal>
-            <p className="mc-eyebrow">Made for the people behind the care</p>
             <h2 id="intro-title">
-              A hospital is a thousand
-              <br className="mc-desktop" /> moving parts.
+              {words("A hospital is a thousand")}
+              <br className="mc-desktop" /> {words("moving parts.")}
               <span className="mc-inline-photo">
                 <Image
                   src="/landing/stills/clinical-conversation.webp"
@@ -40,7 +51,7 @@ export function LandingPage({ nonce }: { nonce?: string }) {
                 />
               </span>
               <br />
-              Bring them together.
+              {words("Bring them together.")}
             </h2>
             <p className="mc-intro-copy">
               Your people, your wards, your next decision. Medcore connects the
@@ -110,23 +121,29 @@ export function LandingPage({ nonce }: { nonce?: string }) {
           </div>
         </section>
         <section className="mc-close" id="start" aria-labelledby="start-title">
+          <PresenceTrail />
           <div className="mc-wrap mc-close-inner">
             <Reveal>
               <p className="mc-eyebrow">
                 A little less admin. A lot more possibility.
               </p>
               <h2 id="start-title">
-                Make room
-                <br />
-                for better care.
+                <span className="mc-line">
+                  <span>Make room</span>
+                </span>{" "}
+                <span className="mc-line">
+                  <span>for better care.</span>
+                </span>
               </h2>
               <div className="mc-actions">
-                <Link href="/app" className="mc-button">
-                  Open the workspace{" "}
-                  <span>
-                    <ArrowUpRight aria-hidden="true" />
-                  </span>
-                </Link>
+                <Magnetic>
+                  <Link href="/app" className="mc-button">
+                    Open the workspace{" "}
+                    <span>
+                      <ArrowUpRight aria-hidden="true" />
+                    </span>
+                  </Link>
+                </Magnetic>
                 <a href="#booking" className="mc-text-link" data-film-book>
                   Take a guided tour <ArrowUpRight aria-hidden="true" />
                 </a>

@@ -10,7 +10,11 @@ const Clouds = dynamic(() => import("../vendor/canvasui/Clouds"), {
   ssr: false,
 });
 
-/** Canvas UI's WebGL overlay: artwork only, no experimental DOM capture required. */
+/**
+ * Canvas UI's WebGL overlay: artwork only, no experimental DOM capture required.
+ * A slow haze of window light drifts through the frame; the cursor's wind
+ * parts it, so the reader's presence visibly clears the scene.
+ */
 export function AmbientLight() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref);
@@ -21,16 +25,19 @@ export function AmbientLight() {
       {ready && gpu && inView && !reduced ? (
         <Clouds
           className="mc-ambient-canvas"
-          speed={0.12}
-          cover={0.08}
-          density={1.3}
-          opacity={0.12}
-          color={[0.72, 0.8, 0.71]}
+          scale={1.4}
+          speed={0.22}
+          cover={0.22}
+          density={1.7}
+          shading={0.14}
+          opacity={0.38}
+          color={[0.95, 0.98, 0.92]}
           shadow={0}
-          wind={0}
+          wind={0.55}
+          windRadius={240}
           refraction={0}
           fogBlur={0}
-          quality={0.5}
+          quality={0.55}
         >
           <div className="mc-ambient-surface" />
         </Clouds>
