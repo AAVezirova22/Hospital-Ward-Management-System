@@ -69,6 +69,26 @@ export function FilmChoreography({
               scrub: 0.7,
             },
           });
+          // Dolly-out: the frame recedes while the photograph drifts and
+          // pushes in, so leaving the hero reads as a camera move, not a cut.
+          // The image wrapper belongs to Motion; GSAP moves the img inside it.
+          const leaving = {
+            trigger: ".mc-hero",
+            start: "top top",
+            end: "bottom top",
+            scrub: 0.8,
+          };
+          gsap.to(".mc-hero-frame", {
+            scale: desktop ? 0.94 : 0.97,
+            borderRadius: desktop ? 44 : 32,
+            ease: "none",
+            scrollTrigger: leaving,
+          });
+          gsap.fromTo(
+            ".mc-hero-image img",
+            { yPercent: 0, scale: 1 },
+            { yPercent: 8, scale: 1.16, ease: "none", scrollTrigger: leaving },
+          );
           gsap.fromTo(
             ".mc-inline-photo",
             { scale: 0.8, rotation: -8 },
