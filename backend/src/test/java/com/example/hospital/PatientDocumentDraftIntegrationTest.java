@@ -14,6 +14,7 @@ import com.example.hospital.ai.AiModelClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -101,6 +102,23 @@ class PatientDocumentDraftIntegrationTest {
         .andExpect(status().isNotFound());
   }
 
+  /**
+   * Revokes the patient-import grant this class turns on.
+   *
+   * <p>The grant is held on the shared seeded {@code doctor} user, and
+   * {@code HospitalAccessTest} asserts that same user is forbidden from importing
+   * patients. Leaving it set makes that security assertion depend on which test class
+   * the runner happens to execute first: the grant leaks forward and the request
+   * returns 201 where 403 is required. Restoring it here rather than clearing the row
+   * keeps the seeded fixture in the state the rest of the suite expects.
+   */
+  @AfterEach void revokeThePatientImportGrant() throws Exception {
+    mvc.perform(put("/api/v1/workspaces/departments/1/members/" + doctorUserId() + "/patient-import")
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1")
+        .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":false}"))
+        .andExpect(status().isOk());
+  }
+
   @Test void doctorNeedsDepartmentScopedPermissionAndUnownedSourceIsHidden() throws Exception {
     var source = mvc.perform(multipart("/api/v1/assistant/sources")
         .file(new MockMultipartFile("file", "referral.txt", "text/plain", TEXT.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
@@ -168,14 +186,27 @@ class PatientDocumentDraftIntegrationTest {
   }
 
   @Test void identityMatchIsCorroboratedAndUnresolvedIdentityCannotBeBound() throws Exception {
+    // This test creates its own patient, so it uploads its own document and proposes
+    // its own identifier. The sibling test already creates P-DRAFT-427 and setup()
+    // proposes that one, so reusing either would collide on the identifier and a
+    // proposed value whose excerpt is not in the document is rejected outright.
+    String text = TEXT.replace("P-DRAFT-427", "P-CORROB-429");
+    when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
+        {"patientIdentifier":[{"value":"P-CORROB-429","confidence":0.98,"excerpt":"P-CORROB-429","location":"page 1"}],
+         "firstName":[{"value":"Alice","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "lastName":[{"value":"Example","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
+         "dateOfBirth":[{"value":"1981-04-03","confidence":0.9,"excerpt":"1981-04-03","location":"page 1"}],
+         "address":[],"phoneNumber":[],
+         "followUpActions":[{"title":"Follow up with cardiology","dueDate":"2026-10-12","dueTime":"09:30","confidence":0.92,"excerpt":"Follow up with cardiology by 2026-10-12 at 09:30","location":"page 1","conflicts":[]}]}
+        """)));
     // A record whose date of birth agrees with the document.
     mvc.perform(post("/api/v1/patients").with(user("admin")).with(csrf()).header("X-Department-Id", "1")
         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
-            "patientIdentifier", "P-DRAFT-427", "firstName", "Alice", "lastName", "Example",
+            "patientIdentifier", "P-CORROB-429", "firstName", "Alice", "lastName", "Example",
             "dateOfBirth", "1981-04-03"))))
         .andExpect(status().isCreated());
     var source = mvc.perform(multipart("/api/v1/assistant/sources")
-        .file(new MockMultipartFile("file", "referral.txt", "text/plain", TEXT.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+        .file(new MockMultipartFile("file", "referral.txt", "text/plain", text.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
         .with(user("admin")).with(csrf()).header("X-Department-Id", "1"))
         .andExpect(status().isOk()).andReturn();
     String sourceId = json.readTree(source.getResponse().getContentAsString()).path("id").asText();
@@ -199,6 +230,15 @@ class PatientDocumentDraftIntegrationTest {
     long twinId = jdbc.queryForObject(
         "select id from patients where patient_identifier='P-TWINTEST-428'", Long.class);
 
+    // The twin is proposed with its own identifier, so the document has to contain
+    // that identifier: a proposed value must be supported by its own excerpt, and the
+    // excerpt must appear in the uploaded document.
+    var twinSource = mvc.perform(multipart("/api/v1/assistant/sources")
+        .file(new MockMultipartFile("file", "referral-twin.txt", "text/plain",
+            (text + "\nAlternate record on file: P-TWINTEST-428").getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1"))
+        .andExpect(status().isOk()).andReturn();
+    String twinSourceId = json.readTree(twinSource.getResponse().getContentAsString()).path("id").asText();
     when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
         {"patientIdentifier":[{"value":"P-TWINTEST-428","confidence":0.97,"excerpt":"P-TWINTEST-428","location":"page 1"}],
          "firstName":[{"value":"Alice","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
@@ -208,7 +248,7 @@ class PatientDocumentDraftIntegrationTest {
         """)));
     var mismatch = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
         .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
-        .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .content(json.writeValueAsString(Map.of("sourceId", twinSourceId))))
         .andExpect(status().isOk()).andReturn();
     JsonNode mismatchDraft = json.readTree(mismatch.getResponse().getContentAsString());
     // Both records match by name, so look the twin up by id rather than by position:
@@ -230,17 +270,27 @@ class PatientDocumentDraftIntegrationTest {
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("PATIENT_DRAFT_IDENTITY_UNRESOLVED"));
 
-    // A source with contradictory identity fields cannot be bound at all.
+    // A source with contradictory identity fields cannot be bound at all. Both readings
+    // have to appear in the document: a proposed value must appear, as a whole word,
+    // inside its own excerpt, and the excerpt must appear in the uploaded document. A
+    // typo'd identifier whose excerpt is the clean reading is not evidence for
+    // anything, so the fixture has to name both.
+    var conflictSource = mvc.perform(multipart("/api/v1/assistant/sources")
+        .file(new MockMultipartFile("file", "referral-conflict.txt", "text/plain",
+            (text + "\nRequisition copy reads P-CORROB-429-TYPO").getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+        .with(user("admin")).with(csrf()).header("X-Department-Id", "1"))
+        .andExpect(status().isOk()).andReturn();
+    String conflictSourceId = json.readTree(conflictSource.getResponse().getContentAsString()).path("id").asText();
     when(model.complete(anyString(), any())).thenReturn(new AiModelClient.ToolCall("submitPatientDraft", Map.of("draft_json", """
-        {"patientIdentifier":[{"value":"P-DRAFT-427","confidence":0.95,"excerpt":"P-DRAFT-427","location":"page 1"},
-                              {"value":"P-DRAFT-427-TYPO","confidence":0.6,"excerpt":"P-DRAFT-427","location":"page 1"}],
+        {"patientIdentifier":[{"value":"P-CORROB-429","confidence":0.95,"excerpt":"P-CORROB-429","location":"page 1"},
+                              {"value":"P-CORROB-429-TYPO","confidence":0.6,"excerpt":"P-CORROB-429-TYPO","location":"page 1"}],
          "firstName":[{"value":"Alice","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
          "lastName":[{"value":"Example","confidence":0.94,"excerpt":"Alice Example","location":"page 1"}],
          "followUpActions":[]}
         """)));
     var conflicted = mvc.perform(post("/api/v1/assistant/patient-drafts").with(user("admin")).with(csrf())
         .header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
-        .content(json.writeValueAsString(Map.of("sourceId", sourceId))))
+        .content(json.writeValueAsString(Map.of("sourceId", conflictSourceId))))
         .andExpect(status().isOk()).andReturn();
     JsonNode conflictedDraft = json.readTree(conflicted.getResponse().getContentAsString());
     assertThat(conflictedDraft.at("/fields/patientIdentifier/status").asText()).isEqualTo("CONFLICT");
@@ -249,7 +299,7 @@ class PatientDocumentDraftIntegrationTest {
     mvc.perform(put("/api/v1/assistant/patient-drafts/" + conflictedDraft.path("draftId").asText() + "/patient")
         .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
         .content(json.writeValueAsString(Map.of(
-            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-DRAFT-427'", Long.class)))))
+            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-CORROB-429'", Long.class)))))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("PATIENT_DRAFT_IDENTITY_UNRESOLVED"));
 
@@ -257,10 +307,18 @@ class PatientDocumentDraftIntegrationTest {
     mvc.perform(put("/api/v1/assistant/patient-drafts/" + corroboratedDraft + "/patient")
         .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
         .content(json.writeValueAsString(Map.of(
-            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-DRAFT-427'", Long.class)))))
+            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-CORROB-429'", Long.class)))))
         .andExpect(status().isOk());
+    // Scoped to the row this test created rather than counted per event type: the
+    // sibling test in this class binds a draft too, so a class-wide total depends on
+    // which test ran first. audit_events.metadata is a Java map rendered as text, so
+    // the match is on the source id, which is unique to this test, and does not
+    // depend on the entry order inside the rendered map.
     assertThat(jdbc.queryForObject(
-        "select count(*) from audit_events where event_type='PATIENT_DRAFT_BOUND'", Long.class)).isEqualTo(1);
+        "select count(*) from audit_events where event_type='PATIENT_DRAFT_BOUND' and metadata like ?",
+        Long.class, "%sourceId=" + sourceId + "%"))
+        .as("one binding recorded for the source this draft came from")
+        .isEqualTo(1L);
 
     // A source that simply does not state an identity field is ordinary, not contradictory:
     // absence of evidence must not dead-end the reviewer.
@@ -279,7 +337,7 @@ class PatientDocumentDraftIntegrationTest {
     mvc.perform(put("/api/v1/assistant/patient-drafts/" + partialDraft.path("draftId").asText() + "/patient")
         .with(user("admin")).with(csrf()).header("X-Department-Id", "1").contentType(MediaType.APPLICATION_JSON)
         .content(json.writeValueAsString(Map.of(
-            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-DRAFT-427'", Long.class)))))
+            "patientId", jdbc.queryForObject("select id from patients where patient_identifier='P-CORROB-429'", Long.class)))))
         .andExpect(status().isOk());
   }
 
