@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 import { Bell } from "../icons";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { api, allPages, activeDepartment } from "../api";
+import { api, activeDepartment } from "../api";
 import type {
   DischargeReminderOutcome,
   RoomCapacity,
   OperationsReport,
 } from "../api/contracts";
-import { Modal } from "./workspace";
+import { Modal, useAllPages } from "./workspace";
 export function NotificationCenter() {
   const [open, setOpen] = useState(false),
     [notices, setNotices] = useState<string[]>([]);
@@ -17,11 +17,7 @@ export function NotificationCenter() {
     title: string;
     detail: string;
   } | null>(null);
-  const rooms = useQuery({
-    queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => allPages<RoomCapacity>("/rooms"),
-    refetchInterval: 30000,
-  });
+  const rooms = useAllPages<RoomCapacity>("/rooms", "/rooms", 30000);
   const operations = useQuery({
     queryKey: ["/reports/operations", activeDepartment()],
     queryFn: () => api<OperationsReport>("/reports/operations"),

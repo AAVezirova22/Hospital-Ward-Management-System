@@ -5,6 +5,7 @@ import {
   Link,
   useUser,
   useData,
+  useAllPages,
   ErrorBox,
   Empty,
   Title,
@@ -40,8 +41,8 @@ export function Patients() {
 
   const { data, error, isLoading } = useData("/patients?" + params.toString());
   const directory = data as PatientDirectoryPage | undefined;
-  const { data: doctors } = useData("/doctors");
-  const { data: rooms } = useData("/rooms");
+  const { data: doctors } = useAllPages<Row>("/doctors");
+  const { data: rooms } = useAllPages<Row>("/rooms");
   return (
     <>
       <Title

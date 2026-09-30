@@ -38,7 +38,13 @@ function subscribeToMotionPreference(onChange: () => void) {
 const getMotionPreference = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-export function CinematicProvider({ children }: { children: ReactNode }) {
+export function CinematicProvider({
+  children,
+  nonce,
+}: {
+  children: ReactNode;
+  nonce?: string;
+}) {
   // React to OS changes immediately, including an already-open workspace.
   const systemReduced = useSyncExternalStore(
     subscribeToMotionPreference,
@@ -72,6 +78,7 @@ export function CinematicProvider({ children }: { children: ReactNode }) {
       }}
     >
       <MotionConfig
+        nonce={nonce}
         reducedMotion={enabled ? "user" : "always"}
         transition={{ duration: enabled ? 0.5 : 0, ease }}
       >
@@ -283,4 +290,3 @@ export function MagneticButton({
     </button>
   );
 }
-

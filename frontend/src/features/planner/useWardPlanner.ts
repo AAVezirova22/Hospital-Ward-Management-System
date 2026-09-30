@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   api,
-  allPages,
   fullName,
-  activeDepartment,
   type User,
 } from "../../api";
+import { useAllPages } from "../../components/workspace";
 
 import type {
   AdmissionView,
@@ -24,16 +23,12 @@ import {
 
 export function useWardPlanner(user: User) {
   const client = useQueryClient();
-  const roomsQuery = useQuery({
-    queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => allPages<RoomCapacity>("/rooms"),
-    refetchInterval: 15000,
-  });
-  const admissionsQuery = useQuery({
-    queryKey: ["/admissions?status=ACTIVE", activeDepartment()],
-    queryFn: () => allPages<AdmissionView>("/admissions?status=ACTIVE"),
-    refetchInterval: 15000,
-  });
+  const roomsQuery = useAllPages<RoomCapacity>("/rooms", "/rooms", 15000);
+  const admissionsQuery = useAllPages<AdmissionView>(
+    "/admissions?status=ACTIVE",
+    "/admissions?status=ACTIVE",
+    15000,
+  );
   const rooms = roomsQuery.data ?? [],
     admissions = admissionsQuery.data ?? [];
   const [plan, setPlan] = useState<PlannedTransfer[]>([]),
