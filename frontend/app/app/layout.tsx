@@ -1,5 +1,6 @@
 import MedcoreApp from "../../src/main";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import "../../src/style.css";
 import "../../src/design.css";
 import "../../src/cinematic.css";
@@ -7,7 +8,12 @@ import "../../src/operations.css";
 import "../../src/command-center.css";
 import "../../src/care-pathways.css";
 
-export default function WorkspaceLayout({ children }: { children: ReactNode }) {
+export default async function WorkspaceLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <>
       <link
@@ -24,7 +30,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
         media="(max-width: 800px)"
         fetchPriority="high"
       />
-      <MedcoreApp>{children}</MedcoreApp>
+      <MedcoreApp nonce={nonce}>{children}</MedcoreApp>
     </>
   );
 }

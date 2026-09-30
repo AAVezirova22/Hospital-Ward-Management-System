@@ -10,7 +10,7 @@ import {
   Plus,
   X,
 } from "../icons";
-import { useUser, Modal, useData, ErrorBox } from "./workspace";
+import { useUser, Modal, useData, useAllPages, ErrorBox } from "./workspace";
 import { fullName } from "../api";
 import type {
   PatientDirectoryItem,
@@ -27,9 +27,9 @@ function QuickTask({ kind, close }: { kind: string; close: () => void }) {
   const patients = useData(
     `/patients?q=${encodeURIComponent(search)}&page=${page}&size=20`,
   );
-  const admissions = useData("/admissions");
+  const admissions = useAllPages<AdmissionView>("/admissions");
   const directory = patients.data as PatientDirectoryPage | undefined;
-  const rows = (admissions.data ?? []) as AdmissionView[];
+  const rows = admissions.data ?? [];
   const active = (id: number) =>
     rows.find((v) => v.patient.id === id && v.admission.status === "ACTIVE");
   if (chosen)

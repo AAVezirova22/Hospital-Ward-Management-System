@@ -4,12 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   api,
-  allPages,
   fullName,
   activeDepartment,
   patientHref,
   type User,
 } from "../../api";
+import { useAllPages } from "../../components/workspace";
 import type { PatientDirectoryPage, RoomCapacity, Doctor } from "../../api/contracts";
 export function CommandResults({
   query,
@@ -30,14 +30,8 @@ export function CommandResults({
         `/patients?q=${encodeURIComponent(patientQuery)}&size=25`,
       ),
   });
-  const rooms = useQuery({
-    queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => allPages<RoomCapacity>("/rooms"),
-  });
-  const doctors = useQuery({
-    queryKey: ["/doctors", activeDepartment()],
-    queryFn: () => allPages<Doctor>("/doctors"),
-  });
+  const rooms = useAllPages<RoomCapacity>("/rooms");
+  const doctors = useAllPages<Doctor>("/doctors");
   const screens = [
     "dashboard",
     "patients",

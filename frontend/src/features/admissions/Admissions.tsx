@@ -5,6 +5,7 @@ import {
   Link,
   useUser,
   useData,
+  useAllPages,
   ErrorBox,
   Empty,
   Status,
@@ -18,7 +19,7 @@ export function Admissions() {
   const [to, setTo] = useState("");
   const [doctorId, setDoctorId] = useState("");
   const [page, setPage] = useState(0);
-  const { data: doctors } = useData("/doctors");
+  const { data: doctors } = useAllPages<Row>("/doctors");
   const params = new URLSearchParams({ page: String(page), size: "20" });
   if (status) params.set("status", status);
   if (from) params.set("from", from);

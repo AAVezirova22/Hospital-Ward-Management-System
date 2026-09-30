@@ -12,10 +12,16 @@ export const useData = (key: string, path = key) =>
     queryFn: () => api(path),
     refetchInterval: key.split("?")[0] === "/rooms" ? 15_000 : undefined,
   });
-export const useAllPages = <T,>(key: string, path = key) =>
+export const useAllPages = <T,>(
+  key: string,
+  path = key,
+  refetchInterval?: number,
+) =>
   useQuery<T[]>({
-    queryKey: [key, activeDepartment()],
+    // Flattened lists must never share a cache entry with raw page responses.
+    queryKey: [key, activeDepartment(), "all-pages", path],
     queryFn: () => allPages<T>(path),
+    refetchInterval,
   });
 export function Link({
   to,

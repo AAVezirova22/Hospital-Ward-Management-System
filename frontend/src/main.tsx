@@ -87,8 +87,10 @@ function App({ children }: { children: React.ReactNode }) {
 
 export default function MedcoreApp({
   children,
+  nonce,
 }: {
   children: React.ReactNode;
+  nonce?: string;
 }) {
   const [client] = useState(
     () =>
@@ -98,7 +100,7 @@ export default function MedcoreApp({
   );
   return (
     <QueryClientProvider client={client}>
-      <CinematicProvider>
+      <CinematicProvider nonce={nonce}>
         <App>{children}</App>
       </CinematicProvider>
     </QueryClientProvider>

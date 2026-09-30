@@ -2,7 +2,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import Link from "next/link";
-import { api, allPages, date, activeDepartment, patientHref } from "../../api";
+import { api, date, activeDepartment, patientHref } from "../../api";
+import { useAllPages } from "../../components/workspace";
 import type {
   OperationsReport,
   RoomCapacity,
@@ -57,16 +58,12 @@ export function OperationsOverview({
     queryFn: () => api<OperationsReport>("/reports/operations"),
     refetchInterval: 15000,
   });
-  const roomQuery = useQuery({
-    queryKey: ["/rooms", activeDepartment()],
-    queryFn: () => allPages<RoomCapacity>("/rooms"),
-    refetchInterval: 15000,
-  });
-  const admissionQuery = useQuery({
-    queryKey: ["/admissions?status=ACTIVE", activeDepartment()],
-    queryFn: () => allPages<AdmissionView>("/admissions?status=ACTIVE"),
-    refetchInterval: 15000,
-  });
+  const roomQuery = useAllPages<RoomCapacity>("/rooms", "/rooms", 15000);
+  const admissionQuery = useAllPages<AdmissionView>(
+    "/admissions?status=ACTIVE",
+    "/admissions?status=ACTIVE",
+    15000,
+  );
   const recentAdmissionIds = Array.from(
     new Set((ops.data?.activity ?? []).map((event) => event.admissionId)),
   );
