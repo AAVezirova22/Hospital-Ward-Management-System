@@ -4,7 +4,7 @@ import { Reveal, Atmosphere } from "./cinematic";
 
 export function OverviewHero({ children }: { children: ReactNode }) {
   return (
-    <Reveal className="overview-hero">
+    <Reveal className="overview-hero" force>
       <div className="overview-hero-image" aria-hidden="true" />
       <Atmosphere />
       <div className="cinema-grain" aria-hidden="true" />

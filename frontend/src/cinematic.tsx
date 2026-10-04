@@ -38,6 +38,32 @@ function subscribeToMotionPreference(onChange: () => void) {
 const getMotionPreference = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// Mirrors the matchMedia subscription above so `paused` is also resolved
+// synchronously on the first client render via useSyncExternalStore,
+// instead of a `ready` flag flipped in an effect after mount. A motion
+// component's `initial` prop (and MotionConfig's `reducedMotion`) is only
+// ever resolved at that component's first render, so any gap between
+// "mounted" and "ready" risked permanently locking a component into its
+// reduced-motion starting state even once motion was confirmed on.
+const pausedListeners = new Set<() => void>();
+function subscribeToPaused(onChange: () => void) {
+  pausedListeners.add(onChange);
+  return () => pausedListeners.delete(onChange);
+}
+function getPaused() {
+  try {
+    return localStorage.getItem("medcore-motion") === "paused";
+  } catch {
+    return false;
+  }
+}
+function setPausedPreference(next: boolean) {
+  try {
+    localStorage.setItem("medcore-motion", next ? "paused" : "playing");
+  } catch {}
+  pausedListeners.forEach((listener) => listener());
+}
+
 export function CinematicProvider({
   children,
   nonce,
@@ -51,15 +77,12 @@ export function CinematicProvider({
     getMotionPreference,
     () => true,
   );
-  const [paused, setPaused] = useState(false);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    try {
-      setPaused(localStorage.getItem("medcore-motion") === "paused");
-    } catch {}
-    setReady(true);
-  }, []);
-  const enabled = ready && !paused && !systemReduced;
+  const paused = useSyncExternalStore(
+    subscribeToPaused,
+    getPaused,
+    () => false,
+  );
+  const enabled = !paused && !systemReduced;
   useEffect(() => {
     document.documentElement.dataset.motion = enabled ? "on" : "off";
   }, [enabled]);
@@ -68,13 +91,7 @@ export function CinematicProvider({
       value={{
         enabled,
         systemReduced: Boolean(systemReduced),
-        toggle: () => {
-          const next = !paused;
-          setPaused(next);
-          try {
-            localStorage.setItem("medcore-motion", next ? "paused" : "playing");
-          } catch {}
-        },
+        toggle: () => setPausedPreference(!paused),
       }}
     >
       <MotionConfig
@@ -199,21 +216,55 @@ export function Reveal({
   children,
   className = "",
   delay = 0,
+  force = false,
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
+  // Opts out of the workspace bypass below, for a page that wants its
+  // sections to genuinely animate in as the viewer scrolls (e.g. Overview),
+  // rather than the one quiet transition SceneTransition already gives
+  // every route change.
+  force?: boolean;
 }) {
   const reduced = !useContext(CinemaContext).enabled;
   const inWorkspace = useContext(WorkspaceSceneContext);
-  // Menu changes have one quiet transition; child panels appear together.
-  if (inWorkspace) return <div className={className}>{children}</div>;
+  // Menu changes have one quiet transition; child panels appear together,
+  // unless the caller asks for a real scroll reveal via `force`.
+  const bypass = inWorkspace && !force;
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (bypass || reduced || visible) return;
+    const node = ref.current;
+    if (!node) return;
+    // A plain IntersectionObserver rather than motion's whileInView/viewport
+    // props: it's one less layer between "the section is on screen" and
+    // "it animates in", and is simple enough to reason about directly.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.08 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [bypass, reduced, visible]);
+  if (bypass) return <div className={className}>{children}</div>;
+  const shown = reduced || visible;
   return (
+    // data-shown lets CSS cascade the section's own cards, bars and rows in
+    // once the section itself is on screen (see design.css).
     <motion.div
+      ref={ref}
       className={className}
-      initial={reduced ? false : { opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.08 }}
+      data-reveal=""
+      data-shown={shown ? "" : undefined}
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: shown ? 1 : 0, y: shown ? 0 : 24 }}
       transition={{
         duration: reduced ? 0 : 0.75,
         delay: reduced ? 0 : delay,

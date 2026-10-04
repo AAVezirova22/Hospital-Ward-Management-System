@@ -166,8 +166,10 @@ export function Reports() {
           </button>
         ))}
       </div>
+      <small className="muted report-timezone-note">
+        Calendar dates use {timeZone}.
+      </small>
       <div className="report-filters">
-        <small className="muted">Calendar dates use {timeZone}.</small>
         {(mode === "procedures" ||
           mode === "doctor-workload" ||
           mode === "room-utilization") && (
@@ -314,7 +316,7 @@ export function Reports() {
         {mode === "procedures" && (
           <button
             type="button"
-            className="secondary"
+            className="secondary report-export-button"
             onClick={() => void exportCsv()}
             disabled={exporting}
             aria-busy={exporting}

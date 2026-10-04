@@ -112,6 +112,9 @@ a.primary {
   background: var(--mint);
   filter: brightness(1.08);
 }
+.primary:active:not(:disabled) {
+  transform: scale(0.97);
+}
 .secondary {
   color: var(--text);
   background: var(--surface);
@@ -120,6 +123,9 @@ a.primary {
 }
 .secondary:hover {
   background: var(--accent-soft);
+}
+.secondary:active:not(:disabled) {
+  transform: scale(0.97);
 }
 .button-icon {
   width: 30px;
@@ -147,6 +153,10 @@ button:hover .button-icon {
 .icon:hover {
   color: var(--text);
   background: var(--accent-soft);
+}
+.icon:active:not(:disabled),
+.text-button:active:not(:disabled) {
+  transform: scale(0.94);
 }
 .eyebrow {
   color: var(--muted);
@@ -464,6 +474,16 @@ button.workspace-switcher[aria-expanded="true"] {
   font-size: 8px;
   letter-spacing: 0.16em;
   margin-left: 14px;
+}
+.sidebar nav {
+  /* Lets the link list scroll on its own when it's taller than the sidebar
+     (e.g. with the admin-only entries on a short viewport), instead of
+     spilling past the sidebar's rounded corners. */
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
 }
 .sidebar nav > a {
   position: relative;
@@ -1143,6 +1163,9 @@ footer .live-dot {
   .assistant-dialog[open] {
     animation-name: assistant-enter;
   }
+  .reset-panel {
+    animation: dialog-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
 }
 @keyframes dialog-enter {
   from {
@@ -1162,6 +1185,236 @@ footer .live-dot {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+/* A quiet rise-and-fade for rows, cards and list items as they first mount.
+   React keeps existing keys' DOM nodes on refetch/sort, so this only plays
+   for content that is genuinely new on screen, not on every 15s poll. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes content-enter {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  tbody tr,
+  .operation-stat,
+  .room-card,
+  .care-event,
+  .operational-feed li,
+  .attention-list > div {
+    /* backwards, not both: a forwards fill would pin transform: none and
+       cancel the hover lift on .room-card and .operation-stat. */
+    animation: content-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  tbody tr:nth-child(2),
+  .care-event:nth-child(2),
+  .operational-feed li:nth-child(2),
+  .attention-list > div:nth-child(2),
+  .room-card:nth-child(2),
+  .operation-stat:nth-child(2) {
+    animation-delay: 0.028s;
+  }
+  tbody tr:nth-child(3),
+  .care-event:nth-child(3),
+  .operational-feed li:nth-child(3),
+  .attention-list > div:nth-child(3),
+  .room-card:nth-child(3),
+  .operation-stat:nth-child(3) {
+    animation-delay: 0.056s;
+  }
+  tbody tr:nth-child(4),
+  .care-event:nth-child(4),
+  .operational-feed li:nth-child(4),
+  .attention-list > div:nth-child(4),
+  .room-card:nth-child(4),
+  .operation-stat:nth-child(4) {
+    animation-delay: 0.084s;
+  }
+  tbody tr:nth-child(5),
+  .care-event:nth-child(5),
+  .operational-feed li:nth-child(5),
+  .attention-list > div:nth-child(5),
+  .room-card:nth-child(5) {
+    animation-delay: 0.112s;
+  }
+  tbody tr:nth-child(6),
+  .care-event:nth-child(6),
+  .operational-feed li:nth-child(6),
+  .attention-list > div:nth-child(6),
+  .room-card:nth-child(6) {
+    animation-delay: 0.14s;
+  }
+  tbody tr:nth-child(7),
+  .care-event:nth-child(7),
+  .operational-feed li:nth-child(7),
+  .attention-list > div:nth-child(7),
+  .room-card:nth-child(7) {
+    animation-delay: 0.168s;
+  }
+  tbody tr:nth-child(8),
+  .care-event:nth-child(8),
+  .operational-feed li:nth-child(8),
+  .attention-list > div:nth-child(8),
+  .room-card:nth-child(8) {
+    animation-delay: 0.196s;
+  }
+  tbody tr:nth-child(n + 9),
+  .care-event:nth-child(n + 9),
+  .operational-feed li:nth-child(n + 9),
+  .attention-list > div:nth-child(n + 9),
+  .room-card:nth-child(n + 9) {
+    animation-delay: 0.196s;
+  }
+}
+/* Page entrance and scroll-reveal cascades. Everything here sits behind
+   data-motion="on", so the topbar motion toggle switches it off along with
+   the rest of the cinematic layer. Reveal wrappers are skipped at page level
+   because they already animate themselves from motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes reveal-rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes bar-grow {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes line-draw {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0);
+    }
+  }
+  :root[data-motion="on"] .scene-content > :not([data-reveal]) {
+    animation: reveal-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  :root[data-motion="on"] .scene-content > :nth-child(2):not([data-reveal]) {
+    animation-delay: 0.07s;
+  }
+  :root[data-motion="on"] .scene-content > :nth-child(3):not([data-reveal]) {
+    animation-delay: 0.14s;
+  }
+  :root[data-motion="on"]
+    .scene-content
+    > :nth-child(n + 4):not([data-reveal]) {
+    animation-delay: 0.21s;
+  }
+
+  /* Overview: once a section scrolls in, its own pieces follow in sequence.
+     A separate keyframe name from content-enter so rows that already
+     mounted off-screen replay as the section appears. */
+  :root[data-motion="on"] [data-shown] .ward-room:not(.room-changed),
+  :root[data-motion="on"] .operations-bottom[data-shown] > .panel,
+  :root[data-motion="on"] [data-shown] .attention-list > div,
+  :root[data-motion="on"] [data-shown] .operational-feed li {
+    animation: reveal-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  :root[data-motion="on"] .operations-bottom[data-shown] > .panel + .panel {
+    animation-delay: 0.12s;
+  }
+  :root[data-motion="on"] [data-shown] .ward-room:nth-child(2),
+  :root[data-motion="on"] [data-shown] .attention-list > div:nth-child(2),
+  :root[data-motion="on"] [data-shown] .operational-feed li:nth-child(2) {
+    animation-delay: 0.06s;
+  }
+  :root[data-motion="on"] [data-shown] .ward-room:nth-child(3),
+  :root[data-motion="on"] [data-shown] .attention-list > div:nth-child(3),
+  :root[data-motion="on"] [data-shown] .operational-feed li:nth-child(3) {
+    animation-delay: 0.12s;
+  }
+  :root[data-motion="on"] [data-shown] .ward-room:nth-child(4),
+  :root[data-motion="on"] [data-shown] .attention-list > div:nth-child(4),
+  :root[data-motion="on"] [data-shown] .operational-feed li:nth-child(4) {
+    animation-delay: 0.18s;
+  }
+  :root[data-motion="on"] [data-shown] .ward-room:nth-child(5),
+  :root[data-motion="on"] [data-shown] .attention-list > div:nth-child(5),
+  :root[data-motion="on"] [data-shown] .operational-feed li:nth-child(5) {
+    animation-delay: 0.24s;
+  }
+  :root[data-motion="on"] [data-shown] .ward-room:nth-child(6),
+  :root[data-motion="on"] [data-shown] .attention-list > div:nth-child(n + 6),
+  :root[data-motion="on"] [data-shown] .operational-feed li:nth-child(n + 6) {
+    animation-delay: 0.3s;
+  }
+  :root[data-motion="on"] [data-shown] .ward-room:nth-child(7) {
+    animation-delay: 0.36s;
+  }
+  :root[data-motion="on"] [data-shown] .ward-room:nth-child(n + 8) {
+    animation-delay: 0.42s;
+  }
+  /* Keep the live room-confirmed pulse immediate. */
+  :root[data-motion="on"] [data-shown] .ward-room.room-changed {
+    animation-delay: 0s;
+  }
+  /* The corridor sits mid-grid, so it shifts the later rooms' indexes. */
+  :root[data-motion="on"] [data-shown] .ward-corridor {
+    animation: reveal-rise 0.6s 0.27s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  :root[data-motion="on"] [data-shown] .sparkline {
+    animation: line-draw 1.2s 0.25s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  :root[data-motion="on"] [data-shown] .day-bars i {
+    transform-origin: bottom;
+    animation: bar-grow 0.7s 0.15s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(2) i {
+    animation-delay: 0.19s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(3) i {
+    animation-delay: 0.23s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(4) i {
+    animation-delay: 0.27s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(5) i {
+    animation-delay: 0.31s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(6) i {
+    animation-delay: 0.35s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(7) i {
+    animation-delay: 0.39s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(8) i {
+    animation-delay: 0.43s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(9) i {
+    animation-delay: 0.47s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(10) i {
+    animation-delay: 0.51s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(11) i {
+    animation-delay: 0.55s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(12) i {
+    animation-delay: 0.59s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(13) i {
+    animation-delay: 0.63s;
+  }
+  :root[data-motion="on"] [data-shown] .daily-chart button:nth-child(n + 14) i {
+    animation-delay: 0.67s;
   }
 }
 @media (min-width: 1500px) {

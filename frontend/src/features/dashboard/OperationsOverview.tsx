@@ -1,6 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { motion, useSpring, useTransform } from "motion/react";
 import Link from "next/link";
 import { api, date, activeDepartment, patientHref } from "../../api";
 import { useAllPages } from "../../components/workspace";
@@ -12,6 +13,26 @@ import type {
 import { WardMap } from "../planner/WardMap";
 import { BedDrawer } from "../planner/BedDrawer";
 import { LoadingState } from "../../components/LoadingState";
+import { Reveal, useCinematicMotion } from "../../cinematic";
+
+// A quiet count-up/tick for stat numbers: starts at 0 on first mount, then
+// eases toward each live value as the 15s poll brings in fresh data.
+function AnimatedNumber({
+  value,
+  decimals = 0,
+}: {
+  value: number;
+  decimals?: number;
+}) {
+  const enabled = useCinematicMotion();
+  const spring = useSpring(0, { stiffness: 90, damping: 20, mass: 0.6 });
+  const display = useTransform(spring, (v) => v.toFixed(decimals));
+  useEffect(() => {
+    if (enabled) spring.set(value);
+    else spring.jump(value);
+  }, [enabled, value, spring]);
+  return <motion.span>{display}</motion.span>;
+}
 
 export function Sparkline({
   values,
@@ -123,11 +144,11 @@ export function OperationsOverview({
     today && yesterday ? today.occupied - yesterday.occupied : null;
   return (
     <div className="operations-overview">
-      <div className="operations-metrics">
+      <Reveal className="operations-metrics" force>
         <article className={`operation-stat ${severity}`}>
           <span>Department capacity in use</span>
           <strong>
-            {percent.toFixed(1)}
+            <AnimatedNumber value={percent} decimals={1} />
             <small>%</small>
           </strong>
           <p>
@@ -145,7 +166,9 @@ export function OperationsOverview({
         </article>
         <article className="operation-stat">
           <span>Admissions today</span>
-          <strong>{today?.admissions ?? 0}</strong>
+          <strong>
+            <AnimatedNumber value={today?.admissions ?? 0} />
+          </strong>
           <p>
             {admissionChange === null
               ? "Comparison unavailable"
@@ -160,7 +183,7 @@ export function OperationsOverview({
         <article className="operation-stat">
           <span>Average active stay</span>
           <strong>
-            {d.averageStayDays.toFixed(1)}
+            <AnimatedNumber value={d.averageStayDays} decimals={1} />
             <small> days</small>
           </strong>
           <p>{d.scope}</p>
@@ -170,44 +193,50 @@ export function OperationsOverview({
         </article>
         <article className="operation-stat">
           <span>Expected discharges today</span>
-          <strong>{d.expectedDischargesToday}</strong>
+          <strong>
+            <AnimatedNumber value={d.expectedDischargesToday} />
+          </strong>
           <p>Staff-scheduled dates · {d.timeZone}</p>
           <small>Scheduled dates, not a discharge forecast</small>
         </article>
-      </div>
-      <div className="section-heading">
-        <div>
-          <h2>The ward, at a glance.</h2>
-          <p>Room capacity · live updates with a 15-second refresh fallback</p>
+      </Reveal>
+      <Reveal force>
+        <div className="section-heading">
+          <div>
+            <h2>The ward, at a glance.</h2>
+            <p>
+              Room capacity · live updates with a 15-second refresh fallback
+            </p>
+          </div>
+          {!presentation && (
+            <Link className="secondary" href="/app/planner">
+              Open ward planner
+            </Link>
+          )}
         </div>
-        {!presentation && (
-          <Link className="secondary" href="/app/planner">
-            Open ward planner
-          </Link>
-        )}
-      </div>
-      <div className="compact-capacity">
-        <strong>
-          {occupied} / {beds} beds occupied
-        </strong>
-        <meter
-          min={0}
-          max={Math.max(1, beds)}
-          value={occupied}
-          aria-label="Department occupied beds"
-        />
-        <Link href="/app/planner">Open interactive ward map →</Link>
-      </div>
-      <div className="overview-floor-plan">
-        <WardMap
-          rooms={rooms}
-          admissions={admissions}
-          selected={selectedAdmission}
-          onSelect={presentation ? undefined : setSelectedAdmission}
-          warning={d.thresholds.warningPercent}
-          critical={d.thresholds.criticalPercent}
-        />
-      </div>
+        <div className="compact-capacity">
+          <strong>
+            {occupied} / {beds} beds occupied
+          </strong>
+          <meter
+            min={0}
+            max={Math.max(1, beds)}
+            value={occupied}
+            aria-label="Department occupied beds"
+          />
+          <Link href="/app/planner">Open interactive ward map →</Link>
+        </div>
+        <div className="overview-floor-plan">
+          <WardMap
+            rooms={rooms}
+            admissions={admissions}
+            selected={selectedAdmission}
+            onSelect={presentation ? undefined : setSelectedAdmission}
+            warning={d.thresholds.warningPercent}
+            critical={d.thresholds.criticalPercent}
+          />
+        </div>
+      </Reveal>
       {selectedAdmission &&
         admissions.find((v) => v.admission.id === selectedAdmission) && (
           <BedDrawer
@@ -217,7 +246,7 @@ export function OperationsOverview({
             onClose={() => setSelectedAdmission(undefined)}
           />
         )}
-      <div className="operations-bottom">
+      <Reveal className="operations-bottom" force>
         <section className="panel">
           <h2>Needs attention</h2>
           <div className="attention-list">
@@ -306,9 +335,9 @@ export function OperationsOverview({
             {!d.activity.length && <p>No activity in your scope yet.</p>}
           </details>
         </section>
-      </div>
+      </Reveal>
       {!presentation && (
-        <section className="panel">
+        <Reveal className="panel" force>
           <h2>Admissions and discharges</h2>
           <p>{d.scope} · {d.timeZone} · select a day to inspect the census</p>
           <div className="daily-chart">
@@ -343,12 +372,18 @@ export function OperationsOverview({
               at day end (today: current census).
             </p>
           )}
-        </section>
+          <small className="muted updated-note">
+            Updated {date(d.asOf, d.timeZone)} · Historical census uses
+            admission intervals, not a forecast.
+          </small>
+        </Reveal>
       )}
-      <small className="muted">
-        Updated {date(d.asOf, d.timeZone)} · Historical census uses admission intervals, not
-        a forecast.
-      </small>
+      {presentation && (
+        <small className="muted updated-note">
+          Updated {date(d.asOf, d.timeZone)} · Historical census uses
+          admission intervals, not a forecast.
+        </small>
+      )}
     </div>
   );
 }

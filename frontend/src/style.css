@@ -728,10 +728,17 @@ td small {
   color: #91b0b5;
   background: transparent;
   border-bottom: 2px solid transparent;
+  transition:
+    color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .tabs button.selected {
   color: var(--mint);
   border-bottom-color: var(--mint);
+}
+.report-timezone-note {
+  display: block;
+  margin-bottom: 10px;
 }
 .report-filters {
   display: flex;
@@ -743,6 +750,10 @@ td small {
 .report-filters label {
   flex: 1;
   min-width: 130px;
+}
+.report-export-button {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 .report-filters select,
 .report-filters input {
