@@ -9,7 +9,7 @@ import {
   Status,
   Title,
 } from "../../components/workspace";
-import { Plus, ArrowUpRight } from "../../icons";
+import { Plus, ArrowUpRight, Search } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { EntityForm, type EntityConfig } from "./EntityForm";
 
@@ -43,6 +43,15 @@ export function UserAdmin() {
   const [edit, setEdit] = useState<Row | null>(null);
   const [search, setSearch] = useUrlState("q");
   const user = useUser();
+  const filtered = Array.isArray(data)
+    ? data.filter((r: Row) =>
+        [r.username, r.email]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+      )
+    : [];
   return (
     <>
       <Title
@@ -59,14 +68,16 @@ export function UserAdmin() {
       </Title>
       <ErrorBox error={error} />
       <section className="panel table-panel">
-        <label className="toolbar">
-          Search users
+        <div className="toolbar">
+          <Search size={18} />
           <input
+            aria-label="Search users"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search records"
+            placeholder="Search users"
           />
-        </label>
+          <span>{filtered.length} records</span>
+        </div>
         <table>
           <thead>
             <tr>
@@ -79,16 +90,7 @@ export function UserAdmin() {
             </tr>
           </thead>
           <tbody>
-            {Array.isArray(data) &&
-              data
-                .filter((r: Row) =>
-                  [r.username, r.email]
-                    .filter(Boolean)
-                    .join(" ")
-                    .toLowerCase()
-                    .includes(search.toLowerCase()),
-                )
-                .map((r: Row) => (
+            {filtered.map((r: Row) => (
                   <tr key={r.id}>
                     <td>
                       {r.username}

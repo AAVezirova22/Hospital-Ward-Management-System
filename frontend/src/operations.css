@@ -376,6 +376,13 @@
   padding: 28px;
   border-radius: 20px;
   font-variant-numeric: tabular-nums;
+  transition:
+    background 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.operation-stat:hover {
+  background: var(--accent-soft);
+  transform: translateY(-2px);
 }
 .operation-stat > span {
   color: var(--muted);
@@ -415,7 +422,7 @@
   margin-bottom: 24px;
 }
 .operations-bottom .panel,
-.operations-overview > section.panel {
+.operations-overview > .panel {
   padding: 26px;
 }
 .attention-list > div {
@@ -467,6 +474,12 @@
   color: var(--muted);
   border-radius: 6px;
   padding: 6px;
+  transition:
+    background 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    outline-color 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.daily-chart button:hover {
+  background: var(--accent-soft);
 }
 .daily-chart button.selected {
   background: var(--surface);
@@ -496,6 +509,10 @@
 .chart-legend {
   color: var(--muted);
   font-size: 12px;
+}
+.updated-note {
+  display: block;
+  margin-top: 18px;
 }
 .demo-access {
   border-top: 1px solid var(--line);

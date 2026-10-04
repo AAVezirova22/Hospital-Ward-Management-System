@@ -8,6 +8,7 @@ import { OperationsOverview } from "./OperationsOverview";
 import { HospitalSimulation } from "../demo/HospitalSimulation";
 import { api, activeDepartment } from "../../api";
 import type { WorkspaceList } from "../../api/contracts";
+import { Reveal } from "../../cinematic";
 export function Dashboard({
   onAssistant = () => window.dispatchEvent(new Event("open-assistant")),
 }: { onAssistant?: () => void } = {}) {
@@ -45,8 +46,14 @@ export function Dashboard({
         </Title>
       </OverviewHero>
       <OperationsOverview />
-      <HospitalSimulation />
-      {user.role === "ADMIN" && <SystemHealth />}
+      <Reveal force>
+        <HospitalSimulation />
+      </Reveal>
+      {user.role === "ADMIN" && (
+        <Reveal force>
+          <SystemHealth />
+        </Reveal>
+      )}
     </>
   );
 }

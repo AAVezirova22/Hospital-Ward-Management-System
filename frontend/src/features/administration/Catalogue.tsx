@@ -9,7 +9,7 @@ import {
   Status,
   Title,
 } from "../../components/workspace";
-import { Plus, ArrowUpRight } from "../../icons";
+import { Plus, ArrowUpRight, Search } from "../../icons";
 import { useUrlState } from "../../components/useUrlState";
 import { EntityForm, configs } from "./EntityForm";
 export function Catalogue({ kind }: { kind: string }) {
@@ -41,17 +41,19 @@ export function Catalogue({ kind }: { kind: string }) {
       </Title>
       <ErrorBox error={error} />
       <section className="panel table-panel">
-        <label className="toolbar">
-          Search {kind}
+        <div className="toolbar">
+          <Search size={18} />
           <input
+            aria-label={`Search ${kind}`}
             value={search}
             onChange={(e) => {
               setPageText("0");
               setSearch(e.target.value);
             }}
-            placeholder="Search records"
+            placeholder={`Search ${kind}`}
           />
-        </label>
+          <span>{data?.totalElements ?? 0} records</span>
+        </div>
         <table>
           <thead>
             <tr>
