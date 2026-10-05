@@ -149,20 +149,52 @@ export const aiResponse = z.discriminatedUnion("responseType", [
   z.object({
     ...base,
     responseType: z.literal("CONFIRMATION_CARD"),
-    data: z
-      .object({
-        action: z
-          .object({
-            id: z.number().int().positive(),
-            actionType: z.enum(["ADMISSION", "TRANSFER", "DISCHARGE"]),
-            expiresAt: z.string().datetime(),
-            status: z.literal("PENDING"),
-          })
-          .passthrough(),
-        patient,
-        requiredRoomCapabilities: z.array(z.string()).default([]),
-      })
-      .passthrough(),
+    data: z.union([
+      z
+        .object({
+          action: z
+            .object({
+              id: z.number().int().positive(),
+              actionType: z.enum(["ADMISSION", "TRANSFER", "DISCHARGE"]),
+              expiresAt: z.string().datetime(),
+              status: z.literal("PENDING"),
+            })
+            .passthrough(),
+          patient,
+          requiredRoomCapabilities: z.array(z.string()).default([]),
+        })
+        .passthrough(),
+      z
+        .object({
+          action: z
+            .object({
+              id: z.number().int().positive(),
+              actionType: z.literal("APPOINTMENT"),
+              expiresAt: z.string().datetime(),
+              status: z.literal("PENDING"),
+            })
+            .passthrough(),
+          appointment: z
+            .object({
+              doctor: z
+                .object({
+                  id: z.number().int().positive(),
+                  firstName: z.string(),
+                  lastName: z.string(),
+                })
+                .passthrough(),
+              attendeeName: z.string().min(1),
+              startsAt: z.string().datetime(),
+              endsAt: z.string().datetime(),
+              durationMinutes: z.number().int().min(5).max(240),
+              timeZone: z.string(),
+              contact: z.string(),
+              notes: z.string(),
+            })
+            .passthrough(),
+        })
+        .passthrough(),
+    ]),
   }),
 ]);
 export type AiResponse = z.infer<typeof aiResponse>;

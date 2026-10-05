@@ -34,7 +34,7 @@ class AiSafetyTest {
     when(actor.doctor()).thenReturn(true);
     registry = new AiToolRegistry(hospital, mock(ReportService.class), actions, actor,
         mock(WorkspaceService.class), new DepartmentTimeService(mock(org.springframework.jdbc.core.JdbcTemplate.class)),
-        mock(com.example.hospital.service.AuditService.class));
+        mock(com.example.hospital.service.AuditService.class), mock(com.example.hospital.service.AppointmentService.class));
   }
 
   @Test
@@ -129,7 +129,7 @@ class AiSafetyTest {
     assertThat(response.message()).contains("standard hospital screens remain available");
     verify(interactions)
         .save(
-            argThat(i -> i.getStatus().equals("FAILED") && i.getModelIdentifier().equals("failure-fixture")));
+            argThat(i -> i.getStatus().equals("PROVIDER_UNAVAILABLE") && i.getModelIdentifier().equals("failure-fixture")));
     assertThatThrownBy(() -> service.message(new MessageInput(null, "status", null, null)))
         .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getStatus()).isEqualTo(429));
     verifyNoInteractions(hospital);

@@ -26,6 +26,7 @@ public class AiActionService {
   private final ObjectMapper json;
   private final int ttl;
   private final AiWorkflowService workflows;
+  private final AppointmentService appointments;
 
   public AiActionService(
       AiPendingActionRepository a,
@@ -36,7 +37,7 @@ public class AiActionService {
       AuditService au,
       ObjectMapper j,
       @Value("${app.ai.action-ttl-seconds}") int ttl,
-      AiWorkflowService workflows) {
+      AiWorkflowService workflows, AppointmentService appointments) {
     actions = a;
     lock = l;
     this.actor = actor;
@@ -46,12 +47,30 @@ public class AiActionService {
     json = j;
     this.ttl = ttl;
     this.workflows = workflows;
+    this.appointments = appointments;
   }
 
   public static class ExpiredActionException extends ApiException {
     public ExpiredActionException() {
       super(409, "ACTION_EXPIRED", "This proposal expired. Prepare a new one.");
     }
+  }
+
+  @Transactional
+  public Object prepareAppointment(AppointmentInput input) {
+    var preview = appointments.preview(input);
+    // Store the resolved Instant, not a wall time which could change if the department timezone changes.
+    var resolved = new AppointmentInput(input.doctorId(), input.attendeeName().trim(),
+        preview.get("startsAt").toString(), (Integer) preview.get("durationMinutes"), input.contact(), input.notes());
+    var action = new AiPendingAction();
+    action.setUserId(actor.user().getId());
+    action.setActionType("APPOINTMENT");
+    action.setExpiresAt(Instant.now().plusSeconds(ttl));
+    try { action.setPayload(json.writeValueAsString(resolved)); }
+    catch (Exception e) { throw new IllegalArgumentException(); }
+    actions.saveAndFlush(action);
+    audit.log("AI_ACTION_PREPARED", "AiPendingAction", action.getId(), "AI");
+    return Map.of("action", Views.pendingAction(action), "appointment", preview);
   }
 
   public record Payload(
@@ -218,6 +237,17 @@ public class AiActionService {
     }
     if (input != null && input.fieldDecisions() != null && !input.fieldDecisions().isEmpty())
       throw new ApiException(400, "INVALID_WORKFLOW_DECISION", "Field decisions are only accepted for workflow proposals.");
+    if (a.getActionType().equals("APPOINTMENT")) {
+      AppointmentInput booking;
+      try { booking = json.readValue(a.getPayload(), AppointmentInput.class); }
+      catch (Exception e) { throw new IllegalArgumentException(); }
+      var result = appointments.create(booking, "AI");
+      a.setStatus("EXECUTED");
+      a.setConfirmedAt(Instant.now());
+      actions.saveAndFlush(a);
+      audit.log("AI_ACTION_CONFIRMED", "AiPendingAction", a.getId(), "AI");
+      return result;
+    }
     Payload p;
     try {
       p = json.readValue(a.getPayload(), Payload.class);

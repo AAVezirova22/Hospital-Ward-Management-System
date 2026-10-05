@@ -22,6 +22,29 @@ public class LocalModelClient implements AiModelClient {
         ".*(password|execute|delete from|ignore"
             + " previous|medication|diagnos|treatment|triage|administrator access|shell|grant"
             + " admin).*")) return new ToolCall("help", Map.of());
+    var booking = Pattern.compile(
+        "^(?:book|prepare) appointment with (.+?) on (\\S+) for (.+?)(?: duration (\\d+))?$",
+        Pattern.CASE_INSENSITIVE).matcher(s);
+    if (booking.matches()) {
+      a.put("doctorQuery", booking.group(1));
+      a.put("startsAt", booking.group(2));
+      a.put("attendeeName", booking.group(3));
+      if (booking.group(4) != null) a.put("durationMinutes", booking.group(4));
+      return new ToolCall("prepareAppointment", a);
+    }
+    var availability = Pattern.compile(
+        "^check availability (?:for |with )?(.+?) on (\\S+)(?: duration (\\d+))?$",
+        Pattern.CASE_INSENSITIVE).matcher(s);
+    if (availability.matches()) {
+      a.put("doctorQuery", availability.group(1));
+      a.put("startsAt", availability.group(2));
+      if (availability.group(3) != null) a.put("durationMinutes", availability.group(3));
+      return new ToolCall("getDoctorAvailability", a);
+    }
+    if (l.startsWith("appointments with ") || l.startsWith("show appointments with ")) {
+      a.put("doctorQuery", s.replaceFirst("(?i)^(?:show )?appointments with ", ""));
+      return new ToolCall("getDoctorAppointments", a);
+    }
     if (l.startsWith("open ")) {
       String route = s.substring(5).toLowerCase();
       if (List.of(

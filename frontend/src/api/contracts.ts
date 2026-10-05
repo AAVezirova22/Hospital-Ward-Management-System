@@ -44,6 +44,35 @@ export interface Doctor extends Entity {
   specialty: string;
   active: boolean;
 }
+export interface DoctorAppointment {
+  id: number;
+  version: number;
+  doctor: Doctor;
+  attendeeName: string;
+  contact: string;
+  notes: string;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  timeZone: string;
+  status: "SCHEDULED" | "CANCELLED";
+  cancelledAt: string | null;
+  createdAt: string;
+}
+export interface AppointmentPage {
+  appointments: PageResult<DoctorAppointment>;
+  timeZone: string;
+}
+export interface DoctorAvailability {
+  doctor: Doctor;
+  available: boolean;
+  reason: string;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  timeZone: string;
+  conflicts: { startsAt: string; endsAt: string }[];
+}
 export interface RoomCapacity extends Entity {
   roomNumber: string;
   bedCount: number;

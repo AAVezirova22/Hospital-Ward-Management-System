@@ -16,7 +16,9 @@ export function LiveOperations() {
         void client.invalidateQueries({
           predicate: (q) =>
             typeof q.queryKey[0] === "string" &&
-            /^\/(rooms|admissions|patients|reports|audit)/.test(q.queryKey[0]),
+            /^\/(rooms|admissions|appointments|patients|reports|audit)/.test(
+              q.queryKey[0],
+            ),
         });
       }, 250);
     };

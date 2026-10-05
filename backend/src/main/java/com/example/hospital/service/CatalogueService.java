@@ -44,6 +44,7 @@ public class CatalogueService {
   private final AdmissionRepository admissions;
   private final RoomAssignmentRepository assignments;
   private final AuditService audit;
+  private final com.example.hospital.repository.DoctorAppointmentRepository appointments;
 
   public CatalogueService(
       HospitalService hospital,
@@ -55,7 +56,7 @@ public class CatalogueService {
       MedicalProcedureRepository catalogue,
       AdmissionRepository admissions,
       AuditService audit,
-      RoomAssignmentRepository assignments) {
+      RoomAssignmentRepository assignments, com.example.hospital.repository.DoctorAppointmentRepository appointments) {
     this.hospital = hospital;
     this.lock = lock;
     this.actor = actor;
@@ -65,6 +66,7 @@ public class CatalogueService {
     this.catalogue = catalogue;
     this.admissions = admissions;
     this.assignments = assignments;
+    this.appointments = appointments;
     this.audit = audit;
   }
 
@@ -205,6 +207,8 @@ public class CatalogueService {
     if (!in.active() && id != null && admissions.existsByAttendingDoctorIdAndStatus(id, "ACTIVE"))
       throw ApiException.conflict(
           "DOCTOR_HAS_PATIENTS", "Reassign active admissions before deactivating this doctor.");
+    if (!in.active() && id != null && appointments.existsByDoctorIdAndCancelledAtIsNullAndEndsAtAfter(id, Instant.now()))
+      throw ApiException.conflict("DOCTOR_HAS_APPOINTMENTS", "Cancel upcoming appointments before deactivating this doctor.");
     d.setDoctorIdentifier(in.doctorIdentifier().trim());
     d.setFirstName(in.firstName().trim());
     d.setLastName(in.lastName().trim());

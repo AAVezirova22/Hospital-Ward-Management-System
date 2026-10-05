@@ -73,6 +73,8 @@ GitHub Actions runs backend tests, TypeScript compilation, a production frontend
 
 ## Assistant modes
 
+Doctor appointments are available from **Doctors → Appointments**, with availability checks, booking, cancellation and assistant confirmation. The owner's existing OpenClaw iMessage setup can operate the same authenticated local form. See [doctor appointments and booking](docs/appointments.md) for time-zone rules, API details and verification.
+
 | Mode | Configuration | Behavior |
 | --- | --- | --- |
 | `local` | Default | Deterministic offline command interpreter, visibly labeled in the UI. No external model or credentials required. |
@@ -147,4 +149,4 @@ The workspace includes a staged ward planner, read-only arrival simulations, ope
 
 Confirmation messages use a PostgreSQL outbox. Account creation and the delivery request commit together, so temporary provider outages leave a disabled account with a queued confirmation message. Workers retry with bounded backoff and a stable provider idempotency key. The pending outbox briefly contains the one-time confirmation token and recipient; it clears these after delivery, replacement, verification or expiry. See [email registration operations](docs/deployment.md#email-registration) for its polling settings and database handling.
 
-See [deployment and email setup](docs/deployment.md) for the seeded PostgreSQL Render Blueprint and required private environment settings. See [iMessage integration options](docs/imessage-integration.md) for existing gateways and the future account-linking design. iMessage is documented, not connected.
+See [deployment and email setup](docs/deployment.md) for the seeded PostgreSQL Render Blueprint and required private environment settings. See [iMessage integration options](docs/imessage-integration.md) for the owner's local OpenClaw browser setup and the future account-linking design.
