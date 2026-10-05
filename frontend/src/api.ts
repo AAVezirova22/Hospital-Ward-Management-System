@@ -164,7 +164,9 @@ export async function api<T = any>(
           : path.endsWith("/confirm")
             ? "Confirmed action completed"
             : path.endsWith("/cancel")
-              ? "Proposal cancelled"
+              ? path.startsWith("/appointments/")
+                ? "Appointment cancelled"
+                : "Proposal cancelled"
               : path === "/workspaces/join"
                 ? "Workspace joined"
                 : path === "/workspaces/hospitals"
@@ -180,54 +182,52 @@ export async function api<T = any>(
   return result;
 }
 export async function allPages<T>(path: string): Promise<T[]> {
-const separator = path.indexOf("?");
-const endpoint = separator < 0 ? path : path.slice(0, separator);
-const params = new URLSearchParams(
-  separator < 0 ? "" : path.slice(separator + 1),
-);
-params.set("page", "0");
-params.set("size", "100");
-
-const rows: T[] = [];
-const visited = new Set<number>();
-let page = 0;
-
-while (!visited.has(page)) {
-  visited.add(page);
-  params.set("page", String(page));
-
-  const result = await api<PageResult<T>>(
-    `${endpoint}?${params.toString()}`,
+  const separator = path.indexOf("?");
+  const endpoint = separator < 0 ? path : path.slice(0, separator);
+  const params = new URLSearchParams(
+    separator < 0 ? "" : path.slice(separator + 1),
   );
+  params.set("page", "0");
+  params.set("size", "100");
 
-  if (!result || !Array.isArray(result.items))
-    throw new ApiError(
-      502,
-      "INVALID_PAGINATION",
-      "The department service returned an invalid page.",
-    );
+  const rows: T[] = [];
+  const visited = new Set<number>();
+  let page = 0;
 
-  rows.push(...result.items);
+  while (!visited.has(page)) {
+    visited.add(page);
+    params.set("page", String(page));
 
-  if (!result.hasNext) return rows;
+    const result = await api<PageResult<T>>(`${endpoint}?${params.toString()}`);
 
-  const nextPage = result.nextPage ?? result.page + 1;
+    if (!result || !Array.isArray(result.items))
+      throw new ApiError(
+        502,
+        "INVALID_PAGINATION",
+        "The department service returned an invalid page.",
+      );
 
-  if (!Number.isInteger(nextPage) || nextPage <= page)
-    throw new ApiError(
-      502,
-      "INVALID_PAGINATION",
-      "The department service returned invalid page navigation.",
-    );
+    rows.push(...result.items);
 
-  page = nextPage;
-}
+    if (!result.hasNext) return rows;
 
-throw new ApiError(
-  502,
-  "INVALID_PAGINATION",
-  "The department service returned a repeated page.",
-);
+    const nextPage = result.nextPage ?? result.page + 1;
+
+    if (!Number.isInteger(nextPage) || nextPage <= page)
+      throw new ApiError(
+        502,
+        "INVALID_PAGINATION",
+        "The department service returned invalid page navigation.",
+      );
+
+    page = nextPage;
+  }
+
+  throw new ApiError(
+    502,
+    "INVALID_PAGINATION",
+    "The department service returned a repeated page.",
+  );
 }
 
 export async function downloadFile(
@@ -258,10 +258,8 @@ export async function downloadFile(
   }
 
   const disposition = r.headers.get("content-disposition") || "";
-  const encodedFilename =
-    disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  const plainFilename =
-    disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plainFilename = disposition.match(/filename="?([^";]+)"?/i)?.[1];
 
   const filename = encodedFilename
     ? decodeURIComponent(encodedFilename)

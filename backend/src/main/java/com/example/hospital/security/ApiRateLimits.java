@@ -31,6 +31,7 @@ public class ApiRateLimits {
       Set.of(
           "/api/v1/patients",
           "/api/v1/admissions",
+          "/api/v1/appointments",
           "/api/v1/doctors",
           "/api/v1/rooms",
           "/api/v1/procedures",
@@ -118,6 +119,7 @@ public class ApiRateLimits {
     if ("GET".equals(method)) {
       if (path.startsWith("/api/v1/reports/")) return path.endsWith(".csv") ? "exports" : "reports";
       if (SEARCH_PATHS.contains(path)) return "search";
+      if (path.matches("/api/v1/doctors/\\d+/availability")) return "search";
     }
     return null;
   }

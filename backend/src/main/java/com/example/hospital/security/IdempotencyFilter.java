@@ -42,6 +42,8 @@ public class IdempotencyFilter extends OncePerRequestFilter {
   static final List<Pattern> PATHS =
       List.of(
           Pattern.compile("/api/v1/patients"),
+          Pattern.compile("/api/v1/appointments"),
+          Pattern.compile("/api/v1/appointments/\\d+/cancel"),
           Pattern.compile("/api/v1/admissions"),
           Pattern.compile("/api/v1/admissions/\\d+/(transfer|discharge|doctor|procedures)"),
           Pattern.compile("/api/v1/ai-actions/\\d+/confirm"),

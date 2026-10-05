@@ -19,10 +19,11 @@ public class AiToolRegistry {
   private final WorkspaceService workspaces;
   private final DepartmentTimeService departmentTime;
   private final AuditService audit;
+  private final AppointmentService appointments;
 
   public AiToolRegistry(
       HospitalService h, ReportService reports, AiActionService a, Actor actor, WorkspaceService workspaces,
-      DepartmentTimeService departmentTime, AuditService audit) {
+      DepartmentTimeService departmentTime, AuditService audit, AppointmentService appointments) {
     this.h = h;
     this.reports = reports;
     actions = a;
@@ -30,6 +31,7 @@ public class AiToolRegistry {
     this.workspaces = workspaces;
     this.departmentTime = departmentTime;
     this.audit = audit;
+    this.appointments = appointments;
   }
 
   public record Response(
@@ -121,6 +123,9 @@ public class AiToolRegistry {
 
   private static String toolDescription(String name) {
     return switch (name) {
+      case "getDoctorAppointments" -> "List a doctor's saved appointments in the current department. Optional from/to use YYYY-MM-DD. Doctors can read only their own schedule.";
+      case "getDoctorAvailability" -> "Check a requested doctor's appointment window for conflicts. startsAt is a full ISO date and time in the department timezone, or includes an explicit offset. Default durationMinutes is 30. A free window is not reserved.";
+      case "prepareAppointment" -> "Prepare an appointment for confirmation; this does not book yet. Require an unambiguous doctor, attendeeName and future startsAt with full date/time. Ask for missing details; never infer a booking name. Default durationMinutes is 30; disclose the duration and department timezone. Confirmation rechecks conflicts.";
       case "getAvailableRooms" ->
           "Find active rooms with free beds. requiredCapabilities is an optional comma-separated list of tags; incompatible or unavailable rooms are returned separately with reasons.";
       case "getRoomOccupancy" ->
@@ -184,11 +189,26 @@ public class AiToolRegistry {
     var a = call.arguments();
     try {
       return switch (call.name()) {
+      case "getDoctorAppointments" -> response("REPORT_RESULT", "Saved doctor appointments in the department timezone.",
+          appointments.list(doctor(a.getOrDefault("doctorQuery", "")).getId(),
+              a.containsKey("from") ? dateArg(a.get("from")) : null,
+              a.containsKey("to") ? dateArg(a.get("to")) : null, "SCHEDULED", "", 0, 100));
+      case "getDoctorAvailability" -> response("REPORT_RESULT", "Appointment availability; no time has been reserved.",
+          appointments.availability(doctor(a.getOrDefault("doctorQuery", "")).getId(), a.get("startsAt"),
+              a.containsKey("durationMinutes") ? intArg(a.get("durationMinutes")) : 30));
+      case "prepareAppointment" -> {
+        var input = new AppointmentInput(doctor(a.getOrDefault("doctorQuery", "")).getId(),
+            a.get("attendeeName"), a.get("startsAt"),
+            a.containsKey("durationMinutes") ? intArg(a.get("durationMinutes")) : 30,
+            a.get("contact"), a.get("notes"));
+        yield response("CONFIRMATION_CARD", "Review the appointment name, doctor, duration and timezone. Confirm to reserve this time.",
+            actions.prepareAppointment(input));
+      }
       case "help" ->
           response(
               "TEXT",
               "I can find patients, show room capacity, summarize records, report procedures, list"
-                  + " your hospitals and prepare admissions, transfers or discharges. Tools stay"
+                  + " your hospitals, check doctor schedules and prepare appointments, admissions, transfers or discharges. Tools stay"
                   + " inside the open department unless you ask for listWorkspaces. I cannot make"
                   + " clinical decisions or change permissions.",
               Map.of());

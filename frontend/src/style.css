@@ -1496,3 +1496,30 @@ footer .live-dot {
     gap: 4px;
   }
 }
+/* Appointments share the existing directory surfaces and form controls. */
+.appointment-tabs { display: flex; gap: .5rem; margin-bottom: 1.25rem; }
+.appointment-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 1.25rem; align-items: start; }
+.appointment-heading { display: flex; justify-content: space-between; align-items: start; gap: 1rem; padding: 1.25rem; }
+.appointment-heading h2, .appointment-booking h2 { margin: 0 0 .5rem; }
+.appointment-heading p, .appointment-booking > p { font-size: .875rem; line-height: 1.6; margin: 0; }
+.appointment-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; padding: 0 1.25rem 1.25rem; }
+.appointment-filters label, .appointment-fields label { display: flex; flex-direction: column; gap: .4rem; font-size: .85rem; }
+.appointment-search { grid-column: 1 / -1; }
+.appointment-table-scroll { overflow-x: auto; }
+.appointment-schedule table { min-width: 650px; table-layout: fixed; white-space: normal; }
+.appointment-schedule th, .appointment-schedule td { padding: 1rem .75rem; overflow-wrap: anywhere; }
+.appointment-schedule th:nth-child(1) { width: 24%; }
+.appointment-schedule th:nth-child(2) { width: 25%; }
+.appointment-schedule th:nth-child(3) { width: 23%; }
+.appointment-schedule th:nth-child(4) { width: 12%; }
+.appointment-schedule .text-button { white-space: normal; text-align: left; }
+.appointment-booking { padding: 1.25rem; }
+.appointment-booking .form-grid { margin-top: 1rem; }
+.appointment-fields { display: grid; grid-template-columns: 1fr; gap: 1rem; padding: 0; border: 0; margin: 0; min-width: 0; }
+.appointment-fields:disabled { opacity: .65; }
+.appointment-fields .actions { flex-wrap: wrap; }
+.appointment-available { color: var(--success, #26704b); font-size: .875rem; line-height: 1.6; }
+.appointment-feedback { grid-column: 1 / -1; }
+.appointment-cancel-review { display: flex; flex-direction: column; align-items: start; gap: .5rem; }
+@media (max-width: 1100px) { .appointment-workspace { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 540px) { .appointment-filters { grid-template-columns: minmax(0, 1fr); } .appointment-heading { flex-direction: column; } }

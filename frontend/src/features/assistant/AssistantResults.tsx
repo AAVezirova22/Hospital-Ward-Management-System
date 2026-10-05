@@ -6,6 +6,7 @@ import { ArrowUpRight, ArrowRight } from "../../icons";
 import { safeRoute } from "../../ai-contract";
 import { ProposalPreview } from "./ProposalPreview";
 import type { AdmissionView, RoomCapacity } from "../../api/contracts";
+import { appointmentTime } from "../../date-time";
 
 function asRow(value: unknown): Row {
   return (value && typeof value === "object" ? value : {}) as Row;
@@ -15,6 +16,41 @@ function asRows(value: unknown): Row[] {
 }
 
 export function AiReport({ data: d }: { data: Row }) {
+  if (typeof d.available === "boolean")
+    return (
+      <p>
+        {d.available ? "Available" : "Unavailable"}: {d.reason} Dr.{" "}
+        {fullName(d.doctor)} · {appointmentTime(d.startsAt, d.timeZone)} ·{" "}
+        {d.durationMinutes} minutes ({d.timeZone}). No time has been reserved.
+      </p>
+    );
+  if (d.appointments)
+    return (
+      <>
+        <p>
+          {d.appointments.totalElements} appointments · {d.timeZone}
+        </p>
+        {asRows(d.appointments.items).map((a) => (
+          <div className="result-row" key={a.id}>
+            <span>
+              {a.attendeeName}
+              <small>
+                Dr. {fullName(a.doctor)} ·{" "}
+                {appointmentTime(a.startsAt, a.timeZone)} · {a.durationMinutes}{" "}
+                minutes
+              </small>
+            </span>
+            <Status value={a.status} />
+          </div>
+        ))}
+        {d.appointments.hasNext && (
+          <p>
+            Showing the first page. Open Doctors → Appointments to view the
+            complete schedule.
+          </p>
+        )}
+      </>
+    );
   if (d.activeAdmissions !== undefined)
     return (
       <div className="ai-stats">
@@ -114,17 +150,22 @@ export function AssistantTurn({
             <ArrowUpRight size={16} />
           </button>
         ))}
-      {r.responseType === "ROOM_LIST" &&
+      {r.responseType === "ROOM_LIST" && (
         <>
           {asRows(d.requiredCapabilities).length > 0 && (
-            <p>Required capabilities: {asRows(d.requiredCapabilities).join(", ")}.</p>
+            <p>
+              Required capabilities: {asRows(d.requiredCapabilities).join(", ")}
+              .
+            </p>
           )}
           {asRows(d.rooms).map((room: Row) => (
             <div className="result-row" key={room.id}>
               <span>
                 Room {String(room.roomNumber ?? "")}
                 {asRows(room.capabilities).length > 0 && (
-                  <small>Capabilities: {asRows(room.capabilities).join(", ")}</small>
+                  <small>
+                    Capabilities: {asRows(room.capabilities).join(", ")}
+                  </small>
                 )}
               </span>
               <strong>{String(room.availableBeds ?? 0)} free</strong>
@@ -134,20 +175,19 @@ export function AssistantTurn({
             <div className="result-row" key={room.id}>
               <span>
                 Room {String(room.roomNumber ?? "")}
-                <small>{String(room.reason ?? "Excluded from placement search.")}</small>
+                <small>
+                  {String(room.reason ?? "Excluded from placement search.")}
+                </small>
               </span>
               <strong>Excluded</strong>
             </div>
           ))}
         </>
-      }
+      )}
       {r.responseType === "PATIENT_SUMMARY" && (
         <>
           <h3>{fullName(asRow(d.patient))}</h3>
-          <p>
-            {asRows(d.admissions).length} recorded
-            hospitalizations.
-          </p>
+          <p>{asRows(d.admissions).length} recorded hospitalizations.</p>
           {asRows(d.admissions).map((v: Row) => (
             <div className="result-row" key={asRow(v.admission).id}>
               <span>
@@ -168,9 +208,7 @@ export function AssistantTurn({
           </button>
         </>
       )}
-      {r.responseType === "REPORT_RESULT" && (
-        <AiReport data={d} />
-      )}
+      {r.responseType === "REPORT_RESULT" && <AiReport data={d} />}
       {r.responseType === "NAVIGATION_COMMAND" && (
         <button
           className="primary"
@@ -190,16 +228,46 @@ export function AssistantTurn({
           <span className="eyebrow">
             {String(action.actionType ?? "")} proposal
           </span>
-          <h3>{fullName(asRow(d.patient))}</h3>
-          <ProposalPreview
-            current={current}
-            destination={destination}
-            actionType={String(action.actionType ?? "")}
-            requiredRoomCapabilities={Array.isArray(d.requiredRoomCapabilities)
-              ? d.requiredRoomCapabilities.map(String)
-              : current?.admission.requiredRoomCapabilities ?? []}
-            expiresAt={String(action.expiresAt ?? "")}
-          />
+          <h3>
+            {action.actionType === "APPOINTMENT"
+              ? String(asRow(d.appointment).attendeeName)
+              : fullName(asRow(d.patient))}
+          </h3>
+          {action.actionType === "APPOINTMENT" ? (
+            <>
+              <p>Doctor: Dr. {fullName(asRow(asRow(d.appointment).doctor))}</p>
+              <p>
+                {appointmentTime(
+                  String(asRow(d.appointment).startsAt),
+                  String(asRow(d.appointment).timeZone),
+                )}{" "}
+                · {String(asRow(d.appointment).durationMinutes)} minutes (
+                {String(asRow(d.appointment).timeZone)})
+              </p>
+              {asRow(d.appointment).contact && (
+                <p>Contact: {String(asRow(d.appointment).contact)}</p>
+              )}
+              {asRow(d.appointment).notes && (
+                <p>Notes: {String(asRow(d.appointment).notes)}</p>
+              )}
+              <p>
+                This time is not reserved until you confirm. Availability and
+                access are checked again on confirmation.
+              </p>
+            </>
+          ) : (
+            <ProposalPreview
+              current={current}
+              destination={destination}
+              actionType={String(action.actionType ?? "")}
+              requiredRoomCapabilities={
+                Array.isArray(d.requiredRoomCapabilities)
+                  ? d.requiredRoomCapabilities.map(String)
+                  : (current?.admission.requiredRoomCapabilities ?? [])
+              }
+              expiresAt={String(action.expiresAt ?? "")}
+            />
+          )}
           {current && (
             <p>
               Current room:{" "}
@@ -209,9 +277,7 @@ export function AssistantTurn({
               }
             </p>
           )}
-          {destination && (
-            <p>Destination: Room {destination.roomNumber}</p>
-          )}
+          {destination && <p>Destination: Room {destination.roomNumber}</p>}
           {d.doctor && <p>Doctor: {fullName(asRow(d.doctor))}</p>}
           <p>Expires {date(String(action.expiresAt ?? ""))}</p>
           {r.done ? (
@@ -228,7 +294,8 @@ export function AssistantTurn({
               <button
                 className="primary"
                 disabled={
-                  busy || Date.parse(String(action.expiresAt ?? "")) <= Date.now()
+                  busy ||
+                  Date.parse(String(action.expiresAt ?? "")) <= Date.now()
                 }
                 onClick={() => onAction(Number(action.id), "confirm", i)}
               >
@@ -241,4 +308,3 @@ export function AssistantTurn({
     </div>
   );
 }
-

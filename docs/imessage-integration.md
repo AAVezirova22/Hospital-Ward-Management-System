@@ -1,6 +1,6 @@
 # iMessage access to the operations assistant
 
-Status: researched and documented, **not connected or implemented**. The project owner chose to document options until a messaging provider or Mac is available. The responsive website and its assistant button do not provide iMessage access.
+Status: the owner's Mac has an existing **OpenClaw iMessage gateway** and an approved sender. Its authenticated browser can use the local Docker application, including [doctor appointment booking](appointments.md). This configuration lives outside the repository. Medcore has no server-side messaging bridge or sender-to-account linking flow; the local demo browser acts under its signed-in staff account.
 
 ## Existing integration options
 
@@ -15,7 +15,7 @@ Sendblue documents [inbound webhooks](https://docs.sendblue.com/getting-started/
 
 ## Medcore connection contract
 
-The gateway is reusable, but neither product is a prebuilt Medcore adapter. A small authenticated application adapter remains necessary:
+For a deployment with separately authorized messaging users, the gateway is reusable but neither product is a prebuilt Medcore adapter. An authenticated application adapter would need to:
 
 1. Link a sender to a signed-in Medcore staff account through a short-lived, single-use pairing challenge. Do not grant access merely because a phone number matches an editable patient record.
 2. Authenticate inbound callbacks, deduplicate message IDs, reject group conversations, rate-limit requests, and allow disconnecting a linked sender.
@@ -37,4 +37,4 @@ Patient accounts currently cannot use the staff operations assistant. Linking a 
 - Provider failures preserve saved hospital state and do not leak secrets into logs.
 - Disconnecting the gateway revokes access without changing a user's normal login.
 
-No new integration should be enabled until one of the provider options is selected and the account-linking flow is reviewed.
+The existing owner-controlled demo uses browser automation. A separate multi-user deployment needs a reviewed account-linking flow before enabling messaging access to hospital records.

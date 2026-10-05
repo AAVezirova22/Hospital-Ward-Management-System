@@ -2,6 +2,25 @@
 
 Date: 2026-09-19. All bundled sample data is synthetic.
 
+## Doctor appointment checks (2026-10-05)
+
+Implemented on `add-appointments`, based on `main`.
+
+| Check | Result |
+| --- | --- |
+| Complete backend suite with PostgreSQL 17 Testcontainers | **348 passed, 0 failures, 0 errors** |
+| Clean executable WAR packaging | Passed; cleaned stale duplicate generated classes that had prevented local repackaging |
+| Frontend TypeScript and unit tests | Passed; **63 tests** in 12 files |
+| Production Next.js build and final Docker image builds | Passed |
+| Live Docker appointment browser check | Passed: booking, persisted schedule, rejected overlap, cancellation, released availability, assistant confirmation; 1440px desktop and 390px phone inspected |
+| OpenClaw configured agent using its live staff browser | Passed: ordinary form booked synthetic appointment #5 with Elena Dimitrova for 2028-11-03 16:30 UTC, verified its scheduled row, cancelled it and verified free availability |
+| Independent local database/audit check | #5 is cancelled; both `APPOINTMENT_BOOKED` and `APPOINTMENT_CANCELLED` recorded |
+| Existing iMessage gateway probe | Gateway reachable; channel enabled, configured, running, connected, works |
+
+The browser suite used the real API and database, with a browser in `America/New_York` to check that appointment fields and receipts still use the department's UTC time zone. Its synthetic reservations were cancelled afterward. OpenClaw used the owner's configured live model in an isolated session, with message delivery disabled. A fresh physical incoming iMessage is a separate transport check; the probe and isolated agent test do not prove receipt of a particular sender message. OpenClaw's persistent booking instructions were saved in its workspace outside this repository with a backup.
+
+Full-suite verification also corrected existing test-order dependencies in reminder/audit tests, aligned the AI provider-failure expectation with the current response code, and fixed case-preserving SQL aliases for patient-visible care summaries.
+
 ## Care pathway implementation checks (2026-09-25)
 
 | Check | Result |

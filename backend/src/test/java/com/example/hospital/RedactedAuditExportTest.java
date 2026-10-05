@@ -13,7 +13,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class RedactedAuditExportTest extends HospitalSupport {
-  private static final String EXPORT = "/api/v1/audit/export.csv?eventType=PATIENT_CREATED&limit=50";
+  private static final String EXPORT = "/api/v1/audit/export.csv?eventType=PATIENT_CREATED&limit=1000";
 
   @Test
   void redactedProfilePseudonymisesActorsAndDropsIdentifiersAndMetadata() throws Exception {
@@ -39,12 +39,14 @@ class RedactedAuditExportTest extends HospitalSupport {
     List<String> actors = lines.stream().skip(1).map(line -> line.split(",")[2]).distinct().toList();
     assertThat(actors).allMatch(actor -> actor.matches("A\\d+")).contains("A1", "A2");
     String body = response.getContentAsString();
-    assertThat(body)
-        .doesNotContain(byAdmin.get("id").asText() + ",")
-        .doesNotContain("id=" + byStaff.get("id").asText())
-        .doesNotContain("{event=")
-        .doesNotContain("," + adminId + ",")
-        .doesNotContain("," + staffId + ",");
+    // Numeric audit IDs may equal patient/account IDs by coincidence. Check the projection,
+    // rather than forbidding those digit strings in unrelated, intentionally retained columns.
+    assertThat(lines.stream().skip(1).map(line -> line.split(",", -1)))
+        .allSatisfy(columns -> {
+          assertThat(columns).hasSize(7);
+          assertThat(columns[2]).matches("A\\d+");
+        });
+    assertThat(body).doesNotContain("id=" + byStaff.get("id").asText(), "{event=");
 
     var exportAudit =
         result(request("admin", "GET", "/api/v1/audit?eventType=DATA_EXPORTED&page=0&size=1", null), 200);

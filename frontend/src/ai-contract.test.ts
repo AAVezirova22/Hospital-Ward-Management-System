@@ -2,6 +2,49 @@ import { describe, it, expect } from "vitest";
 import { aiResponse, safeRoute } from "./ai-contract";
 const base = { message: "Result", sessionId: "session-1", model: "test" };
 describe("assistant response boundaries", () => {
+  it("requires complete appointment proposals without requiring an existing patient record", () => {
+    const proposal = {
+      ...base,
+      responseType: "CONFIRMATION_CARD",
+      data: {
+        action: {
+          id: 4,
+          actionType: "APPOINTMENT",
+          expiresAt: "2030-11-02T14:25:00Z",
+          status: "PENDING",
+        },
+        appointment: {
+          doctor: { id: 1, firstName: "Elena", lastName: "Dimitrova" },
+          attendeeName: "Aleksandar Kolev",
+          startsAt: "2030-11-02T14:30:00Z",
+          endsAt: "2030-11-02T15:00:00Z",
+          durationMinutes: 30,
+          timeZone: "Europe/Sofia",
+          contact: "",
+          notes: "",
+        },
+      },
+    };
+    expect(aiResponse.safeParse(proposal).success).toBe(true);
+    expect(
+      aiResponse.safeParse({
+        ...proposal,
+        data: {
+          ...proposal.data,
+          appointment: { ...proposal.data.appointment, attendeeName: "" },
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      aiResponse.safeParse({
+        ...proposal,
+        data: {
+          ...proposal.data,
+          appointment: { ...proposal.data.appointment, durationMinutes: 0 },
+        },
+      }).success,
+    ).toBe(false);
+  });
   it("accepts populated workflow fields and structured text data in Zod 4", () => {
     const result = aiResponse.parse({
       ...base,

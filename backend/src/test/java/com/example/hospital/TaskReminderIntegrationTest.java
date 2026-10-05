@@ -68,6 +68,7 @@ class TaskReminderIntegrationTest extends HospitalSupport {
   @Test
   void reminderAndSubscriptionChangesAreAuditedWithoutSecrets() throws Exception {
     long userId = jdbc.queryForObject("select id from app_users where username='admin'", Long.class);
+    long before = jdbc.queryForObject("select count(*) from audit_events where event_type='TASK_REMINDER_PREFERENCES_UPDATED' and user_id=?", Long.class, userId);
     String secretEndpoint = "https://fcm.googleapis.com/send/" + UUID.randomUUID();
 
     Map<String, Object> optedIn = new HashMap<>();
@@ -93,7 +94,7 @@ class TaskReminderIntegrationTest extends HospitalSupport {
 
     assertThat(jdbc.queryForObject(
         "select count(*) from audit_events where event_type='TASK_REMINDER_PREFERENCES_UPDATED'"
-            + " and user_id=?", Long.class, userId)).isEqualTo(2);
+            + " and user_id=?", Long.class, userId)).isEqualTo(before + 2);
     assertThat(jdbc.queryForObject(
         "select count(*) from audit_events where event_type='PUSH_SUBSCRIPTION_REVOKED' and entity_id=?",
         Long.class, subscriptionId)).isEqualTo(1);
@@ -111,15 +112,23 @@ class TaskReminderIntegrationTest extends HospitalSupport {
   @Test
   void strandedSendingRemindersAreReclaimedByTheDeliverySweep() throws Exception {
     long userId = jdbc.queryForObject("select id from app_users where username='admin'", Long.class);
+    // Build this test's own run: test order must not determine whether a workflow exists.
+    long patientId = jdbc.queryForObject("select min(id) from patients where department_id=1", Long.class);
+    long templateId = jdbc.queryForObject("insert into care_workflow_templates(department_id,name,draft_definition,created_by) values (1,?,'{}',?) returning id",
+        Long.class, "Stranded reminder " + UUID.randomUUID(), userId);
+    long versionId = jdbc.queryForObject("insert into care_workflow_versions(department_id,template_id,version_number,definition,published_by) values (1,?,1,'{}',?) returning id",
+        Long.class, templateId, userId);
+    long runId = jdbc.queryForObject("insert into care_workflow_runs(department_id,template_id,workflow_version_id,patient_id,trigger_type,trigger_source_id,status,triggered_by) values (1,?,?,?,'MANUAL',?,'ACTIVE',?) returning id",
+        Long.class, templateId, versionId, patientId, UUID.randomUUID().toString(), userId);
     // A reminder claimed by a process that then crashed stays SENDING forever: the delivery
     // sweep only selects PENDING/FAILED, so it is never retried and never cancelled.
     Instant due = Instant.now().plusSeconds(1800);
     long taskId = jdbc.queryForObject("""
         insert into care_tasks(department_id, workflow_run_id, template_task_key, title, owner_role,
           assigned_user_id, due_at, status, dependency_state)
-        select 1, (select min(id) from care_workflow_runs where department_id = 1), 'stranded-' || ?,
+        select 1, ?, 'stranded-' || ?,
           'Stranded reminder task', 'ADMIN', ?, ?, 'OPEN', 'READY' returning id
-        """, Long.class, UUID.randomUUID(), userId, Timestamp.from(due));
+        """, Long.class, runId, UUID.randomUUID(), userId, Timestamp.from(due));
     long stranded = jdbc.queryForObject("""
         insert into task_reminders(department_id, task_id, recipient_user_id, due_at, scheduled_at,
           action_token, status, attempt_count, last_attempt_at, next_attempt_at)

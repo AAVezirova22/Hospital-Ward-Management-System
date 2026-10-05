@@ -145,7 +145,7 @@ class PatientConsentIntegrationTest {
             Map.of("version", runVersion, "approved", false, "patientSummary", "Should not be published.")))
         .andExpect(status().isBadRequest()).andReturn();
     assertThat(json.readTree(unapproved.getResponse().getContentAsString()).path("code").asText())
-        .isEqualTo("REVIEW_REQUIRED");
+        .isEqualTo("VALIDATION_ERROR");
     assertThat(jdbc.queryForObject(
         "select count(*) from care_workflow_runs where id=? and summary_published_at is not null",
         Integer.class, runId)).isZero();

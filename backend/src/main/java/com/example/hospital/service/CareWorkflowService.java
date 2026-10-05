@@ -373,7 +373,7 @@ public class CareWorkflowService {
     // Only an explicitly published summary reaches the portal. The four columns below are the
     // complete patient-visible projection: no task, owner, provenance or internal note field.
     return jdbc.queryForList("""
-        select r.id, r.patient_summary as summary, r.launched_at as approvedAt, r.reviewed_at as reviewedAt
+        select r.id, r.patient_summary as summary, r.launched_at as "approvedAt", r.reviewed_at as "reviewedAt"
         from care_workflow_runs r where r.department_id=? and r.patient_id=? and r.status in ('ACTIVE','COMPLETED')
           and r.patient_summary is not null and r.patient_summary<>''
           and r.summary_published_at is not null
